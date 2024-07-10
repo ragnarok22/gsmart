@@ -8,18 +8,23 @@
     "start": "node ./dist/index.js"
   },
   "bin": {
-    "gsmart": "./dist/index.js"
+    "gsmart": "dist/index.js"
   },
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
-  "keywords": ["git", "smart", "gsmart", "smart commits"],
+  "keywords": [
+    "git",
+    "smart",
+    "gsmart",
+    "smart commits"
+  ],
   "homepage": "https://github.com/ragnarok22/gsmart",
   "bugs": {
     "url": "https://github.com/ragnarok22/gsmart/issues"
   },
   "repository": {
     "type": "git",
-    "url": "github:ragnarok22/gsmart"
+    "url": "git+https://github.com/ragnarok22/gsmart.git"
   },
   "dependencies": {
     "commander": "^12.1.0"
