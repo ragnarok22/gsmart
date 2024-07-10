@@ -1,0 +1,31 @@
+{
+  "name": "gsmart",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "exec": "node ./dist/index.js"
+  },
+  "keywords": ["git", "smart", "gsmart", "smart commits"],
+  "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
+  "license": "GPL-3.0-only",
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "typescript": "^5.5.3"
+  },
+  "bin": {
+    "gsmart": "./dist/index.js"
+  },
+  "homepage": "https://github.com/ragnarok22/gsmart",
+  "bugs": {
+    "url": "https://github.com/ragnarok22/gsmart/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:ragnarok22/gsmart"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  }
+}
