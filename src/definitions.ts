@@ -5,7 +5,7 @@ export interface ICommand {
   action: () => void;
 }
 
-export type Provider = "openai" | "anthropic" | "google";
+export type Provider = "openai" | "anthropic" | "google" | "mistral";
 
 export interface IProvider {
   title: string;

@@ -7,6 +7,7 @@ import { providers } from "./utils/ai";
 import config from "./utils/config";
 import { AIBuilder } from "./utils/ai";
 import { copyToClipboard } from "./utils";
+import { DEFAULT_PROVIDER } from "./utils/constants";
 
 const MainCommand: ICommand = {
   name: "generate",
@@ -23,12 +24,12 @@ const MainCommand: ICommand = {
     }
 
     const allKeys = config.getAllKeys();
-    if (!allKeys.openai && !allKeys.anthropic) {
+    if (!allKeys) {
       spinner.fail(chalk.red("No API keys found. Please run `gsmart login` to paste your API key."));
       return;
     }
 
-    const selectedProvider = allKeys.openai ? "openai" : "anthropic";
+    const selectedProvider = Object.keys(allKeys).find(key => allKeys[key]) || DEFAULT_PROVIDER;
     const ai = new AIBuilder(selectedProvider);
     const message = await ai.generateCommitMessage(branch, changes);
     if (typeof message === "object") {
@@ -44,6 +45,7 @@ const MainCommand: ICommand = {
       choices: [
         { title: "Commit", value: "commit" },
         { title: "Copy message to clipboard", value: "copy" },
+        { title: "Do nothing", value: "nothing" },
       ]
     });
 
@@ -55,6 +57,9 @@ const MainCommand: ICommand = {
       case "copy":
         await copyToClipboard(message);
         console.log(chalk.green("Message copied to clipboard"));
+        break;
+      case "nothing":
+        console.log(chalk.yellow("No action taken"));
         break;
     }
   }
@@ -92,6 +97,9 @@ const LoginCommand: ICommand = {
       case "anthropic":
         config.setAnthropicKey(key);
         break;
+      case "mistral":
+        config.setMistralKey(key);
+        break;
     }
   }
 }
@@ -101,6 +109,7 @@ const ResetCommand: ICommand = {
   description: "Reset the API key for a provider and remove the configuration",
   action: async () => {
     config.clear();
+    ora().succeed(chalk.green("Configuration reset successfully"));
   }
 }
 

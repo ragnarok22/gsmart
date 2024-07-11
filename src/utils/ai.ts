@@ -4,6 +4,7 @@ import { generateText } from "ai";
 import config from "./config";
 import { IProvider, Provider } from "../definitions";
 import { DEFAULT_PROVIDER } from "./constants";
+import { createMistral } from "@ai-sdk/mistral";
 
 export const providers: IProvider[] = [{
   title: "OpenAI",
@@ -20,6 +21,11 @@ export const providers: IProvider[] = [{
   value: "google",
   description: "Google AI is a division of Google dedicated to artificial intelligence.",
   active: false,
+}, {
+  title: "Mistral",
+  value: "mistral",
+  description: "Mistral is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
+  active: true,
 }]
 
 /**
@@ -77,6 +83,8 @@ export class AIBuilder {
         return this._generateAnthropic(branch_name, changes);
       case "google":
         return this._generateGoogle(branch_name, changes);
+      case "mistral":
+        return this._generateMistral(branch_name, changes);
     }
   }
 
@@ -103,8 +111,10 @@ export class AIBuilder {
       return text;
     } catch (e) {
       const error = e as Error;
+      const provider = model.provider.split('.')[0];
+      const message = error.message || "An error occurred while generating the commit message";
       return {
-        error: error.message || "An error occurred while generating the commit message"
+        error: `${provider} - ${message}`
       }
     }
   }
@@ -146,7 +156,17 @@ export class AIBuilder {
     return await this._generateText(model, branch_name, changes);
   }
 
-  private _generateGoogle(branch_name: string, changes: string) {
+  private async _generateMistral(branch_name: string, changes: string): Promise<string | { error: string }> {
+    const apiKey = config.getMistralKey();
+    const mistral = createMistral({
+      apiKey,
+    });
+    const model = mistral('mistral-large-latest');
+
+    return await this._generateText(model, branch_name, changes);
+  }
+
+  private async _generateGoogle(branch_name: string, changes: string): Promise<string | { error: string }> {
     return "Google AI";
   }
 }

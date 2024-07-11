@@ -27,11 +27,31 @@ class Config {
     return this.__delete("anthropic.key");
   }
 
+  getMistralKey() {
+    return this.__get("mistral.key")
+  }
+
+  setMistralKey(key: string) {
+    return this.__set("mistral.key", key);
+  }
+
+  clearMistralKey() {
+    return this.__delete("mistral.key");
+  }
+
   getAllKeys() {
-    return {
-      openai: this.getOpenAIKey(),
-      anthropic: this.getAnthropicKey()
+    const keys = {
+      openai: this.getOpenAIKey() as string,
+      anthropic: this.getAnthropicKey() as string,
+      mistral: this.getMistralKey() as string,
     }
+
+    // return null if all keys are empty
+    if (!Object.values(keys).some(Boolean)) {
+      return null;
+    }
+
+    return keys;
   }
 
   private __get(key: string) {
