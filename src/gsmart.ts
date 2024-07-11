@@ -9,9 +9,9 @@ import { AIBuilder } from "./utils/ai";
 import { copyToClipboard } from "./utils";
 
 const MainCommand: ICommand = {
-  name: "gsmart",
+  name: "generate",
   default: true,
-  description: "Get the current git branch",
+  description: "Generate a commit message based on the changes in the staging area",
   action: async () => {
     const spinner = ora('').start();
     const branch = await getGitBranch();
@@ -65,7 +65,7 @@ const MainCommand: ICommand = {
 **/
 const LoginCommand: ICommand = {
   name: "login",
-  description: "",
+  description: "Login to a provider to use their AI service",
   action: async () => {
     const { provider } = await prompts({
       type: "select",
