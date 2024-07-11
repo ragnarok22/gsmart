@@ -1,5 +1,11 @@
 # GSmart
 The smart way to write your commit messages using [Conventional Commits](https://www.conventionalcommits.org/).
+![NPM Downloads](https://img.shields.io/npm/dm/gsmart)
+![NPM Version](https://img.shields.io/npm/v/gsmart)
+![NPM License](https://img.shields.io/npm/l/gsmart)
+![npm bundle size](https://img.shields.io/bundlephobia/minzip/gsmart)
+![NPM Unpacked Size](https://img.shields.io/npm/unpacked-size/gsmart)
+![NPM Type Definitions](https://img.shields.io/npm/types/gsmart)
 
 ## Installation
 ```bash
