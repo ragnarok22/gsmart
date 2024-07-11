@@ -32,9 +32,9 @@ program
 
 for (const command of commands) {
   program
-    .command(command.name)
+    .command(command.name, { isDefault: command.default })
     .description(command.description)
     .action(command.action);
 }
 
-program.parse(process.argv);
+program.parse();

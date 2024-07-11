@@ -25,6 +25,9 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^0.0.29",
+    "@ai-sdk/openai": "^0.0.36",
+    "ai": "^3.2.22",
     "chalk": "5.2.0",
     "commander": "^10.0.1",
     "fs-extra": "^11.2.0",

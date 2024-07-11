@@ -8,3 +8,12 @@ export const getGitBranch = async (): Promise<string> => {
     return "";
   }
 }
+
+export const getGitChanges = async (): Promise<string> => {
+  try {
+    const changes = execSync("git diff --cached").toString().trim();
+    return changes;
+  } catch (error) {
+    return "";
+  }
+}
