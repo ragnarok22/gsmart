@@ -8,6 +8,8 @@ The smart way to write your commit messages using [Conventional Commits](https:/
 ![NPM Unpacked Size](https://img.shields.io/npm/unpacked-size/gsmart)
 ![NPM Type Definitions](https://img.shields.io/npm/types/gsmart)
 
+![GSmart image](https://repository-images.githubusercontent.com/827045490/756cb1d5-9572-4cc2-be37-0459da007c1a)
+
 ## Installation
 ```bash
 npm install -g gsmart
