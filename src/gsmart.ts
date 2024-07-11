@@ -96,4 +96,12 @@ const LoginCommand: ICommand = {
   }
 }
 
-export default [MainCommand, LoginCommand];
+const ResetCommand: ICommand = {
+  name: "reset",
+  description: "Reset the API key for a provider and remove the configuration",
+  action: async () => {
+    config.clear();
+  }
+}
+
+export default [MainCommand, LoginCommand, ResetCommand];
