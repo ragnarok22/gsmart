@@ -29,8 +29,26 @@ export const providers: IProvider[] = [{
  * @returns - A tuple containing the system and prompt
 **/
 const buildPrompt = (branch_name: string, changes: string): [string, string] => {
-  const system = "You are a professional software engineer working on a project with a team of developers using conventional commit and git flow.";
-  const prompt = `Branch: ${branch_name}\nChanges: ${changes}`;
+  const system = "You are an assistant that helps generate commit messages following the conventional commits style. A commit message should include a type, an optional scope, and a brief description. The types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore, and revert. The scope provides additional context and is optional.";
+  const prompt = `Generate a commit message following the conventional commits style for the following changes on branch ${branch_name}:
+
+Branch: ${branch_name}
+
+Changes:
+${changes}
+
+Conventional Commits Style:
+<type>(<scope>): <description>
+
+Types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore, and revert.
+Scopes are optional and provide additional context.
+
+Example:
+feat(auth): add user authentication
+fix(database): resolve connection timeout issue
+
+Now, generate a commit message for the given changes.",
+`;
   return [system, prompt];
 }
 
@@ -77,7 +95,9 @@ export class AIBuilder {
       const { text } = await generateText({
         model,
         system,
-        prompt
+        prompt,
+        maxTokens: 60,
+        temperature: 0.7,
       })
 
       return text;
