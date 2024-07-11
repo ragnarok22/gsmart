@@ -10,11 +10,7 @@
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { Command } from "commander";
-import ora from "ora";
-import chalk from "chalk";
-import { ICommand } from "./definitions";
-import { getGitBranch } from "./utils/git";
-
+import commands from "./gsmart";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0)
@@ -28,23 +24,6 @@ const program = new Command();
 const packageJson = JSON.parse(
   readFileSync(join(__dirname, "/package.json"), "utf-8")
 );
-
-// Define the commands
-const commands: ICommand[] = [
-  {
-    name: "hello",
-    description: "Say hello",
-    action: async () => {
-      const spinner = ora('').start();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      spinner.stop();
-      spinner.clear();
-      console.log(await getGitBranch())
-      console.log(chalk.green("Hello, World!"))
-      console.log(chalk.grey("Hello, World!"))
-    },
-  },
-];
 
 program
   .name(packageJson.name)
