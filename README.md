@@ -42,3 +42,13 @@ login           Login to a provider to use their AI service
 help [command]  Display help for command
 ```
 
+## Providers
+- [OpenAI](https://openai.com/)
+  - Model: [GPT-3](https://platform.openai.com/docs/models/gpt-3-5-turbo)
+  - [Get API Key](https://platform.openai.com/api-keys)
+- [Anthropic](https://www.anthropic.com/)
+  - Model: [Claude](https://www.anthropic.com/claude)
+  - [Get API Key](https://console.anthropic.com/settings/keys)
+
+## License
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
