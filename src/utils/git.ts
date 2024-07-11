@@ -17,3 +17,11 @@ export const getGitChanges = async (): Promise<string> => {
     return "";
   }
 }
+
+export const commitChanges = async (message: string): Promise<void> => {
+  try {
+    execSync(`git commit -m "${message}"`);
+  } catch (error) {
+    console.error("An error occurred while committing the changes");
+  }
+}

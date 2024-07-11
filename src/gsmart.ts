@@ -2,10 +2,11 @@ import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
 import { ICommand } from "./definitions";
-import { getGitBranch, getGitChanges } from "./utils/git";
+import { commitChanges, getGitBranch, getGitChanges } from "./utils/git";
 import { providers } from "./utils/ai";
 import config from "./utils/config";
 import { AIBuilder } from "./utils/ai";
+import { copyToClipboard } from "./utils";
 
 const MainCommand: ICommand = {
   name: "gsmart",
@@ -35,6 +36,27 @@ const MainCommand: ICommand = {
       return;
     }
     spinner.succeed(chalk.green(message));
+
+    const { action } = await prompts({
+      type: "select",
+      name: "action",
+      message: "What would you like to do?",
+      choices: [
+        { title: "Commit", value: "commit" },
+        { title: "Copy message to clipboard", value: "copy" },
+      ]
+    });
+
+    switch (action) {
+      case "commit":
+        await commitChanges(message);
+        console.log(chalk.green("Changes committed successfully"));
+        break;
+      case "copy":
+        await copyToClipboard(message);
+        console.log(chalk.green("Message copied to clipboard"));
+        break;
+    }
   }
 }
 
