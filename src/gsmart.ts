@@ -4,6 +4,8 @@ import prompts from "prompts";
 import { ICommand } from "./definitions";
 import { getGitBranch, getGitChanges } from "./utils/git";
 import { providers } from "./utils/ai";
+import config from "./utils/config";
+import { AIBuilder } from "./utils/ai";
 
 const MainCommand: ICommand = {
   name: "gsmart",
@@ -13,9 +15,26 @@ const MainCommand: ICommand = {
     const spinner = ora('').start();
     const branch = await getGitBranch();
     const changes = await getGitChanges();
-    spinner.stop();
-    console.log(chalk.green(branch));
-    console.log(chalk.gray(changes));
+
+    if (changes.length === 0) {
+      spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
+      return;
+    }
+
+    const allKeys = config.getAllKeys();
+    if (!allKeys.openai && !allKeys.anthropic) {
+      spinner.fail(chalk.red("No API keys found. Please run `gsmart login` to paste your API key."));
+      return;
+    }
+
+    const selectedProvider = allKeys.openai ? "openai" : "anthropic";
+    const ai = new AIBuilder(selectedProvider);
+    const message = await ai.generateCommitMessage(branch, changes);
+    if (typeof message === "object") {
+      spinner.fail(chalk.red(message.error));
+      return;
+    }
+    spinner.succeed(chalk.green(message));
   }
 }
 
@@ -36,7 +55,22 @@ const LoginCommand: ICommand = {
         value: p.value
       }))
     });
-    console.log("Selected provider:", provider);
+
+    const { key } = await prompts({
+      type: "password",
+      name: "key",
+      message: "Enter your API key",
+      hint: "This will be stored in your local configuration",
+    })
+
+    switch (provider) {
+      case "openai":
+        config.setOpenAIKey(key);
+        break;
+      case "anthropic":
+        config.setAnthropicKey(key);
+        break;
+    }
   }
 }
 

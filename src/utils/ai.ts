@@ -1,6 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
+import config from "./config";
 import { IProvider, Provider } from "../definitions";
 import { DEFAULT_PROVIDER } from "./constants";
 
@@ -69,15 +70,23 @@ export class AIBuilder {
    * @returns - The generated commit message
    * @private - This method is private and should not be accessed directly
   **/
-  private async _generateText(model: any, branch_name: string, changes: string): Promise<string> {
+  private async _generateText(model: any, branch_name: string, changes: string): Promise<string | { error: string }> {
     const [system, prompt] = buildPrompt(branch_name, changes);
-    const { text } = await generateText({
-      model,
-      system,
-      prompt
-    })
 
-    return text;
+    try {
+      const { text } = await generateText({
+        model,
+        system,
+        prompt
+      })
+
+      return text;
+    } catch (e) {
+      const error = e as Error;
+      return {
+        error: error.message || "An error occurred while generating the commit message"
+      }
+    }
   }
 
   /**
@@ -88,13 +97,13 @@ export class AIBuilder {
    * @private - This method is private and should not be accessed directly
    * @see https://sdk.vercel.ai/providers/ai-sdk-providers/openai
   **/
-  private async _generateOpenAI(branch_name: string, changes: string): Promise<string> {
-    const key = "123";
+  private async _generateOpenAI(branch_name: string, changes: string): Promise<string | { error: string }> {
+    const apiKey = config.getOpenAIKey();
     const openai = createOpenAI({
-      apiKey: key,
+      apiKey,
       compatibility: "strict",
     });
-    const model = openai('gpt-4o')
+    const model = openai('gpt-3.5-turbo')
 
     return await this._generateText(model, branch_name, changes);
   }
@@ -107,8 +116,8 @@ export class AIBuilder {
    * @private - This method is private and should not be accessed directly
    * @see https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic
   **/
-  private async _generateAnthropic(branch_name: string, changes: string): Promise<string> {
-    const apiKey = "";
+  private async _generateAnthropic(branch_name: string, changes: string): Promise<string | { error: string }> {
+    const apiKey = config.getAnthropicKey();
     const anthropic = createAnthropic({
       apiKey,
     });
