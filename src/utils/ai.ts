@@ -26,6 +26,11 @@ export const providers: IProvider[] = [{
   value: "mistral",
   description: "Mistral is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
   active: true,
+}, {
+  title: "Fireworks AI",
+  value: "fireworks",
+  description: "Fireworks AI is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
+  active: true,
 }]
 
 /**
@@ -53,7 +58,8 @@ Example:
 feat(auth): add user authentication
 fix(database): resolve connection timeout issue
 
-Now, generate a commit message for the given changes.",
+Now, generate a commit message for the given changes.
+Don't explain the changes, just write a commit message that follows the conventional commits style.",
 `;
   return [system, prompt];
 }
@@ -76,15 +82,42 @@ export class AIBuilder {
    * @returns - The generated commit message
   **/
   generateCommitMessage(branch_name: string, changes: string) {
+    const model = this.__generateModel();
+    return this.__generateText(model, branch_name, changes);
+  }
+
+  private __generateModel() {
+    const apiKey = config.getKey(this.provider);
     switch (this.provider) {
-      case "openai":
-        return this._generateOpenAI(branch_name, changes);
-      case "anthropic":
-        return this._generateAnthropic(branch_name, changes);
-      case "google":
-        return this._generateGoogle(branch_name, changes);
-      case "mistral":
-        return this._generateMistral(branch_name, changes);
+      case "openai": {
+        const openai = createOpenAI({
+          apiKey,
+          compatibility: "strict",
+        });
+        return openai('gpt-3.5-turbo')
+      }
+      case "anthropic": {
+        const anthropic = createAnthropic({
+          apiKey,
+        });
+        return anthropic('claude-3-haiku-20240307');
+      }
+      case "mistral": {
+        const mistral = createMistral({
+          apiKey,
+        });
+        return mistral('mistral-large-latest');
+      }
+      case "fireworks": {
+        const openai = createOpenAI({
+          apiKey,
+          compatibility: "strict",
+          baseURL: 'https://api.fireworks.ai/inference/v1',
+        });
+        return openai('accounts/fireworks/models/firefunction-v1')
+      }
+      default:
+        throw new Error("Invalid provider");
     }
   }
 
@@ -96,7 +129,7 @@ export class AIBuilder {
    * @returns - The generated commit message
    * @private - This method is private and should not be accessed directly
   **/
-  private async _generateText(model: any, branch_name: string, changes: string): Promise<string | { error: string }> {
+  private async __generateText(model: any, branch_name: string, changes: string): Promise<string | { error: string }> {
     const [system, prompt] = buildPrompt(branch_name, changes);
 
     try {
@@ -117,56 +150,5 @@ export class AIBuilder {
         error: `${provider} - ${message}`
       }
     }
-  }
-
-  /**
-   * Generate a commit message using the OpenAI model
-   * @param branch_name - The current git branch name
-   * @param changes - The changes in the current branch
-   * @returns - The generated commit message
-   * @private - This method is private and should not be accessed directly
-   * @see https://sdk.vercel.ai/providers/ai-sdk-providers/openai
-  **/
-  private async _generateOpenAI(branch_name: string, changes: string): Promise<string | { error: string }> {
-    const apiKey = config.getOpenAIKey();
-    const openai = createOpenAI({
-      apiKey,
-      compatibility: "strict",
-    });
-    const model = openai('gpt-3.5-turbo')
-
-    return await this._generateText(model, branch_name, changes);
-  }
-
-  /**
-   * Generate a commit message using the Anthropic model
-   * @param branch_name - The current git branch name
-   * @param changes - The changes in the current branch
-   * @returns - The generated commit message
-   * @private - This method is private and should not be accessed directly
-   * @see https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic
-  **/
-  private async _generateAnthropic(branch_name: string, changes: string): Promise<string | { error: string }> {
-    const apiKey = config.getAnthropicKey();
-    const anthropic = createAnthropic({
-      apiKey,
-    });
-    const model = anthropic('claude-3-haiku-20240307');
-
-    return await this._generateText(model, branch_name, changes);
-  }
-
-  private async _generateMistral(branch_name: string, changes: string): Promise<string | { error: string }> {
-    const apiKey = config.getMistralKey();
-    const mistral = createMistral({
-      apiKey,
-    });
-    const model = mistral('mistral-large-latest');
-
-    return await this._generateText(model, branch_name, changes);
-  }
-
-  private async _generateGoogle(branch_name: string, changes: string): Promise<string | { error: string }> {
-    return "Google AI";
   }
 }

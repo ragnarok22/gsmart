@@ -1,69 +1,61 @@
 import Conf from "conf";
+import { Provider, IProvider, ProviderKeys } from "../definitions";
+import { providers } from "./ai";
 
 const conf = new Conf({ projectName: "gsmart" })
 
 class Config {
-  getOpenAIKey() {
-    return this.__get("openai.key") || "";
+  /**
+   * Set the API key for the specified provider in the config
+   * @param provider - The provider to set the key for
+   * @param key - The API key
+   * @returns - The API key
+  **/
+  setKey(provider: Provider, key: string): void {
+    return this.__set(`${provider}.key`, key);
   }
 
-  setOpenAIKey(key: string) {
-    return this.__set("openai.key", key);
+  /**
+   * Get the API key for the specified provider from the config
+   * @param provider - The provider to get the key for
+   * @returns - The API key
+  **/
+  getKey(provider: Provider): string {
+    return this.__get(`${provider}.key`);
   }
 
-  clearOpenAIKey() {
-    return this.__delete("openai.key");
+  /**
+   * Clear the API key for the specified provider from the config
+   * @param provider - The provider to clear the key for
+   * @returns - The API key
+  **/
+  clearKey(provider: Provider): void {
+    return this.__delete(`${provider}.key`);
   }
 
-  getAnthropicKey() {
-    return this.__get("anthropic.key") || "";
-  }
-
-  setAnthropicKey(key: string) {
-    return this.__set("anthropic.key", key);
-  }
-
-  clearAnthropicKey() {
-    return this.__delete("anthropic.key");
-  }
-
-  getMistralKey() {
-    return this.__get("mistral.key")
-  }
-
-  setMistralKey(key: string) {
-    return this.__set("mistral.key", key);
-  }
-
-  clearMistralKey() {
-    return this.__delete("mistral.key");
-  }
-
-  getAllKeys() {
-    const keys = {
-      openai: this.getOpenAIKey() as string,
-      anthropic: this.getAnthropicKey() as string,
-      mistral: this.getMistralKey() as string,
-    }
-
-    // return null if all keys are empty
-    if (!Object.values(keys).some(Boolean)) {
-      return null;
-    }
+  /**
+   * Get all the API keys from the config
+   * @returns - All the API keys
+  **/
+  getAllKeys(): ProviderKeys {
+    const keys: { [key in Provider]?: string } = {};
+    providers.forEach((provider: IProvider) => {
+      keys[provider.value] = this.__get(`${provider.value}.key`);
+    });
 
     return keys;
   }
 
-  private __get(key: string) {
-    return conf.get(key);
+  private __get(key: string): string {
+    return conf.get(key, "");
   }
-  private __set(key: string, value: any) {
-    return conf.set(key, value);
+  private __set(key: string, value: any): void {
+    conf.set(key, value);
   }
-  private __delete(key: string) {
+  private __delete(key: string): void {
     return conf.delete(key);
   }
-  public clear() {
+  public clear(): void {
     return conf.clear();
   }
 }
