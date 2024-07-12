@@ -58,6 +58,12 @@ help [command]  Display help for command
 - [Anthropic](https://www.anthropic.com/)
   - Model: [Claude](https://www.anthropic.com/claude)
   - [Get API Key](https://console.anthropic.com/settings/keys)
+- [Mistral](https://www.mistral.ai/)
+  - Model: [Mistral Large](https://mistral.ai/technology/#models)
+  - [Get API Key](https://console.mistral.ai/api-keys/)
+- [Fireworks AI]
+  - Model: [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)
+  - [Get API Key](https://fireworks.ai/api-keys)
 
 ## License
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
