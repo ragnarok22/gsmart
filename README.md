@@ -61,7 +61,7 @@ help [command]  Display help for command
 - [Mistral](https://www.mistral.ai/)
   - Model: [Mistral Large](https://mistral.ai/technology/#models)
   - [Get API Key](https://console.mistral.ai/api-keys/)
-- [Fireworks AI]
+- [Fireworks AI](https://fireworks.ai)
   - Model: [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)
   - [Get API Key](https://fireworks.ai/api-keys)
 
