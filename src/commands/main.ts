@@ -49,6 +49,11 @@ const MainCommand: ICommand = {
       ]
     });
 
+    if (!action) {
+      ora().fail(chalk.red("No action selected. Doing nothing."));
+      return;
+    }
+
     switch (action) {
       case "commit":
         await commitChanges(message);
