@@ -23,6 +23,7 @@
   "bin": "./dist/index.js",
   "scripts": {
     "dev": "tsup --watch",
+    "prebuild": "node prebuild.js",
     "build": "tsup",
     "start": "node dist/index.js"
   },

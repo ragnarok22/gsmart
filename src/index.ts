@@ -9,7 +9,7 @@
 
 import { Command } from "commander";
 import commands from "./gsmart";
-import { getPackageInfo } from "./utils/get-package-info";
+import info from "./build-info";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0)
@@ -20,12 +20,11 @@ process.on('SIGTERM', handleSigTerm)
 async function main() {
   // Define the program
   const program = new Command();
-  const packageJson = getPackageInfo();
 
   program
-    .name(packageJson.name || "gsmart")
-    .version(packageJson.version || "latest")
-    .description(packageJson.description || "GSmart CLI");
+    .name(info.name)
+    .version(info.version)
+    .description(info.description);
 
   for (const command of commands) {
     const cmd = program
