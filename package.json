@@ -7,9 +7,10 @@
     "url": "https://github.com/ragnarok22/gsmart"
   },
   "keywords": [
-    "react",
-    "hook",
-    "hooks"
+    "cli",
+    "ai",
+    "git",
+    "gsmart"
   ],
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",

@@ -9,6 +9,7 @@
 
 import { Command } from "commander";
 import commands from "./gsmart";
+import { getPackageInfo } from "./utils/get-package-info";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0)
@@ -16,41 +17,34 @@ const handleSigTerm = () => process.exit(0)
 process.on('SIGINT', handleSigTerm)
 process.on('SIGTERM', handleSigTerm)
 
-// Define the program
-const program = new Command();
+async function main() {
+  // Define the program
+  const program = new Command();
+  const packageJson = getPackageInfo();
 
-import path from "path"
-import fs from "fs-extra"
-import { type PackageJson } from "type-fest"
+  program
+    .name(packageJson.name || "gsmart")
+    .version(packageJson.version || "latest")
+    .description(packageJson.description || "GSmart CLI");
 
-function getPackageInfo() {
-  const packageJsonPath = path.join("package.json")
+  for (const command of commands) {
+    const cmd = program
+      .command(command.name, { isDefault: command.default })
+      .description(command.description)
 
-  return fs.readJSONSync(packageJsonPath) as PackageJson
-}
-
-const packageJson = getPackageInfo();
-
-program
-  .name(packageJson.name || "gsmart")
-  .version(packageJson.version || "latest")
-  .description(packageJson.description || "GSmart CLI");
-
-for (const command of commands) {
-  const cmd = program
-    .command(command.name, { isDefault: command.default })
-    .description(command.description)
-
-  if (command.options) {
-    for (const opt of command.options) {
-      cmd.option(opt.flags, opt.description, opt.default);
+    if (command.options) {
+      for (const opt of command.options) {
+        cmd.option(opt.flags, opt.description, opt.default);
+      }
     }
+
+    cmd.action(() => {
+      const opts = cmd.opts()
+      command.action(opts);
+    });
   }
 
-  cmd.action(() => {
-    const opts = cmd.opts()
-    command.action(opts);
-  });
+  program.parse(process.argv);
 }
 
-program.parse(process.argv);
+main();
