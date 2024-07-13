@@ -33,6 +33,10 @@ export const providers: IProvider[] = [{
   active: true,
 }]
 
+export const getActiveProviders = (): IProvider[] => {
+  return providers.filter(p => p.active);
+}
+
 /**
  * Build the prompt for the AI model
  * @param branch_name - The current git branch name

@@ -1,11 +1,49 @@
 import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
-import { ICommand } from "../definitions";
+import { ICommand, IProvider } from "../definitions";
 import { commitChanges, getGitBranch, getGitChanges } from "../utils/git";
 import config from "../utils/config";
-import { AIBuilder, providers } from "../utils/ai";
+import { AIBuilder, getActiveProviders } from "../utils/ai";
 import { copyToClipboard } from "../utils";
+
+const providers = getActiveProviders();
+
+const getGitInfo = async (): Promise<[string, string]> => {
+  const branch = await getGitBranch();
+  const changes = await getGitChanges();
+  return [branch, changes];
+}
+
+const getProvider = async (provider: string): Promise<IProvider | null> => {
+  const allKeys = config.getAllKeys();
+
+  if (provider) {
+    const selectedProvider = providers.find(p => p.value === provider);
+    if (!selectedProvider) {
+      return null;
+    }
+    return selectedProvider;
+  }
+
+  const providersKeys = providers.filter(p => allKeys[p.value]);
+
+  if (!providersKeys) {
+    return null;
+  }
+
+  if (providersKeys.length === 1) {
+    return providersKeys[0];
+  }
+
+  const { value } = await prompts({
+    type: "select",
+    name: "value",
+    message: "Select an AI provider",
+    choices: providersKeys.map(p => ({ title: p.title, value: p.value })),
+  });
+  return value;
+}
 
 const MainCommand: ICommand = {
   name: "generate",
@@ -15,27 +53,32 @@ const MainCommand: ICommand = {
     flags: "-p, --prompt <prompt>",
     default: "",
     description: "The prompt to use for generating the commit message",
+  }, {
+    flags: "-P, --provider <provider>",
+    default: "",
+    description: "The AI provider to use for generating the commit message",
   }],
   action: async (options) => {
     const spinner = ora('').start();
-    const branch = await getGitBranch();
-    const changes = await getGitChanges();
+    const [branch, changes] = await getGitInfo();
 
     if (changes.length === 0) {
       spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
       return;
     }
 
-    const allKeys = config.getAllKeys();
-    // search for the first provider with an API key
-    const selectedProvider = providers.find(p => allKeys[p.value]);
+    const selectedProvider = await getProvider(options.provider);
 
     if (!selectedProvider) {
       spinner.fail(chalk.red("No API keys found. Please run `gsmart login` to paste your API key."));
       return;
     }
 
-    const ai = new AIBuilder(selectedProvider.value);
+    if (options.provider) {
+      spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
+    }
+
+    const ai = new AIBuilder(selectedProvider.value)
     const message = await ai.generateCommitMessage(branch, changes);
     if (typeof message === "object") {
       spinner.fail(chalk.red(message.error));
