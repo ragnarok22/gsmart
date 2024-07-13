@@ -23,12 +23,22 @@ const LoginCommand: ICommand = {
       }))
     });
 
+    if (!provider) {
+      ora().fail(chalk.red("No provider selected"));
+      return;
+    }
+
     const { key } = await prompts({
       type: "password",
       name: "key",
       message: "Enter your API key",
       hint: "This will be stored in your local configuration",
     })
+
+    if (!key) {
+      ora().fail(chalk.red("No API key provided"));
+      return;
+    }
 
     config.setKey(provider, key)
     ora().succeed(chalk.green("API key saved successfully"));
