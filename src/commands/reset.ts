@@ -6,7 +6,7 @@ import config from "../utils/config";
 
 const ResetCommand: ICommand = {
   name: "reset",
-  description: "Reset the API key for a provider and remove the configuration",
+  description: "Reset the API key for all providers and remove the configuration file",
   action: async () => {
     const { confirm } = await prompts({
       type: "confirm",

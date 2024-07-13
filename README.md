@@ -48,6 +48,7 @@ Options:
 Commands:
 generate        Generate a commit message based on the changes in the staging area
 login           Login to a provider to use their AI service
+reset           Reset the API key for all providers and remove the configuration file
 help [command]  Display help for command
 ```
 
