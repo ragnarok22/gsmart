@@ -11,7 +11,12 @@ const MainCommand: ICommand = {
   name: "generate",
   default: true,
   description: "Generate a commit message based on the changes in the staging area",
-  action: async () => {
+  options: [{
+    flags: "-p, --prompt <prompt>",
+    default: "",
+    description: "The prompt to use for generating the commit message",
+  }],
+  action: async (options) => {
     const spinner = ora('').start();
     const branch = await getGitBranch();
     const changes = await getGitChanges();
@@ -56,8 +61,14 @@ const MainCommand: ICommand = {
 
     switch (action) {
       case "commit":
-        await commitChanges(message);
-        ora().succeed(chalk.green("Changes committed successfully"));
+        const result = await commitChanges(message);
+        if (result) {
+          ora().succeed(chalk.green("Changes committed successfully"));
+        } else {
+          ora().fail(chalk.red("Failed to commit changes."));
+          await copyToClipboard(message);
+          ora().succeed(chalk.green("Message copied to clipboard"));
+        }
         break;
       case "copy":
         await copyToClipboard(message);

@@ -2,10 +2,18 @@ export interface ICommand {
   name: string;
   description: string;
   default?: boolean;
-  action: () => void;
+  options?: Option[];
+  action: (args: any) => void;
 }
 
 export type Provider = "openai" | "anthropic" | "google" | "mistral" | "fireworks";
+
+export type Option = {
+  flags: string;
+  description: string;
+  default?: string | boolean | string[];
+}
+
 
 export interface IProvider {
   title: string;

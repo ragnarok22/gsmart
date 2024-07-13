@@ -31,10 +31,20 @@ program
   .description(packageJson.description);
 
 for (const command of commands) {
-  program
+  const cmd = program
     .command(command.name, { isDefault: command.default })
     .description(command.description)
-    .action(command.action);
+
+  if (command.options) {
+    for (const opt of command.options) {
+      cmd.option(opt.flags, opt.description, opt.default);
+    }
+  }
+
+  cmd.action(() => {
+    const opts = cmd.opts()
+    command.action(opts);
+  });
 }
 
-program.parse();
+program.parse(process.argv);
