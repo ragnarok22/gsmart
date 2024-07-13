@@ -70,9 +70,11 @@ Don't explain the changes, just write a commit message that follows the conventi
 
 export class AIBuilder {
   provider: Provider;
+  prompt: string;
 
-  constructor(provider: Provider = DEFAULT_PROVIDER) {
+  constructor(provider: Provider = DEFAULT_PROVIDER, prompt: string) {
     this.provider = provider;
+    this.prompt = prompt;
   }
 
   changeProvider(provider: Provider) {
@@ -134,7 +136,10 @@ export class AIBuilder {
    * @private - This method is private and should not be accessed directly
   **/
   private async __generateText(model: any, branch_name: string, changes: string): Promise<string | { error: string }> {
-    const [system, prompt] = buildPrompt(branch_name, changes);
+    let [system, prompt] = buildPrompt(branch_name, changes);
+    if (this.prompt) {
+      prompt = `${this.prompt}. The branch name is ${branch_name} and the changes are as follows: ${changes}`;
+    }
 
     try {
       const { text } = await generateText({

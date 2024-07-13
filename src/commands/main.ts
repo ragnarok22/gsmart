@@ -17,30 +17,29 @@ const getGitInfo = async (): Promise<[string, string]> => {
 
 const getProvider = async (provider: string): Promise<IProvider | null> => {
   const allKeys = config.getAllKeys();
+  const activeProviders = providers.filter(p => allKeys[p.value]);
 
   if (provider) {
-    const selectedProvider = providers.find(p => p.value === provider);
+    const selectedProvider = activeProviders.find(p => p.value === provider);
     if (!selectedProvider) {
       return null;
     }
     return selectedProvider;
   }
 
-  const providersKeys = providers.filter(p => allKeys[p.value]);
-
-  if (!providersKeys) {
+  if (!activeProviders) {
     return null;
   }
 
-  if (providersKeys.length === 1) {
-    return providersKeys[0];
+  if (activeProviders.length === 1) {
+    return activeProviders[0];
   }
 
   const { value } = await prompts({
     type: "select",
     name: "value",
     message: "Select an AI provider",
-    choices: providersKeys.map(p => ({ title: p.title, value: p.value })),
+    choices: activeProviders.map(p => ({ title: p.title, value: p.value })),
   });
   return value;
 }
@@ -69,8 +68,11 @@ const MainCommand: ICommand = {
 
     const selectedProvider = await getProvider(options.provider);
 
-    if (!selectedProvider) {
+    if (!selectedProvider && !options.provider) {
       spinner.fail(chalk.red("No API keys found. Please run `gsmart login` to paste your API key."));
+      return;
+    } else if (!selectedProvider) {
+      spinner.fail(chalk.red("No valid provider found. Please check your API keys."));
       return;
     }
 
@@ -78,7 +80,7 @@ const MainCommand: ICommand = {
       spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
     }
 
-    const ai = new AIBuilder(selectedProvider.value)
+    const ai = new AIBuilder(selectedProvider.value, options.prompt)
     const message = await ai.generateCommitMessage(branch, changes);
     if (typeof message === "object") {
       spinner.fail(chalk.red(message.error));

@@ -36,10 +36,22 @@ Add the changes to the staging area using the `git add` command. Then you can us
 gsmart
 ```
 
+### Generate options
+If can add different providers. If you want to use a specific provider, you can use the `--provider` option.
+```bash
+gsmart --provider anthropic
+```
+
+You can also specify the prompt to use for the AI model, using the `--prompt` option.
+```bash
+gsmart --prompt "Explaining the changes in the staging area"
+```
+
+
 ```
 Usage: gsmart [options] [command]
 
-CLI to generate smart commit messages using AI.
+CLI to generate smart commit messages using AI. generate command is the default command.
 
 Options:
 -V, --version   output the version number
