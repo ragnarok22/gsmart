@@ -99,6 +99,7 @@ const MainCommand: ICommand = {
       choices: [
         { title: "Commit", value: "commit" },
         { title: "Copy message to clipboard", value: "copy" },
+        { title: "Regenerate message", value: "regenerate" },
         { title: "Do nothing", value: "nothing" },
       ]
     });
