@@ -80,6 +80,10 @@ const MainCommand: ICommand = {
       spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
     }
 
+    // while(true){
+    //
+    // }
+
     const ai = new AIBuilder(selectedProvider.value, options.prompt)
     const message = await ai.generateCommitMessage(branch, changes);
     if (typeof message === "object") {
@@ -118,6 +122,9 @@ const MainCommand: ICommand = {
       case "copy":
         await copyToClipboard(message);
         ora().succeed(chalk.green("Message copied to clipboard"));
+        break;
+      case "regenerate":
+        MainCommand.action(options);
         break;
       case "nothing":
         ora().succeed(chalk.yellow("No action taken"));
