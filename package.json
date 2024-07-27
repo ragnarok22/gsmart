@@ -1,11 +1,12 @@
 {
   "name": "gsmart",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "CLI to generate smart commit messages using AI.",
   "repository": {
     "type": "git",
     "url": "https://github.com/ragnarok22/gsmart"
   },
+  "homepage": "https://ragnarok22.github.io/gsmart",
   "keywords": [
     "cli",
     "ai",
@@ -31,7 +32,7 @@
     "@ai-sdk/anthropic": "^0.0.29",
     "@ai-sdk/mistral": "^0.0.22",
     "@ai-sdk/openai": "^0.0.36",
-    "ai": "^3.2.22",
+    "ai": "^3.2.37",
     "chalk": "5.2.0",
     "clipboardy": "^4.0.0",
     "commander": "^10.0.1",
