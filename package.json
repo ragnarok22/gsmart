@@ -46,7 +46,7 @@
     "@types/prompts": "^2.4.9",
     "rimraf": "^6.0.1",
     "tsup": "^6.7.0",
-    "type-fest": "^3.13.1",
+    "type-fest": "^4.23.0",
     "typescript": "^5.5.4"
   },
   "packageManager": "pnpm@9.5.0-beta.1+sha512.5ffe23e95a4d4876d8885d4dea4c804d85495425140911b06c6c96a319e8c94bf9c6dad920b7d8e69a31ca291656b1c779aa6adc9b105f1a4fb5232487f99bf1"
