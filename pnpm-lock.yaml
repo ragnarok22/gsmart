@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@ai-sdk/anthropic':
-        specifier: ^0.0.29
-        version: 0.0.29(zod@3.23.8)
+        specifier: ^0.0.40
+        version: 0.0.40(zod@3.23.8)
       '@ai-sdk/mistral':
         specifier: ^0.0.30
         version: 0.0.30(zod@3.23.8)
@@ -63,8 +63,8 @@ importers:
 
 packages:
 
-  '@ai-sdk/anthropic@0.0.29':
-    resolution: {integrity: sha512-qGOyf3vER7r9liTg8Vvrvl586pltwKwWHd//H0lrFbuwn7kttKUcgsEEYIg1JDQ/CN4zTv6dTV/qTwdhvVrjHg==}
+  '@ai-sdk/anthropic@0.0.40':
+    resolution: {integrity: sha512-qu1laoAQk17FMF1PYwEpXU43KEMzR2tTXxmbM1FiEo9/L/VwZJCDYHRKl4r91uOHBOm3lRmesNumvCWORjB1Ew==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -81,8 +81,8 @@ packages:
     peerDependencies:
       zod: ^3.0.0
 
-  '@ai-sdk/provider-utils@1.0.2':
-    resolution: {integrity: sha512-57f6O4OFVNEpI8Z8o+K40tIB3YQiTw+VCql/qrAO9Utq7Ti1o6+X9tvm177DlZJL7ft0Rwzvgy48S9YhrEKgmA==}
+  '@ai-sdk/provider-utils@1.0.10':
+    resolution: {integrity: sha512-xciXF2PorLQMNdhYe+n9CafVkXZANHURsME85RXjtAoZSs631l2t8Blqwz2C/pHUb9bxLdMRRuIEB4PnHLnHvQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -108,16 +108,16 @@ packages:
       zod:
         optional: true
 
-  '@ai-sdk/provider@0.0.12':
-    resolution: {integrity: sha512-oOwPQD8i2Ynpn22cur4sk26FW3mSy6t6/X/K1Ay2yGBKYiSpRyLfObhOrZEGsXDx+3euKy4nEZ193R36NM+tpQ==}
-    engines: {node: '>=18'}
-
   '@ai-sdk/provider@0.0.14':
     resolution: {integrity: sha512-gaQ5Y033nro9iX1YUjEDFDRhmMcEiCk56LJdIUbX5ozEiCNCfpiBpEqrjSp/Gp5RzBS2W0BVxfG7UGW6Ezcrzg==}
     engines: {node: '>=18'}
 
   '@ai-sdk/provider@0.0.17':
     resolution: {integrity: sha512-f9j+P5yYRkqKFHxvWae5FI0j6nqROPCoPnMkpc2hc2vC7vKjqzrxBJucD8rpSaUjqiBnY/QuRJ0QeV717Uz5tg==}
+    engines: {node: '>=18'}
+
+  '@ai-sdk/provider@0.0.18':
+    resolution: {integrity: sha512-LF4aUAKDTKIHa2e7ozwRJDMhUC9cs7t224sUilG1HfyFWyyh+01oPZwMob/hj111SozZkvXIukN0BIa+sXS0mw==}
     engines: {node: '>=18'}
 
   '@ai-sdk/react@0.0.41':
@@ -1341,10 +1341,10 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@0.0.29(zod@3.23.8)':
+  '@ai-sdk/anthropic@0.0.40(zod@3.23.8)':
     dependencies:
-      '@ai-sdk/provider': 0.0.12
-      '@ai-sdk/provider-utils': 1.0.2(zod@3.23.8)
+      '@ai-sdk/provider': 0.0.18
+      '@ai-sdk/provider-utils': 1.0.10(zod@3.23.8)
       zod: 3.23.8
 
   '@ai-sdk/mistral@0.0.30(zod@3.23.8)':
@@ -1359,9 +1359,9 @@ snapshots:
       '@ai-sdk/provider-utils': 1.0.5(zod@3.23.8)
       zod: 3.23.8
 
-  '@ai-sdk/provider-utils@1.0.2(zod@3.23.8)':
+  '@ai-sdk/provider-utils@1.0.10(zod@3.23.8)':
     dependencies:
-      '@ai-sdk/provider': 0.0.12
+      '@ai-sdk/provider': 0.0.18
       eventsource-parser: 1.1.2
       nanoid: 3.3.6
       secure-json-parse: 2.7.0
@@ -1386,15 +1386,15 @@ snapshots:
     optionalDependencies:
       zod: 3.23.8
 
-  '@ai-sdk/provider@0.0.12':
-    dependencies:
-      json-schema: 0.4.0
-
   '@ai-sdk/provider@0.0.14':
     dependencies:
       json-schema: 0.4.0
 
   '@ai-sdk/provider@0.0.17':
+    dependencies:
+      json-schema: 0.4.0
+
+  '@ai-sdk/provider@0.0.18':
     dependencies:
       json-schema: 0.4.0
 
