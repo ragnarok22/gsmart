@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^0.0.40",
-    "@ai-sdk/mistral": "^0.0.30",
+    "@ai-sdk/mistral": "^0.0.34",
     "@ai-sdk/openai": "^0.0.45",
     "ai": "^3.2.37",
     "chalk": "5.3.0",
