@@ -1,8 +1,8 @@
 import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
-import { ICommand, IProvider } from "../definitions";
-import { commitChanges, getGitBranch, getGitChanges } from "../utils/git";
+import { ICommand, IProvider, StatusFile } from "../definitions";
+import { commitChanges, getGitBranch, getGitChanges, getGitStatus, stageFile } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder, getActiveProviders } from "../utils/ai";
 import { copyToClipboard } from "../utils";
@@ -62,9 +62,64 @@ const MainCommand: ICommand = {
     const [branch, changes] = await getGitInfo();
 
     if (changes.length === 0) {
-      spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
-      return;
+      // get modified files that are not staged
+      const status = await getGitStatus();
+
+      if (status.length === 0) {
+        spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
+        return;
+      }
+      spinner.stop();
+
+      const changedFiles = status.map((file) => {
+        console.log(file)
+        if (file.status === StatusFile.Modified) {
+          return {
+            title: chalk.yellow(file.file_name),
+            value: file.file_name,
+          };
+        } else if (file.status === StatusFile.Deleted) {
+          return {
+            title: chalk.red(file.file_name),
+            value: file.file_name,
+          }
+        } else if (file.status === StatusFile.Untracked) {
+          return {
+            title: chalk.green(file.file_name),
+            value: file.file_name,
+          }
+        } else {
+          return {
+            title: file.file_name,
+            value: file.file_name,
+          };
+        }
+      });
+
+      const { files } = await prompts({
+        type: "multiselect",
+        name: "files",
+        message: "Select files to stage",
+        choices: changedFiles.map((file) => ({
+          title: file.title,
+          value: file.value,
+        })),
+      });
+
+      if (files.length === 0) {
+        spinner.fail(chalk.red("No files selected. Please select files to stage."));
+        return;
+      }
+
+      const result = await stageFile(files);
+      if (result) {
+        spinner.succeed(chalk.grey("Files staged successfully"));
+      } else {
+        spinner.fail(chalk.red("Failed to stage files"));
+        return;
+      }
     }
+    spinner.start();
 
     const selectedProvider = await getProvider(options.provider);
 
@@ -79,10 +134,6 @@ const MainCommand: ICommand = {
     if (options.provider) {
       spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
     }
-
-    // while(true){
-    //
-    // }
 
     const ai = new AIBuilder(selectedProvider.value, options.prompt)
     const message = await ai.generateCommitMessage(branch, changes);
@@ -131,6 +182,8 @@ const MainCommand: ICommand = {
         ora().succeed(chalk.yellow("No action taken"));
         break;
     }
+
+    spinner.stop();
   }
 }
 

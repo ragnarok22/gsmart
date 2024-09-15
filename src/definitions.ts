@@ -25,3 +25,14 @@ export interface IProvider {
 export type ProviderKeys = {
   [key in Provider]?: string;
 };
+
+export enum StatusFile {
+  Modified = "M",
+  Deleted = "D",
+  Untracked = "??",
+}
+
+export type GitStatus = {
+  status: StatusFile;
+  file_name: string;
+}
