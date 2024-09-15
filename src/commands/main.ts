@@ -59,7 +59,7 @@ const MainCommand: ICommand = {
   }],
   action: async (options) => {
     const spinner = ora('').start();
-    const [branch, changes] = await getGitInfo();
+    let [branch, changes] = await getGitInfo();
 
     if (changes.length === 0) {
       // get modified files that are not staged
@@ -114,6 +114,7 @@ const MainCommand: ICommand = {
       const result = await stageFile(files);
       if (result) {
         spinner.succeed(chalk.grey("Files staged successfully"));
+        [branch, changes] = await getGitInfo();
       } else {
         spinner.fail(chalk.red("Failed to stage files"));
         return;
