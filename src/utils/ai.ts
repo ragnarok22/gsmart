@@ -31,6 +31,11 @@ export const providers: IProvider[] = [{
   value: "fireworks",
   description: "Fireworks AI is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
   active: true,
+}, {
+  title: "PlataformIA",
+  value: "plataformia",
+  description: "PlataformIA is a Cuban AI platform offering tools for app creation, workflow automation, and content generation, with APIs for developers.",
+  active: true,
 }]
 
 export const getActiveProviders = (): IProvider[] => {
@@ -121,6 +126,13 @@ export class AIBuilder {
           baseURL: 'https://api.fireworks.ai/inference/v1',
         });
         return openai('accounts/fireworks/models/firefunction-v1')
+      }
+      case "plataformia": {
+        const openai = createOpenAI({
+          apiKey,
+          baseURL: "https://apigateway.avangenio.net",
+        });
+        return openai('radiance');
       }
       default:
         throw new Error("Invalid provider");
