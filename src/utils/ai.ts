@@ -105,7 +105,7 @@ export class AIBuilder {
           apiKey,
           compatibility: "strict",
         });
-        return openai('gpt-3.5-turbo')
+        return openai('gpt-4o')
       }
       case "anthropic": {
         const anthropic = createAnthropic({
