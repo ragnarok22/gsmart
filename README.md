@@ -66,7 +66,7 @@ help [command]  Display help for command
 
 ## Providers
 - [OpenAI](https://openai.com/)
-  - Model: [GPT-3](https://platform.openai.com/docs/models/gpt-3-5-turbo)
+  - Model: [GPT-4o](https://platform.openai.com/docs/models/gpt-4o)
   - [Get API Key](https://platform.openai.com/api-keys)
 - [Anthropic](https://www.anthropic.com/)
   - Model: [Claude](https://www.anthropic.com/claude)
@@ -77,6 +77,9 @@ help [command]  Display help for command
 - [Fireworks AI](https://fireworks.ai)
   - Model: [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)
   - [Get API Key](https://fireworks.ai/api-keys)
+- [PlataformIA](https://plataformia.com)
+  - Model: [Radiance](https://docs.plataformia.com/llm-chat-api)
+  - [Get API Key](https://console.plataformia.com/api-keys)
 
 ## License
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
