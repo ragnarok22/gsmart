@@ -32,7 +32,7 @@
     "@ai-sdk/anthropic": "^0.0.51",
     "@ai-sdk/mistral": "^0.0.42",
     "@ai-sdk/openai": "^0.0.66",
-    "ai": "^3.3.37",
+    "ai": "^3.4.10",
     "chalk": "5.3.0",
     "clipboardy": "^4.0.0",
     "commander": "^12.1.0",
@@ -45,9 +45,9 @@
     "@types/fs-extra": "^11.0.4",
     "@types/prompts": "^2.4.9",
     "rimraf": "^6.0.1",
-    "tsup": "^8.2.4",
+    "tsup": "^8.3.0",
     "type-fest": "^4.26.1",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.3"
   },
   "packageManager": "pnpm@9.12.1+sha256.91452fdfa46234ae447d46d5c4fc4e7e0a7058f90495c4b6f77f8beebbb154e3"
 }
