@@ -6,7 +6,7 @@ export interface ICommand {
   action: (args: any) => void;
 }
 
-export type Provider = "openai" | "anthropic" | "google" | "mistral" | "fireworks";
+export type Provider = "openai" | "anthropic" | "google" | "mistral" | "fireworks" | "plataformia";
 
 export type Option = {
   flags: string;
