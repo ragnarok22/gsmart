@@ -29,7 +29,7 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^0.0.51",
+    "@ai-sdk/anthropic": "^0.0.53",
     "@ai-sdk/mistral": "^0.0.46",
     "@ai-sdk/openai": "^0.0.68",
     "ai": "^3.4.10",
