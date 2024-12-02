@@ -31,23 +31,23 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.2",
     "@ai-sdk/mistral": "^1.0.3",
-    "@ai-sdk/openai": "^1.0.4",
-    "ai": "^4.0.4",
+    "@ai-sdk/openai": "^1.0.5",
+    "ai": "^4.0.10",
     "chalk": "5.3.0",
     "clipboardy": "^4.0.0",
     "commander": "^12.1.0",
     "conf": "^13.0.1",
     "fs-extra": "^11.2.0",
-    "ora": "^8.1.0",
+    "ora": "^8.1.1",
     "prompts": "^2.4.2"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
     "@types/prompts": "^2.4.9",
     "rimraf": "^6.0.1",
-    "tsup": "^8.3.0",
-    "type-fest": "^4.26.1",
-    "typescript": "^5.6.3"
+    "tsup": "^8.3.5",
+    "type-fest": "^4.29.1",
+    "typescript": "^5.7.2"
   },
-  "packageManager": "pnpm@9.12.1+sha256.91452fdfa46234ae447d46d5c4fc4e7e0a7058f90495c4b6f77f8beebbb154e3"
+  "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab"
 }
