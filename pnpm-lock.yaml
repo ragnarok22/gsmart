@@ -31,7 +31,7 @@ importers:
         version: 12.1.0
       conf:
         specifier: ^13.0.1
-        version: 13.0.1
+        version: 13.1.0
       fs-extra:
         specifier: ^11.2.0
         version: 11.2.0
@@ -505,8 +505,8 @@ packages:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
     engines: {node: '>= 6'}
 
-  conf@13.0.1:
-    resolution: {integrity: sha512-l9Uwc9eOnz39oADzGO2cSBDi7siv8lwO+31ocQ2nOJijnDiW3pxqm9VV10DPYUO28wW83DjABoUqY1nfHRR2hQ==}
+  conf@13.1.0:
+    resolution: {integrity: sha512-Bi6v586cy1CoTFViVO4lGTtx780lfF96fUmS1lSX6wpZf6330NvHUu6fReVuDP1de8Mg0nkZb01c8tAQdz1o3w==}
     engines: {node: '>=18'}
 
   consola@3.2.3:
@@ -1367,7 +1367,7 @@ snapshots:
 
   commander@4.1.1: {}
 
-  conf@13.0.1:
+  conf@13.1.0:
     dependencies:
       ajv: 8.17.1
       ajv-formats: 3.0.1(ajv@8.17.1)
