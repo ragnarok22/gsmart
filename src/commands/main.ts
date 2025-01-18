@@ -5,7 +5,7 @@ import { ICommand, IProvider, StatusFile } from "../definitions";
 import { commitChanges, getGitBranch, getGitChanges, getGitStatus, stageFile } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder, getActiveProviders } from "../utils/ai";
-import { copyToClipboard } from "../utils";
+import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
 
@@ -59,67 +59,15 @@ const MainCommand: ICommand = {
   }],
   action: async (options) => {
     const spinner = ora('').start();
-    let [branch, changes] = await getGitInfo();
+    const changes = await retrieveFilesToCommit(spinner);
+    const branch = await getGitBranch();
 
-    if (changes.length === 0) {
-      // get modified files that are not staged
-      const status = await getGitStatus();
-
-      if (status.length === 0) {
-        spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
-        return;
-      }
+    if (!changes) {
       spinner.stop();
-
-      const changedFiles = status.map((file) => {
-        if (file.status === StatusFile.Modified) {
-          return {
-            title: chalk.yellow(file.file_name),
-            value: file.file_name,
-          };
-        } else if (file.status === StatusFile.Deleted) {
-          return {
-            title: chalk.red(file.file_name),
-            value: file.file_name,
-          }
-        } else if (file.status === StatusFile.Untracked) {
-          return {
-            title: chalk.green(file.file_name),
-            value: file.file_name,
-          }
-        } else {
-          return {
-            title: file.file_name,
-            value: file.file_name,
-          };
-        }
-      });
-
-      const { files } = await prompts({
-        type: "multiselect",
-        name: "files",
-        message: "Select files to stage",
-        choices: changedFiles.map((file) => ({
-          title: file.title,
-          value: file.value,
-        })),
-      });
-
-      if (files.length === 0) {
-        spinner.fail(chalk.red("No files selected. Please select files to stage."));
-        return;
-      }
-
-      const result = await stageFile(files);
-      if (result) {
-        spinner.succeed(chalk.grey("Files staged successfully"));
-        [branch, changes] = await getGitInfo();
-      } else {
-        spinner.fail(chalk.red("Failed to stage files"));
-        return;
-      }
+      return;
     }
-    spinner.start();
+    if (!spinner.isSpinning)
+      spinner.start();
 
     const selectedProvider = await getProvider(options.provider);
 

@@ -64,3 +64,9 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
     return false;
   }
 }
+
+export const getGitInfo = async (): Promise<[string, string]> => {
+  const branch = await getGitBranch();
+  const changes = await getGitChanges();
+  return [branch, changes];
+}
