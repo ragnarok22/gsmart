@@ -29,15 +29,15 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.0.2",
-    "@ai-sdk/mistral": "^1.0.3",
-    "@ai-sdk/openai": "^1.0.5",
-    "ai": "^4.0.10",
+    "@ai-sdk/anthropic": "^1.1.0",
+    "@ai-sdk/mistral": "^1.1.0",
+    "@ai-sdk/openai": "^1.1.0",
+    "ai": "^4.1.0",
     "chalk": "5.4.1",
     "clipboardy": "^4.0.0",
     "commander": "^13.0.0",
-    "conf": "^13.0.1",
-    "fs-extra": "^11.2.0",
+    "conf": "^13.1.0",
+    "fs-extra": "^11.3.0",
     "ora": "^8.1.1",
     "prompts": "^2.4.2"
   },
@@ -46,8 +46,8 @@
     "@types/prompts": "^2.4.9",
     "rimraf": "^6.0.1",
     "tsup": "^8.3.5",
-    "type-fest": "^4.29.1",
-    "typescript": "^5.7.2"
+    "type-fest": "^4.32.0",
+    "typescript": "^5.7.3"
   },
-  "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab"
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }
