@@ -72,7 +72,6 @@ const MainCommand: ICommand = {
       spinner.stop();
 
       const changedFiles = status.map((file) => {
-        console.log(file)
         if (file.status === StatusFile.Modified) {
           return {
             title: chalk.yellow(file.file_name),
