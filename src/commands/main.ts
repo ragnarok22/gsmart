@@ -1,19 +1,13 @@
 import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
-import { ICommand, IProvider, StatusFile } from "../definitions";
-import { commitChanges, getGitBranch, getGitChanges, getGitStatus, stageFile } from "../utils/git";
+import { ICommand, IProvider } from "../definitions";
+import { commitChanges, getGitBranch } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder, getActiveProviders } from "../utils/ai";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
-
-const getGitInfo = async (): Promise<[string, string]> => {
-  const branch = await getGitBranch();
-  const changes = await getGitChanges();
-  return [branch, changes];
-}
 
 const getProvider = async (provider: string): Promise<IProvider | null> => {
   const allKeys = config.getAllKeys();
