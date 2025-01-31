@@ -35,22 +35,22 @@ export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null
     if (file.status === StatusFile.Modified) {
       return {
         title: chalk.yellow(file.file_name),
-        value: file.file_name,
+        value: file.file_path,
       };
     } else if (file.status === StatusFile.Deleted) {
       return {
         title: chalk.red(file.file_name),
-        value: file.file_name,
+        value: file.file_path,
       }
     } else if (file.status === StatusFile.Untracked) {
       return {
         title: chalk.green(file.file_name),
-        value: file.file_name,
+        value: file.file_path,
       }
     } else {
       return {
         title: file.file_name,
-        value: file.file_name,
+        value: file.file_path,
       };
     }
   })
@@ -64,8 +64,6 @@ export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null
       value: file.value,
     })),
   });
-
-  console.log(files)
 
   if (!files || files.length === 0) {
     spinner.fail(chalk.red("No files selected. Please select files to stage."));

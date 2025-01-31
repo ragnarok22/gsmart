@@ -35,4 +35,5 @@ export enum StatusFile {
 export type GitStatus = {
   status: StatusFile;
   file_name: string;
+  file_path: string;
 }

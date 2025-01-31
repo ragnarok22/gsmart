@@ -48,6 +48,7 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
       return {
         status: status.trim() as StatusFile,
         file_name,
+        file_path: fullPath
       };
     });
 
