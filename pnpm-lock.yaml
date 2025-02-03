@@ -19,7 +19,7 @@ importers:
         version: 1.1.6(zod@3.24.1)
       ai:
         specifier: ^4.1.16
-        version: 4.1.16(react@18.3.1)(zod@3.24.1)
+        version: 4.1.17(react@18.3.1)(zod@3.24.1)
       chalk:
         specifier: 5.4.1
         version: 5.4.1
@@ -411,8 +411,8 @@ packages:
   '@types/prompts@2.4.9':
     resolution: {integrity: sha512-qTxFi6Buiu8+50/+3DGIWLHM6QuWsEKugJnnP6iv2Mc4ncxE4A/OJkjuVOA+5X0X1S/nq5VJRa8Lu+nwcvbrKA==}
 
-  ai@4.1.16:
-    resolution: {integrity: sha512-4l8Dl2+reG210/l19E/D9NrpfumJuiyih7EehVm1wdMhz4/rSLjVewxkcmdcTczPee3/axB5Rp5h8q5hyIYB/g==}
+  ai@4.1.17:
+    resolution: {integrity: sha512-5SW15tXDuxE/wlEOjRKxLxTOUIGD4C9bIee+FCFvXHTTAZhHiQjViC2s7RtMUW+hbFtGya302jUHY1Pe8A/YuQ==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
@@ -1286,7 +1286,7 @@ snapshots:
       '@types/node': 22.12.0
       kleur: 3.0.3
 
-  ai@4.1.16(react@18.3.1)(zod@3.24.1):
+  ai@4.1.17(react@18.3.1)(zod@3.24.1):
     dependencies:
       '@ai-sdk/provider': 1.0.7
       '@ai-sdk/provider-utils': 2.1.6(zod@3.24.1)
