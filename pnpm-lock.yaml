@@ -16,7 +16,7 @@ importers:
         version: 1.1.11(zod@3.24.2)
       '@ai-sdk/openai':
         specifier: ^1.1.6
-        version: 1.1.9(zod@3.24.2)
+        version: 1.1.12(zod@3.24.2)
       ai:
         specifier: ^4.1.16
         version: 4.1.33(react@18.3.1)(zod@3.24.2)
@@ -78,8 +78,8 @@ packages:
     peerDependencies:
       zod: ^3.0.0
 
-  '@ai-sdk/openai@1.1.9':
-    resolution: {integrity: sha512-t/CpC4TLipdbgBJTMX/otzzqzCMBSPQwUOkYPGbT/jyuC86F+YO9o+LS0Ty2pGUE1kyT+B3WmJ318B16ZCg4hw==}
+  '@ai-sdk/openai@1.1.12':
+    resolution: {integrity: sha512-lh3zN4J/XEqkjpZAOBajSttF1Nl2qV/7WxRbORn+4jZmQkmzWQbsEUpgQ6ME+heyRvnsRCNq3fkMGehWWxWuXg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -1073,10 +1073,10 @@ snapshots:
       '@ai-sdk/provider-utils': 2.1.8(zod@3.24.2)
       zod: 3.24.2
 
-  '@ai-sdk/openai@1.1.9(zod@3.24.2)':
+  '@ai-sdk/openai@1.1.12(zod@3.24.2)':
     dependencies:
       '@ai-sdk/provider': 1.0.7
-      '@ai-sdk/provider-utils': 2.1.6(zod@3.24.2)
+      '@ai-sdk/provider-utils': 2.1.8(zod@3.24.2)
       zod: 3.24.2
 
   '@ai-sdk/provider-utils@2.1.6(zod@3.24.2)':
