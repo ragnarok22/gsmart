@@ -59,7 +59,7 @@ importers:
         version: 8.3.6(postcss@8.4.49)(typescript@5.7.3)
       type-fest:
         specifier: ^4.33.0
-        version: 4.34.1
+        version: 4.35.0
       typescript:
         specifier: ^5.7.3
         version: 5.7.3
@@ -83,15 +83,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
-
-  '@ai-sdk/provider-utils@2.1.6':
-    resolution: {integrity: sha512-Pfyaj0QZS22qyVn5Iz7IXcJ8nKIKlu2MeSAdKJzTwkAks7zdLaKVB+396Rqcp1bfQnxl7vaduQVMQiXUrgK8Gw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.0.0
-    peerDependenciesMeta:
-      zod:
-        optional: true
 
   '@ai-sdk/provider-utils@2.1.8':
     resolution: {integrity: sha512-1j9niMUAFlCBdYRYJr1yoB5kwZcRFBVuBiL1hhrf0ONFNrDiJYA6F+gROOuP16NHhezMfTo60+GeeV1xprHFjg==}
@@ -1004,8 +995,8 @@ packages:
       typescript:
         optional: true
 
-  type-fest@4.34.1:
-    resolution: {integrity: sha512-6kSc32kT0rbwxD6QL1CYe8IqdzN/J/ILMrNK+HMQCKH3insCDRY/3ITb0vcBss0a3t72fzh2YSzj8ko1HgwT3g==}
+  type-fest@4.35.0:
+    resolution: {integrity: sha512-2/AwEFQDFEy30iOLjrvHDIH7e4HEWH+f1Yl1bI5XMqzuoCUqwYCdxachgsgv0og/JdVZUhbfjcJAoHj5L1753A==}
     engines: {node: '>=16'}
 
   typescript@5.7.3:
@@ -1077,15 +1068,6 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 1.0.7
       '@ai-sdk/provider-utils': 2.1.8(zod@3.24.2)
-      zod: 3.24.2
-
-  '@ai-sdk/provider-utils@2.1.6(zod@3.24.2)':
-    dependencies:
-      '@ai-sdk/provider': 1.0.7
-      eventsource-parser: 3.0.0
-      nanoid: 3.3.8
-      secure-json-parse: 2.7.0
-    optionalDependencies:
       zod: 3.24.2
 
   '@ai-sdk/provider-utils@2.1.8(zod@3.24.2)':
@@ -1419,7 +1401,7 @@ snapshots:
 
   dot-prop@9.0.0:
     dependencies:
-      type-fest: 4.34.1
+      type-fest: 4.35.0
 
   eastasianwidth@0.2.0: {}
 
@@ -1864,7 +1846,7 @@ snapshots:
       - tsx
       - yaml
 
-  type-fest@4.34.1: {}
+  type-fest@4.35.0: {}
 
   typescript@5.7.3: {}
 
