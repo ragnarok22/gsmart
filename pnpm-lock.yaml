@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^1.1.9
-        version: 1.1.9(zod@3.24.2)
+        version: 1.1.13(zod@3.24.2)
       '@ai-sdk/mistral':
         specifier: ^1.1.12
         version: 1.1.12(zod@3.24.2)
@@ -66,8 +66,8 @@ importers:
 
 packages:
 
-  '@ai-sdk/anthropic@1.1.9':
-    resolution: {integrity: sha512-oPZ0r1XyXHWYwOSFnUTRdPMjX3SOfmZjgb1YaRYQk5Zhrcm8DcmZLkdXBkIXbfMeeOnT+bidqGbQSejXEzk/FQ==}
+  '@ai-sdk/anthropic@1.1.13':
+    resolution: {integrity: sha512-dBivw7ggokys0c9UmbhxHW36S+EHMQEHk/hVcakGO3sMEe6Vi0dR575xDjXJqs8uZPAmbcZjNb1s89U8cA0Y+Q==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -1069,10 +1069,10 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@1.1.9(zod@3.24.2)':
+  '@ai-sdk/anthropic@1.1.13(zod@3.24.2)':
     dependencies:
-      '@ai-sdk/provider': 1.0.8
-      '@ai-sdk/provider-utils': 2.1.9(zod@3.24.2)
+      '@ai-sdk/provider': 1.0.9
+      '@ai-sdk/provider-utils': 2.1.10(zod@3.24.2)
       zod: 3.24.2
 
   '@ai-sdk/mistral@1.1.12(zod@3.24.2)':
@@ -1085,6 +1085,15 @@ snapshots:
     dependencies:
       '@ai-sdk/provider': 1.0.9
       '@ai-sdk/provider-utils': 2.1.10(zod@3.24.2)
+      zod: 3.24.2
+
+  '@ai-sdk/provider-utils@2.1.10(zod@3.24.2)':
+    dependencies:
+      '@ai-sdk/provider': 1.0.9
+      eventsource-parser: 3.0.0
+      nanoid: 3.3.8
+      secure-json-parse: 2.7.0
+    optionalDependencies:
       zod: 3.24.2
 
   '@ai-sdk/provider-utils@2.1.10(zod@3.24.2)':
