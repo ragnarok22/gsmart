@@ -1,4 +1,5 @@
 # GSmart
+
 The smart way to write your commit messages using [Conventional Commits](https://www.conventionalcommits.org/).
 
 ![NPM Downloads](https://img.shields.io/npm/dm/gsmart)
@@ -18,8 +19,11 @@ npm install -g gsmart
 
 ## Usage
 
-After installing the package, you can use the `gsmart` command to write your commit messages.
-First you need to provide your API key for any of the supported AI services. You can use the `gsmart login` command to do this.
+After installing the package, you can use the `gsmart` command to write
+your commit messages.
+First you need to provide your API key for any of the supported AI services.
+You can use the `gsmart login` command to do this.
+
 ```bash
 gsmart login
 ? Select a provider > suse arrow keys to navigate
@@ -33,8 +37,10 @@ After selecting a provider, you will be prompted to enter your API key.
 ? Enter your API key:
 ```
 
-To generate a commit message, you need to be in a git repository and have some changes to commit.
-Add the changes to the staging area using the `git add` command. Then you can use the `gsmart` command to write your commit message.
+To generate a commit message, you need to be in a git repository
+and have some changes to commit.
+Add the changes to the staging area using the `git add` command.
+Then you can use the `gsmart` command to write your commit message.
 
 ```bash
 gsmart
@@ -65,10 +71,10 @@ Options:
 -h, --help      display help for command
 
 Commands:
-generate        Generate a commit message based on the changes in the staging area
-login           Login to a provider to use their AI service
-reset           Reset the API key for all providers and remove the configuration file
-help [command]  Display help for command
+`generate`        Generate a commit message based on the changes in the staging area
+`login`           Login to a provider to use their AI service
+`reset`           Reset the API key for all providers and remove the configuration file
+`help [command]`  Display help for command
 ```
 
 ## Providers
