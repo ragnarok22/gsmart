@@ -111,7 +111,7 @@ export class AIBuilder {
         const anthropic = createAnthropic({
           apiKey,
         });
-        return anthropic('claude-3-haiku-20240307');
+        return anthropic('claude-3-7-sonnet-20250219');
       }
       case "mistral": {
         const mistral = createMistral({
