@@ -59,7 +59,7 @@ importers:
         version: 8.4.0(postcss@8.4.49)(typescript@5.8.3)
       type-fest:
         specifier: ^4.36.0
-        version: 4.39.1
+        version: 4.40.0
       typescript:
         specifier: ^5.8.2
         version: 5.8.3
@@ -981,8 +981,8 @@ packages:
       typescript:
         optional: true
 
-  type-fest@4.39.1:
-    resolution: {integrity: sha512-uW9qzd66uyHYxwyVBYiwS4Oi0qZyUqwjU+Oevr6ZogYiXt99EOYtwvzMSLw1c3lYo2HzJsep/NB23iEVEgjG/w==}
+  type-fest@4.40.0:
+    resolution: {integrity: sha512-ABHZ2/tS2JkvH1PEjxFDTUWC8dB5OsIGZP4IFLhR293GqT5Y5qB1WwL2kMPYhQW9DVgVD8Hd7I8gjwPIf5GFkw==}
     engines: {node: '>=16'}
 
   typescript@5.8.3:
@@ -1384,7 +1384,7 @@ snapshots:
 
   dot-prop@9.0.0:
     dependencies:
-      type-fest: 4.39.1
+      type-fest: 4.40.0
 
   eastasianwidth@0.2.0: {}
 
@@ -1827,7 +1827,7 @@ snapshots:
       - tsx
       - yaml
 
-  type-fest@4.39.1: {}
+  type-fest@4.40.0: {}
 
   typescript@5.8.3: {}
 
