@@ -65,8 +65,6 @@ const mainAction = async (options) => {
   if (!spinner.isSpinning)
     spinner.start();
 
-  console.log({ selectedProvider })
-
   const ai = new AIBuilder(selectedProvider.value, options.prompt)
   const message = await ai.generateCommitMessage(branch, changes);
   if (typeof message === "object") {
