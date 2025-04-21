@@ -47,8 +47,6 @@ const mainAction = async (options) => {
     spinner.stop();
     return;
   }
-  if (!spinner.isSpinning)
-    spinner.start();
 
   const selectedProvider = await getProvider(options.provider);
 
@@ -63,6 +61,11 @@ const mainAction = async (options) => {
   if (options.provider) {
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   }
+
+  if (!spinner.isSpinning)
+    spinner.start();
+
+  console.log({ selectedProvider })
 
   const ai = new AIBuilder(selectedProvider.value, options.prompt)
   const message = await ai.generateCommitMessage(branch, changes);
