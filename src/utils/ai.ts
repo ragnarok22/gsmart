@@ -68,7 +68,7 @@ feat(auth): add user authentication
 fix(database): resolve connection timeout issue
 
 Generate only the commit message for the given changes.
-Don't explain the changes, just write a commit message that follows the conventional commits style.",
+Don't explain the changes or the diff or any other response; just write a commit message that follows the conventional commits style and nothing else.",
 `;
   return [system, prompt];
 }
