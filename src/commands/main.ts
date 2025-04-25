@@ -35,7 +35,8 @@ const getProvider = async (provider: string): Promise<IProvider | null> => {
     message: "Select an AI provider",
     choices: activeProviders.map(p => ({ title: p.title, value: p.value })),
   });
-  return value;
+  const selectedProvider = activeProviders.find(p => p.value === value) || null;
+  return selectedProvider;
 }
 
 const mainAction = async (options) => {
