@@ -50,26 +50,28 @@ export const getActiveProviders = (): IProvider[] => {
 **/
 const buildPrompt = (branch_name: string, changes: string): [string, string] => {
   const system = "You are an assistant that helps generate commit messages following the conventional commits style. A commit message should include a type, an optional scope, and a brief description. The types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore, and revert. The scope provides additional context and is optional.";
-  const prompt = `Generate a commit message following the conventional commits style for the following changes on branch ${branch_name}:
-
-Branch: ${branch_name}
+  const prompt = `Generate a commit message for these changes on branch ${branch_name}:
 
 Changes:
 ${changes}
 
-Conventional Commits Style:
-<type>(<scope>): <description>
+Format: <type>(<scope>): <description>
+Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
 
-Types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore, and revert.
-Scopes are optional and provide additional context.
+Examples:
+- feat(auth): add login functionality with OAuth
+- fix(api): resolve undefined response in user endpoint
+- docs(readme): update installation instructions
+- style(components): format code according to style guide
+- refactor(utils): simplify error handling logic
+- perf(queries): optimize database lookups
+- test(auth): add unit tests for authentication flow
+- build(deps): update dependency versions
+- ci(github): add workflow for automated testing
+- chore(release): prepare v1.2.0 release
+- revert: remove feature flag for beta functionality
 
-Example:
-feat(auth): add user authentication
-fix(database): resolve connection timeout issue
-
-Generate only the commit message for the given changes.
-Don't explain the changes or the diff or any other response; just write a commit message that follows the conventional commits style and nothing else.",
-`;
+Return ONLY the commit message. No explanations or additional text.`;
   return [system, prompt];
 }
 
