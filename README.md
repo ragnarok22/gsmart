@@ -8,6 +8,7 @@ The smart way to write your commit messages using [Conventional Commits](https:/
 ![npm bundle size](https://img.shields.io/bundlephobia/minzip/gsmart)
 ![NPM Unpacked Size](https://img.shields.io/npm/unpacked-size/gsmart)
 ![NPM Type Definitions](https://img.shields.io/npm/types/gsmart)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ragnarok22/gsmart)
 
 ![GSmart image](https://repository-images.githubusercontent.com/827045490/756cb1d5-9572-4cc2-be37-0459da007c1a)
 
