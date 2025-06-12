@@ -1,4 +1,5 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import config from "./config";
@@ -20,7 +21,7 @@ export const providers: IProvider[] = [{
   title: "Google AI",
   value: "google",
   description: "Google AI is a division of Google dedicated to artificial intelligence.",
-  active: false,
+  active: true,
 }, {
   title: "Mistral",
   value: "mistral",
@@ -114,6 +115,13 @@ export class AIBuilder {
           apiKey,
         });
         return anthropic('claude-3-5-haiku-latest');
+      }
+      case "google": {
+        const gemini = createGoogleGenerativeAI({
+          apiKey,
+        })
+
+        return gemini('gemini-2.0-flash');
       }
       case "mistral": {
         const mistral = createMistral({
