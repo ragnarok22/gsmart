@@ -27,7 +27,8 @@
     "prebuild": "node prebuild.js",
     "build": "tsup",
     "start": "node dist/index.js",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "prettier": "prettier --write ."
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
@@ -50,7 +51,9 @@
     "@types/fs-extra": "^11.0.4",
     "@types/prompts": "^2.4.9",
     "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
     "globals": "^16.3.0",
+    "prettier": "3.6.2",
     "rimraf": "^6.0.1",
     "tsup": "^8.5.0",
     "type-fest": "^4.41.0",
