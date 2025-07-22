@@ -61,10 +61,12 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
 
 
 export const stageFile = async (file: string | string[]): Promise<boolean> => {
-  const files = Array.isArray(file) ? file.join(" ") : file;
+  const files = Array.isArray(file) ? file : [file];
 
   try {
-    execSync(`git add ${files}`);
+    const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
+    const absolutePaths = files.map(f => path.resolve(repoRoot, f));
+    execSync(`git add ${absolutePaths.join(' ')}`, { cwd: repoRoot });
     return true;
   } catch (error) {
     return false;
