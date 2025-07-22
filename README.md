@@ -2,6 +2,7 @@
 
 The smart way to write your commit messages using [Conventional Commits](https://www.conventionalcommits.org/).
 
+![Test](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml/badge.svg)
 ![NPM Downloads](https://img.shields.io/npm/dm/gsmart)
 ![NPM Version](https://img.shields.io/npm/v/gsmart)
 ![NPM License](https://img.shields.io/npm/l/gsmart)
