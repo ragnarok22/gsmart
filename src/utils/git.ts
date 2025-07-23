@@ -9,7 +9,7 @@ export const getGitBranch = async (): Promise<string> => {
   } catch (error) {
     return "";
   }
-}
+};
 
 export const getGitChanges = async (): Promise<string> => {
   try {
@@ -18,7 +18,7 @@ export const getGitChanges = async (): Promise<string> => {
   } catch (error) {
     return "";
   }
-}
+};
 
 export const commitChanges = async (message: string): Promise<boolean> => {
   try {
@@ -27,13 +27,13 @@ export const commitChanges = async (message: string): Promise<boolean> => {
   } catch (e) {
     return false;
   }
-}
+};
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {
   try {
-    const status = execSync('git status --porcelain -z').toString();
+    const status = execSync("git status --porcelain -z").toString();
 
-    const files = status.split('\0').filter((line) => line.trim().length > 0);
+    const files = status.split("\0").filter((line) => line.trim().length > 0);
 
     const changedFiles = files.map((f) => {
       const match = f.trim().match(/^(\S{1,2})\s+(.+)$/);
@@ -48,33 +48,34 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
       return {
         status: status.trim() as StatusFile,
         file_name,
-        file_path: fullPath
+        file_path: fullPath,
       };
     });
 
     return changedFiles;
   } catch (error) {
-    console.error('Error getting Git status:', error);
+    console.error("Error getting Git status:", error);
     return [];
   }
 };
-
 
 export const stageFile = async (file: string | string[]): Promise<boolean> => {
   const files = Array.isArray(file) ? file : [file];
 
   try {
-    const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
-    const absolutePaths = files.map(f => path.resolve(repoRoot, f));
-    execSync(`git add ${absolutePaths.join(' ')}`, { cwd: repoRoot });
+    const repoRoot = execSync("git rev-parse --show-toplevel")
+      .toString()
+      .trim();
+    const absolutePaths = files.map((f) => path.resolve(repoRoot, f));
+    execSync(`git add ${absolutePaths.join(" ")}`, { cwd: repoRoot });
     return true;
   } catch (error) {
     return false;
   }
-}
+};
 
 export const getGitInfo = async (): Promise<[string, string]> => {
   const branch = await getGitBranch();
   const changes = await getGitChanges();
   return [branch, changes];
-}
+};

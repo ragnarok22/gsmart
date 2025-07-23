@@ -7,7 +7,7 @@ import config from "../utils/config";
 
 /**
  * Login command to paste the API key
-**/
+ **/
 const LoginCommand: ICommand = {
   name: "login",
   description: "Login to a provider to use their AI service",
@@ -17,10 +17,12 @@ const LoginCommand: ICommand = {
       name: "provider",
       message: "Select a provider",
       hint: "Use arrow keys to navigate",
-      choices: providers.filter(p => p.active).map(p => ({
-        title: p.title,
-        value: p.value
-      }))
+      choices: providers
+        .filter((p) => p.active)
+        .map((p) => ({
+          title: p.title,
+          value: p.value,
+        })),
     });
 
     if (!provider) {
@@ -33,16 +35,16 @@ const LoginCommand: ICommand = {
       name: "key",
       message: "Enter your API key",
       hint: "This will be stored in your local configuration",
-    })
+    });
 
     if (!key) {
       ora().fail(chalk.red("No API key provided"));
       return;
     }
 
-    config.setKey(provider, key)
+    config.setKey(provider, key);
     ora().succeed(chalk.green("API key saved successfully"));
-  }
-}
+  },
+};
 
 export default LoginCommand;

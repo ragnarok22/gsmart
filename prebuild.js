@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import packageJson from './package.json' with { type: 'json' };
+import fs from "fs";
+import path from "path";
+import packageJson from "./package.json" with { type: "json" };
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
@@ -11,4 +11,4 @@ const buildInfo = `
   export default { name, version, description };
 `;
 
-fs.writeFileSync(path.resolve(__dirname, 'src', 'build-info.ts'), buildInfo);
+fs.writeFileSync(path.resolve(__dirname, "src", "build-info.ts"), buildInfo);

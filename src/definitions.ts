@@ -6,14 +6,19 @@ export interface ICommand {
   action: (args: any) => void;
 }
 
-export type Provider = "openai" | "anthropic" | "google" | "mistral" | "fireworks" | "plataformia";
+export type Provider =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "mistral"
+  | "fireworks"
+  | "plataformia";
 
 export type Option = {
   flags: string;
   description: string;
   default?: string | boolean | string[];
-}
-
+};
 
 export interface IProvider {
   title: string;
@@ -36,4 +41,4 @@ export type GitStatus = {
   status: StatusFile;
   file_name: string;
   file_path: string;
-}
+};

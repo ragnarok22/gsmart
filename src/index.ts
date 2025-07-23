@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-//  _____  _____                          _   
-// |  __ \/  ___|                        | |  
-// | |  \/\ `--.  _ __ ___    __ _  _ __ | |_ 
+//  _____  _____                          _
+// |  __ \/  ___|                        | |
+// | |  \/\ `--.  _ __ ___    __ _  _ __ | |_
 // | | __  `--. \| '_ ` _ \  / _` || '__|| __|
-// | |_\ \/\__/ /| | | | | || (_| || |   | |_ 
+// | |_\ \/\__/ /| | | | | || (_| || |   | |_
 //  \____/\____/ |_| |_| |_| \__,_||_|    \__| CLI
 //  Created by: Reinier Hernández
 
@@ -12,24 +12,21 @@ import commands from "./gsmart";
 import info from "./build-info";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
-const handleSigTerm = () => process.exit(0)
+const handleSigTerm = () => process.exit(0);
 
-process.on('SIGINT', handleSigTerm)
-process.on('SIGTERM', handleSigTerm)
+process.on("SIGINT", handleSigTerm);
+process.on("SIGTERM", handleSigTerm);
 
 async function main() {
   // Define the program
   const program = new Command();
 
-  program
-    .name(info.name)
-    .version(info.version)
-    .description(info.description);
+  program.name(info.name).version(info.version).description(info.description);
 
   for (const command of commands) {
     const cmd = program
       .command(command.name, { isDefault: command.default })
-      .description(command.description)
+      .description(command.description);
 
     if (command.options) {
       for (const opt of command.options) {
@@ -38,7 +35,7 @@ async function main() {
     }
 
     cmd.action(() => {
-      const opts = cmd.opts()
+      const opts = cmd.opts();
       command.action(opts);
     });
   }

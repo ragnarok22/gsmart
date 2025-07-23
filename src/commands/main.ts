@@ -11,10 +11,10 @@ const providers = getActiveProviders();
 
 const getProvider = async (provider: string): Promise<IProvider | null> => {
   const allKeys = config.getAllKeys();
-  const activeProviders = providers.filter(p => allKeys[p.value]);
+  const activeProviders = providers.filter((p) => allKeys[p.value]);
 
   if (provider) {
-    const selectedProvider = activeProviders.find(p => p.value === provider);
+    const selectedProvider = activeProviders.find((p) => p.value === provider);
     if (!selectedProvider) {
       return null;
     }
@@ -33,14 +33,15 @@ const getProvider = async (provider: string): Promise<IProvider | null> => {
     type: "select",
     name: "value",
     message: "Select an AI provider",
-    choices: activeProviders.map(p => ({ title: p.title, value: p.value })),
+    choices: activeProviders.map((p) => ({ title: p.title, value: p.value })),
   });
-  const selectedProvider = activeProviders.find(p => p.value === value) || null;
+  const selectedProvider =
+    activeProviders.find((p) => p.value === value) || null;
   return selectedProvider;
-}
+};
 
 const mainAction = async (options) => {
-  const spinner = ora('').start();
+  const spinner = ora("").start();
   const changes = await retrieveFilesToCommit(spinner);
   const branch = await getGitBranch();
 
@@ -52,10 +53,16 @@ const mainAction = async (options) => {
   const selectedProvider = await getProvider(options.provider);
 
   if (!selectedProvider && !options.provider) {
-    spinner.fail(chalk.red("No API keys found. Please run `gsmart login` to paste your API key."));
+    spinner.fail(
+      chalk.red(
+        "No API keys found. Please run `gsmart login` to paste your API key.",
+      ),
+    );
     return;
   } else if (!selectedProvider) {
-    spinner.fail(chalk.red("No valid provider found. Please check your API keys."));
+    spinner.fail(
+      chalk.red("No valid provider found. Please check your API keys."),
+    );
     return;
   }
 
@@ -63,10 +70,9 @@ const mainAction = async (options) => {
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   }
 
-  if (!spinner.isSpinning)
-    spinner.start();
+  if (!spinner.isSpinning) spinner.start();
 
-  const ai = new AIBuilder(selectedProvider.value, options.prompt)
+  const ai = new AIBuilder(selectedProvider.value, options.prompt);
   const message = await ai.generateCommitMessage(branch, changes);
   if (typeof message === "object") {
     spinner.fail(chalk.red(message.error));
@@ -83,7 +89,7 @@ const mainAction = async (options) => {
       { title: "Copy message to clipboard", value: "copy" },
       { title: "Regenerate message", value: "regenerate" },
       { title: "Do nothing", value: "nothing" },
-    ]
+    ],
   });
 
   if (!action) {
@@ -115,22 +121,26 @@ const mainAction = async (options) => {
   }
 
   spinner.stop();
-}
+};
 
 const MainCommand: ICommand = {
   name: "generate",
   default: true,
-  description: "Generate a commit message based on the changes in the staging area",
-  options: [{
-    flags: "-p, --prompt <prompt>",
-    default: "",
-    description: "The prompt to use for generating the commit message",
-  }, {
-    flags: "-P, --provider <provider>",
-    default: "",
-    description: "The AI provider to use for generating the commit message",
-  }],
+  description:
+    "Generate a commit message based on the changes in the staging area",
+  options: [
+    {
+      flags: "-p, --prompt <prompt>",
+      default: "",
+      description: "The prompt to use for generating the commit message",
+    },
+    {
+      flags: "-P, --provider <provider>",
+      default: "",
+      description: "The AI provider to use for generating the commit message",
+    },
+  ],
   action: mainAction,
-}
+};
 
 export default MainCommand;

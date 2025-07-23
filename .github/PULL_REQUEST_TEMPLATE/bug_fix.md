@@ -1,9 +1,8 @@
 ---
 name: Bug Fix
 about: Create a patch to fix a bug
-title: ''
+title: ""
 labels: bug
-
 ---
 
 Related issue: # (if applicable)

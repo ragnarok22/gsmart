@@ -6,8 +6,11 @@ import config from "../utils/config";
 
 const ResetCommand: ICommand = {
   name: "reset",
-  options: [{ flags: "-f, --force", description: "Force reset the configuration" }],
-  description: "Reset the API key for all providers and remove the configuration file",
+  options: [
+    { flags: "-f, --force", description: "Force reset the configuration" },
+  ],
+  description:
+    "Reset the API key for all providers and remove the configuration file",
   action: async (options) => {
     if (!options.force) {
       const { confirm } = await prompts({
@@ -24,7 +27,7 @@ const ResetCommand: ICommand = {
 
     config.clear();
     ora().succeed(chalk.green("Configuration reset successfully"));
-  }
-}
+  },
+};
 
 export default ResetCommand;

@@ -2,7 +2,7 @@ import Conf from "conf";
 import { Provider, IProvider, ProviderKeys } from "../definitions";
 import { providers } from "./ai";
 
-const conf = new Conf({ projectName: "gsmart" })
+const conf = new Conf({ projectName: "gsmart" });
 
 class Config {
   /**
@@ -10,7 +10,7 @@ class Config {
    * @param provider - The provider to set the key for
    * @param key - The API key
    * @returns - The API key
-  **/
+   **/
   setKey(provider: Provider, key: string): void {
     return this.__set(`${provider}.key`, key);
   }
@@ -19,7 +19,7 @@ class Config {
    * Get the API key for the specified provider from the config
    * @param provider - The provider to get the key for
    * @returns - The API key
-  **/
+   **/
   getKey(provider: Provider): string {
     return this.__get(`${provider}.key`);
   }
@@ -28,7 +28,7 @@ class Config {
    * Clear the API key for the specified provider from the config
    * @param provider - The provider to clear the key for
    * @returns - The API key
-  **/
+   **/
   clearKey(provider: Provider): void {
     return this.__delete(`${provider}.key`);
   }
@@ -36,7 +36,7 @@ class Config {
   /**
    * Get all the API keys from the config
    * @returns - All the API keys
-  **/
+   **/
   getAllKeys(): ProviderKeys {
     const keys: { [key in Provider]?: string } = {};
     providers.forEach((provider: IProvider) => {

@@ -11,9 +11,11 @@ export const copyToClipboard = async (text: string): Promise<void> => {
   } catch (error) {
     console.error("An error occurred while copying the text to the clipboard");
   }
-}
+};
 
-export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null> => {
+export const retrieveFilesToCommit = async (
+  spinner: Ora,
+): Promise<string | null> => {
   let changes = await getGitChanges();
 
   if (changes.length > 0) {
@@ -24,14 +26,18 @@ export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null
   const status = await getGitStatus();
 
   if (status.length === 0) {
-    spinner.fail(chalk.red("No changes found. Please make some changes to your code and add them to the staging area."));
+    spinner.fail(
+      chalk.red(
+        "No changes found. Please make some changes to your code and add them to the staging area.",
+      ),
+    );
     return null;
   }
 
   spinner.stop();
 
   // get modified files that are not staged
-  const changedFiles = status.map(file => {
+  const changedFiles = status.map((file) => {
     if (file.status === StatusFile.Modified) {
       return {
         title: chalk.yellow(file.file_name),
@@ -41,19 +47,19 @@ export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null
       return {
         title: chalk.red(file.file_name),
         value: file.file_path,
-      }
+      };
     } else if (file.status === StatusFile.Untracked) {
       return {
         title: chalk.green(file.file_name),
         value: file.file_path,
-      }
+      };
     } else {
       return {
         title: file.file_name,
         value: file.file_path,
       };
     }
-  })
+  });
 
   const { files } = await prompts({
     type: "multiselect",
@@ -81,4 +87,4 @@ export const retrieveFilesToCommit = async (spinner: Ora): Promise<string | null
   }
 
   return changes;
-}
+};
