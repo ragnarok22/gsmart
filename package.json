@@ -34,10 +34,11 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.2.12",
     "@ai-sdk/google": "^1.2.22",
-    "@ai-sdk/mistral": "^1.2.8",
     "@ai-sdk/openai": "^2.0.0",
     "ai": "^4.3.19",
     "chalk": "5.4.1",
+    "@ai-sdk/mistral": "^2.0.0",
+    "chalk": "5.5.0",
     "clipboardy": "^4.0.0",
     "commander": "^14.0.0",
     "conf": "^14.0.0",
