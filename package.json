@@ -32,7 +32,7 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^1.2.12",
+    "@ai-sdk/anthropic": "^2.0.0",
     "@ai-sdk/google": "^2.0.1",
     "@ai-sdk/mistral": "^2.0.0",
     "@ai-sdk/openai": "^2.0.2",
