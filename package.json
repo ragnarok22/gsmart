@@ -32,16 +32,16 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.0",
-    "@ai-sdk/google": "^2.0.1",
-    "@ai-sdk/mistral": "^2.0.0",
-    "@ai-sdk/openai": "^2.0.2",
+    "@ai-sdk/anthropic": "^2.0.1",
+    "@ai-sdk/google": "^2.0.3",
+    "@ai-sdk/mistral": "^2.0.1",
+    "@ai-sdk/openai": "^2.0.4",
     "ai": "^4.3.19",
     "chalk": "5.5.0",
     "clipboardy": "^4.0.0",
     "commander": "^14.0.0",
     "conf": "^14.0.0",
-    "fs-extra": "^11.3.0",
+    "fs-extra": "^11.3.1",
     "ora": "^8.2.0",
     "prompts": "^2.4.2",
     "zod": "^3.25.76"
@@ -61,7 +61,7 @@
     "tsx": "^4.20.3",
     "type-fest": "^4.41.0",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.38.0"
+    "typescript-eslint": "^8.39.0"
   },
   "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748"
 }
