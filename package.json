@@ -36,7 +36,7 @@
     "@ai-sdk/google": "^2.0.3",
     "@ai-sdk/mistral": "^2.0.1",
     "@ai-sdk/openai": "^2.0.4",
-    "ai": "^4.3.19",
+    "ai": "^5.0.7",
     "chalk": "5.5.0",
     "clipboardy": "^4.0.0",
     "commander": "^14.0.0",
