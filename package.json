@@ -32,11 +32,11 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.4",
-    "@ai-sdk/google": "^2.0.6",
-    "@ai-sdk/mistral": "^2.0.5",
-    "@ai-sdk/openai": "^2.0.15",
-    "ai": "^5.0.15",
+    "@ai-sdk/anthropic": "^2.0.9",
+    "@ai-sdk/google": "^2.0.11",
+    "@ai-sdk/mistral": "^2.0.12",
+    "@ai-sdk/openai": "^2.0.22",
+    "ai": "^5.0.27",
     "chalk": "5.6.0",
     "clipboardy": "^4.0.0",
     "commander": "^14.0.0",
@@ -47,21 +47,21 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@eslint/js": "^9.33.0",
-    "@eslint/json": "^0.13.1",
+    "@eslint/js": "^9.34.0",
+    "@eslint/json": "^0.13.2",
     "@types/fs-extra": "^11.0.4",
     "@types/prompts": "^2.4.9",
-    "eslint": "^9.33.0",
+    "eslint": "^9.34.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.3.0",
     "prettier": "3.6.2",
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
-    "tsx": "^4.20.4",
+    "tsx": "^4.20.5",
     "type-fest": "^4.41.0",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.39.1"
+    "typescript-eslint": "^8.41.0"
   },
-  "packageManager": "pnpm@10.14.0+sha512.ad27a79641b49c3e481a16a805baa71817a04bbe06a38d17e60e2eaee83f6a146c6a688125f5792e48dd5ba30e7da52a5cda4c3992b9ccf333f9ce223af84748"
+  "packageManager": "pnpm@10.15.0+sha512.486ebc259d3e999a4e8691ce03b5cac4a71cbeca39372a9b762cb500cfdf0873e2cb16abe3d951b1ee2cf012503f027b98b6584e4df22524e0c7450d9ec7aa7b"
 }
