@@ -1,6 +1,6 @@
 {
   "name": "gsmart",
-  "version": "0.9.3",
+  "version": "0.9.4",
   "description": "CLI to generate smart commit messages using AI.",
   "repository": {
     "type": "git",
