@@ -2,35 +2,36 @@
 
 ## Project Structure & Module Organization
 
-- Source lives in `src/`; commands (CLI entrypoints) sit in `src/commands`, reusable helpers in `src/utils`, and the CLI bootstrap is `src/index.ts`.
-- Shared types and definitions belong in `src/definitions.ts`; keep command registration changes localized to `src/gsmart.ts`.
-- Runtime artifacts compile to `dist/` via tsup—never edit this directory manually.
-- Tests reside in `test/` alongside fixtures; mirror the source file name with a `.test.ts` suffix when adding coverage.
+Keep runtime logic under `src/` and treat the compiled `dist/` output as read-only artifacts. Align new files with existing module boundaries so command glue stays isolated from shared utilities.
+
+- `src/commands/` holds CLI entrypoints; prefer one file per subcommand.
+- `src/utils/` aggregates reusable helpers; keep side effects out of this layer.
+- `src/index.ts` bootstraps the CLI, while `src/gsmart.ts` wires command registration.
+- `src/definitions.ts` centralizes shared types; update consumers rather than duplicating interfaces.
+- Tests live in `test/` and mirror source filenames with a `.test.ts` suffix.
 
 ## Build, Test, and Development Commands
 
-- `pnpm install` ensures dependencies match the lockfile; prefer pnpm for all commands.
-- `pnpm run dev` launches tsup in watch mode for fast local iteration.
-- `pnpm run build` compiles TypeScript to ESM output in `dist/`.
-- `pnpm test` runs the tsx-powered test suite; combine with `pnpm test -- --watch` during development.
-- `pnpm run lint` and `pnpm run prettier` enforce linting and formatting before submitting work.
+Use pnpm for every workflow to stay aligned with the lockfile. Scripts assume Node ESM semantics and tsup bundling.
+
+- `pnpm install` syncs dependencies.
+- `pnpm run dev` runs tsup in watch mode for rapid iteration.
+- `pnpm run build` produces the production bundle in `dist/`.
+- `pnpm test` executes the tsx-powered test suite; append `-- --watch` while developing.
+- `pnpm run lint` and `pnpm run prettier` enforce TypeScript, ESLint, and formatting checks.
 
 ## Coding Style & Naming Conventions
 
-- TypeScript with ES modules and top-level await is standard; keep imports absolute from `src/`.
-- Use 2-space indentation, trailing commas where valid, and single quotes only when required by the linter.
-- Prefer descriptive function names like `generateCommitSummary`; CLI subcommands should be kebab-case (`generate-message`).
-- Run `pnpm run lint` after touching config or CLI glue code to catch unused exports and type regressions.
+Author TypeScript with 2-space indentation, trailing commas where allowed, and default double quotes. Import modules from `src/` using absolute paths. Favor descriptive verbs (`generateCommitSummary`) and kebab-case command names (`generate-message`). Run linting after touching CLI glue to surface unused exports or type drift.
 
 ## Testing Guidelines
 
-- Unit tests use Node’s built-in test runner under tsx; place new specs in `test/*.test.ts`.
-- Name tests after the behavior (`"generates default prompt when none provided"`) and isolate API calls using mocks from `src/utils`.
-- New features require accompanying tests or rationale when coverage is impractical; update existing tests if command signatures change.
+New features require unit coverage or a written justification when impractical. Tests run on Node's built-in runner via tsx; isolate side effects with fakes from `src/utils`. Name cases after observable behavior (e.g., `"generates default prompt when none provided"`) and keep fixtures adjacent to their specs in `test/`.
 
 ## Commit & Pull Request Guidelines
 
-- Follow Conventional Commits (`type(scope): summary`); scopes typically mirror subdirectories (`feat(utils): add provider cache`).
-- Generate messages with `pnpm exec gsmart` whenever possible to stay consistent with project tone.
-- Squash commits prior to merge unless multiple meaningful milestones must remain.
-- PRs must describe the user-facing impact, reference related issues, and include screenshots or CLI transcripts when behavior changes.
+Follow Conventional Commits (`type(scope): summary`), with scopes that mirror directories (`feat(utils): add provider cache`). Generate commit messages with `pnpm exec gsmart` when feasible. Squash before merge unless preserving milestones. Pull requests must describe user-facing impact, link related issues, and provide screenshots or CLI transcripts when behavior changes.
+
+## Security & Configuration Tips
+
+Do not commit secrets; rely on local environment variables and `.env` files excluded from source control. Review `SECURITY.md` before reporting vulnerabilities and coordinate with maintainers for disclosure timelines.
