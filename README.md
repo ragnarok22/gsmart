@@ -1,67 +1,102 @@
 # GSmart
 
-The smart way to write your commit messages using [Conventional Commits](https://www.conventionalcommits.org/).
+> **The smart way to write your commit messages using AI** 🤖
 
-![Test](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml/badge.svg)
-![NPM Downloads](https://img.shields.io/npm/dm/gsmart)
-![NPM Version](https://img.shields.io/npm/v/gsmart)
-![NPM License](https://img.shields.io/npm/l/gsmart)
-![npm bundle size](https://img.shields.io/bundlephobia/minzip/gsmart)
-![NPM Unpacked Size](https://img.shields.io/npm/unpacked-size/gsmart)
-![NPM Type Definitions](https://img.shields.io/npm/types/gsmart)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/ragnarok22/gsmart)
+GSmart is a CLI tool that automatically generates [Conventional Commits](https://www.conventionalcommits.org/) by analyzing your staged git changes. Simply stage your files and let AI craft the perfect commit message for you.
 
-![GSmart image](https://repository-images.githubusercontent.com/827045490/756cb1d5-9572-4cc2-be37-0459da007c1a)
+[![Test](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml/badge.svg)](https://github.com/ragnarok22/gsmart/actions)
+[![NPM Downloads](https://img.shields.io/npm/dm/gsmart)](https://www.npmjs.com/package/gsmart)
+[![NPM Version](https://img.shields.io/npm/v/gsmart)](https://www.npmjs.com/package/gsmart)
+[![npm bundle size](https://img.shields.io/bundlephobia/minzip/gsmart)](https://bundlephobia.com/package/gsmart)
+[![NPM License](https://img.shields.io/npm/l/gsmart)](https://github.com/ragnarok22/gsmart/blob/main/LICENSE)
 
-## Installation
+![GSmart Demo](https://repository-images.githubusercontent.com/827045490/756cb1d5-9572-4cc2-be37-0459da007c1a)
+
+## ✨ Features
+
+- 🎯 **Smart Commit Messages**: AI-generated conventional commits based on your changes
+- 🔄 **Multiple AI Providers**: Support for OpenAI, Anthropic, Google, Mistral, Fireworks AI, and PlataformIA
+- 📋 **Interactive CLI**: Easy-to-use command line interface with interactive prompts
+- 🔒 **Secure**: API keys stored locally and securely
+- ⚡ **Fast**: Quick analysis and generation of commit messages
+- 📖 **Conventional Commits**: Follows industry-standard commit message format
+
+## 🚀 Quick Start
+
+### Installation
+
+Install GSmart globally using npm or pnpm:
 
 ```bash
+# Using npm
 npm install -g gsmart
+
+# Using pnpm
+pnpm add -g gsmart
+
+# Using yarn
+yarn global add gsmart
 ```
 
-## Usage
+### Setup
 
-After installing the package, you can use the `gsmart` command to write
-your commit messages.
-First you need to provide your API key for any of the supported AI services.
-You can use the `gsmart login` command to do this.
+1. **Configure your AI provider** (one-time setup):
 
 ```bash
 gsmart login
-? Select a provider > suse arrow keys to navigate
+```
+
+You'll be prompted to select a provider and enter your API key:
+
+```
+? Select a provider › Use arrow keys to navigate
 ❯ OpenAI
   Anthropic
+  Google Gemini
+  Mistral
+  Fireworks AI
+  PlataformIA
 ```
 
-After selecting a provider, you will be prompted to enter your API key.
+2. **Generate commit messages**:
 
 ```bash
-? Enter your API key:
-```
+# Stage your changes
+git add .
 
-To generate a commit message, you need to be in a git repository
-and have some changes to commit.
-Add the changes to the staging area using the `git add` command.
-Then you can use the `gsmart` command to write your commit message.
-
-```bash
+# Generate and apply commit message
 gsmart
 ```
 
-### Generate options
+That's it! GSmart will analyze your staged changes and generate a conventional commit message.
 
-If can add different providers. If you want to use a specific provider,
-you can use the `--provider` option.
+## 💡 Usage Examples
+
+### Basic Usage
 
 ```bash
+# Stage some files
+git add src/components/Button.tsx
+
+# Generate commit message
+gsmart
+# Output: "feat(components): add Button component with primary and secondary variants"
+```
+
+### Advanced Options
+
+```bash
+# Use a specific provider
 gsmart --provider anthropic
+
+# Use a custom prompt
+gsmart --prompt "Focus on the security implications of these changes"
+
+# Show help
+gsmart --help
 ```
 
-You can also specify the prompt to use for the AI model, using the `--prompt` option.
-
-```bash
-gsmart --prompt "Explaining the changes in the staging area"
-```
+## 📋 Command Reference
 
 ```bash
 Usage: gsmart [options] [command]
@@ -69,38 +104,90 @@ Usage: gsmart [options] [command]
 CLI to generate smart commit messages using AI. generate command is the default command.
 
 Options:
--V, --version   output the version number
--h, --help      display help for command
+  -V, --version                    Output the version number
+  -h, --help                       Display help for command
 
 Commands:
-`generate`        Generate a commit message based on the changes in the staging area
-`login`           Login to a provider to use their AI service
-`reset`           Reset the API key for all providers and remove the configuration file
-`help [command]`  Display help for command
+  generate [options]               Generate a commit message based on staged changes (default)
+    --provider <provider>          Use a specific AI provider
+    --prompt <prompt>              Custom prompt for the AI model
+
+  login                           Configure AI provider and API key
+  reset                           Reset all API keys and configuration
+  help [command]                  Display help for command
 ```
 
-## Providers
+## 🤖 Supported AI Providers
 
-- [OpenAI](https://openai.com/)
-  - Model: [GPT-4o](https://platform.openai.com/docs/models/gpt-4o)
-  - [Get API Key](https://platform.openai.com/api-keys)
-- [Anthropic](https://www.anthropic.com/)
-  - Model: [Claude](https://www.anthropic.com/claude)
-  - [Get API Key](https://console.anthropic.com/settings/keys)
-- [Google Gemini](https://gemini.google.com/app)
-  - Model: [Gemini](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash)
-  - [Get API Key](https://console.cloud.google.com/apis/credentials)
-- [Mistral](https://www.mistral.ai/)
-  - Model: [Mistral Large](https://mistral.ai/technology/#models)
-  - [Get API Key](https://console.mistral.ai/api-keys/)
-- [Fireworks AI](https://fireworks.ai)
-  - Model: [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)
-  - [Get API Key](https://fireworks.ai/api-keys)
-- [PlataformIA](https://plataformia.com)
-  - Model: [Radiance](https://docs.plataformia.com/llm-chat-api)
-  - [Get API Key](https://console.plataformia.com/api-keys)
+| Provider | Model | Get API Key |
+|----------|-------|-------------|
+| **OpenAI** | [GPT-4o](https://platform.openai.com/docs/models/gpt-4o) | [Get Key](https://platform.openai.com/api-keys) |
+| **Anthropic** | [Claude](https://www.anthropic.com/claude) | [Get Key](https://console.anthropic.com/settings/keys) |
+| **Google** | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash) | [Get Key](https://console.cloud.google.com/apis/credentials) |
+| **Mistral** | [Mistral Large](https://mistral.ai/technology/#models) | [Get Key](https://console.mistral.ai/api-keys/) |
+| **Fireworks AI** | [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1) | [Get Key](https://fireworks.ai/api-keys) |
+| **PlataformIA** | [Radiance](https://docs.plataformia.com/llm-chat-api) | [Get Key](https://console.plataformia.com/api-keys) |
 
-## License
+## 🛠️ Development
 
-This project is licensed under the GNU General Public License v3.0 -
-see the [LICENSE](LICENSE) file for details.
+### Requirements
+
+- Node.js 18+ with ESM support
+- pnpm (recommended) or npm
+
+### Scripts
+
+```bash
+# Install dependencies
+pnpm install
+
+# Development mode
+pnpm run dev
+
+# Build the project
+pnpm run build
+
+# Run tests
+pnpm test
+
+# Lint code
+pnpm run lint
+
+# Format code
+pnpm run prettier
+```
+
+### Project Structure
+
+```
+src/
+├── commands/          # CLI command implementations
+├── utils/
+│   ├── ai.ts         # AI provider integrations
+│   ├── git.ts        # Git operations
+│   └── config.ts     # Configuration management
+├── gsmart.ts         # Command registration
+└── index.ts          # CLI entry point
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes using GSmart! (`gsmart`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for details about releases and changes.
+
+## 📝 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">
+  <sub>Built with ❤️ by <a href="https://github.com/ragnarok22">@ragnarok22</a></sub>
+</p>
