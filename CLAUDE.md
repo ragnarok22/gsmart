@@ -20,6 +20,7 @@ The project uses pnpm as package manager and requires Node.js with ESM support.
 ## Architecture
 
 ### Core Structure
+
 - **Entry Point**: `src/index.ts` - CLI setup using Commander.js with signal handling
 - **Commands**: `src/commands/` - Command implementations (generate, login, reset)
 - **AI Integration**: `src/utils/ai.ts` - AI provider abstraction and prompt building
@@ -27,18 +28,22 @@ The project uses pnpm as package manager and requires Node.js with ESM support.
 - **Configuration**: `src/utils/config.ts` - Persistent storage for API keys using conf package
 
 ### Command Architecture
+
 The CLI follows a command pattern where:
+
 - Each command exports an `ICommand` object with name, description, options, and action
 - Commands are registered in `src/gsmart.ts` and loaded by the main program
 - The default command is "generate" which analyzes staged changes and creates commit messages
 
 ### AI Provider System
+
 - Multiple AI providers supported through unified `AIBuilder` class
 - Each provider uses different models (GPT-4o, Claude, Gemini, Mistral, etc.)
 - Providers configured with specific base URLs and model names
 - API keys stored securely using the conf package
 
 ### Git Integration
+
 - Uses `execSync` for git commands (status, diff, commit)
 - Parses `git status --porcelain` for file change detection
 - Requires staged changes in git to generate commit messages
@@ -47,16 +52,19 @@ The CLI follows a command pattern where:
 ## Key Design Patterns
 
 ### Type Safety
+
 - Strong TypeScript typing throughout with interfaces for commands, providers, and git status
 - Provider types constrained to specific string literals
 - Git status enum for file change types (Modified, Deleted, Untracked)
 
 ### Error Handling
+
 - AI generation returns union types (string | {error: string}) for graceful error handling
 - Git operations wrapped in try-catch with boolean success indicators
 - CLI provides user-friendly error messages with ora spinner feedback
 
 ### User Experience
+
 - Interactive prompts using the prompts package for provider selection and actions
 - Loading spinners with ora for long-running operations
 - Chalk for colored terminal output

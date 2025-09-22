@@ -119,14 +119,14 @@ Commands:
 
 ## 🤖 Supported AI Providers
 
-| Provider | Model | Get API Key |
-|----------|-------|-------------|
-| **OpenAI** | [GPT-4o](https://platform.openai.com/docs/models/gpt-4o) | [Get Key](https://platform.openai.com/api-keys) |
-| **Anthropic** | [Claude](https://www.anthropic.com/claude) | [Get Key](https://console.anthropic.com/settings/keys) |
-| **Google** | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash) | [Get Key](https://console.cloud.google.com/apis/credentials) |
-| **Mistral** | [Mistral Large](https://mistral.ai/technology/#models) | [Get Key](https://console.mistral.ai/api-keys/) |
-| **Fireworks AI** | [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1) | [Get Key](https://fireworks.ai/api-keys) |
-| **PlataformIA** | [Radiance](https://docs.plataformia.com/llm-chat-api) | [Get Key](https://console.plataformia.com/api-keys) |
+| Provider         | Model                                                                             | Get API Key                                                  |
+| ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **OpenAI**       | [GPT-4o](https://platform.openai.com/docs/models/gpt-4o)                          | [Get Key](https://platform.openai.com/api-keys)              |
+| **Anthropic**    | [Claude](https://www.anthropic.com/claude)                                        | [Get Key](https://console.anthropic.com/settings/keys)       |
+| **Google**       | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash) | [Get Key](https://console.cloud.google.com/apis/credentials) |
+| **Mistral**      | [Mistral Large](https://mistral.ai/technology/#models)                            | [Get Key](https://console.mistral.ai/api-keys/)              |
+| **Fireworks AI** | [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)          | [Get Key](https://fireworks.ai/api-keys)                     |
+| **PlataformIA**  | [Radiance](https://docs.plataformia.com/llm-chat-api)                             | [Get Key](https://console.plataformia.com/api-keys)          |
 
 ## 🛠️ Development
 
