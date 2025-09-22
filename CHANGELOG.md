@@ -7,8 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.5] - 2025-09-22
+
 ### Added
 
+- GitHub Actions workflow for automated releases and npm publishing
 - Enhanced README with features overview, usage examples, and development guide
 - Project documentation in CLAUDE.md with architecture overview
 - ESLint ignore rules for `dist/` and `build/` directories
@@ -16,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Improved documentation structure and clarity
+- Updated release automation with modern GitHub Actions
 
 ## [0.9.4] - 2024-12-XX
 
@@ -173,7 +177,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.9.4...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.9.5...HEAD
+[0.9.5]: https://github.com/ragnarok22/gsmart/compare/v0.9.4...v0.9.5
 [0.9.4]: https://github.com/ragnarok22/gsmart/compare/v0.9.3...v0.9.4
 [0.9.3]: https://github.com/ragnarok22/gsmart/compare/v0.9.2...v0.9.3
 [0.9.2]: https://github.com/ragnarok22/gsmart/compare/v0.9.1...v0.9.2
