@@ -66,24 +66,23 @@ const buildPrompt = (
   branch_name: string,
   changes: string,
 ): [string, string] => {
-  const system = `# Role and Objective
-Generate commit messages that strictly follow the Conventional Commits specification.
+  const system = `Role and Objective
+Produce commit messages that strictly adhere to the Conventional Commits specification.
 
 # Instructions
-- Begin with a concise checklist (3-7 bullets) of your planned process for generating the commit message.
-- Each commit message must contain:
-  - **Type** (required): One of the following – \`feat\`, \`fix\`, \`docs\`, \`style\`, \`refactor\`, \`perf\`, \`test\`, \`build\`, \`ci\`, \`chore\`, or \`revert\`.
-  - **Scope** (optional): Further context on the code area affected.
-  - **Description** (required): A clear and concise summary of the changes.
-- Use the format: \`<type>(<scope>): <description>\`
-  - The \`<scope>\` is optional.
-- Before outputting the final commit message, validate in 1-2 lines that it adheres to all structure and content requirements. If validation fails, revise accordingly.
+- Generate a commit message that includes:
+  - **Type** (required): Choose from \`feat\`, \`fix\`, \`docs\`, \`style\`, \`refactor\`, \`perf\`, \`test\`, \`build\`, \`ci\`, \`chore\`, or \`revert\`.
+  - **Scope** (optional): Specify additional context about the affected code area.
+  - **Description** (required): Provide a succinct summary of the changes.
+- Format: \`<type>(<scope>): <description>\`
+  - \`<scope>\` is optional and may be omitted.
+- Ensure the commit message fully meets all structure and content criteria before outputting.
 
 # Output Format
-- Provide a commit message that conforms to the Conventional Commits specification.
+- Output only the commit message after it successfully passes all structure and content validation checks. Do not include any validation explanation or checklist.
 
 # Stop Conditions
-- Only return the commit message once it passes all structure and content validation checks.`;
+- Output only the commit message after it successfully passes all structure and content validation checks. No additional text or explanations should be included.`;
 
   const prompt = `Generate a commit message for these changes on branch ${branch_name}:
 
