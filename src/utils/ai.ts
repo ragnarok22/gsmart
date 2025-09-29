@@ -66,8 +66,25 @@ const buildPrompt = (
   branch_name: string,
   changes: string,
 ): [string, string] => {
-  const system =
-    "You are an assistant that helps generate commit messages following the conventional commits style. A commit message should include a type, an optional scope, and a brief description. The types include: feat, fix, docs, style, refactor, perf, test, build, ci, chore, and revert. The scope provides additional context and is optional.";
+  const system = `# Role and Objective
+Generate commit messages that strictly follow the Conventional Commits specification.
+
+# Instructions
+- Begin with a concise checklist (3-7 bullets) of your planned process for generating the commit message.
+- Each commit message must contain:
+  - **Type** (required): One of the following – \`feat\`, \`fix\`, \`docs\`, \`style\`, \`refactor\`, \`perf\`, \`test\`, \`build\`, \`ci\`, \`chore\`, or \`revert\`.
+  - **Scope** (optional): Further context on the code area affected.
+  - **Description** (required): A clear and concise summary of the changes.
+- Use the format: \`<type>(<scope>): <description>\`
+  - The \`<scope>\` is optional.
+- Before outputting the final commit message, validate in 1-2 lines that it adheres to all structure and content requirements. If validation fails, revise accordingly.
+
+# Output Format
+- Provide a commit message that conforms to the Conventional Commits specification.
+
+# Stop Conditions
+- Only return the commit message once it passes all structure and content validation checks.`;
+
   const prompt = `Generate a commit message for these changes on branch ${branch_name}:
 
 Changes:
@@ -123,9 +140,8 @@ export class AIBuilder {
       case "openai": {
         const openai = createOpenAI({
           apiKey,
-          compatibility: "strict",
         });
-        return openai("gpt-4o");
+        return openai("gpt-5");
       }
       case "anthropic": {
         const anthropic = createAnthropic({
@@ -149,7 +165,6 @@ export class AIBuilder {
       case "fireworks": {
         const openai = createOpenAI({
           apiKey,
-          compatibility: "strict",
           baseURL: "https://api.fireworks.ai/inference/v1",
         });
         return openai("accounts/fireworks/models/firefunction-v1");
@@ -189,8 +204,7 @@ export class AIBuilder {
         model,
         system,
         prompt,
-        maxTokens: 60,
-        temperature: 0.7,
+        // temperature: 0.7,
       });
 
       return text;
