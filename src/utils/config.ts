@@ -49,7 +49,7 @@ class Config {
   private __get(key: string): string {
     return conf.get(key, "");
   }
-  private __set(key: string, value: any): void {
+  private __set(key: string, value: unknown): void {
     conf.set(key, value);
   }
   private __delete(key: string): void {

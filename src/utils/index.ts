@@ -8,7 +8,7 @@ import { Ora } from "ora";
 export const copyToClipboard = async (text: string): Promise<void> => {
   try {
     await clipboard.write(text);
-  } catch (error) {
+  } catch {
     console.error("An error occurred while copying the text to the clipboard");
   }
 };

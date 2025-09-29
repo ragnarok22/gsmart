@@ -9,7 +9,10 @@ import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
 
-const getProvider = async (provider: string, skipPrompt = false): Promise<IProvider | null> => {
+const getProvider = async (
+  provider: string,
+  skipPrompt = false,
+): Promise<IProvider | null> => {
   const allKeys = config.getAllKeys();
   const activeProviders = providers.filter((p) => allKeys[p.value]);
 
@@ -154,7 +157,8 @@ const MainCommand: ICommand = {
     {
       flags: "-y, --yes",
       default: false,
-      description: "Automatically commit without prompting (useful for automation)",
+      description:
+        "Automatically commit without prompting (useful for automation)",
     },
   ],
   action: mainAction,

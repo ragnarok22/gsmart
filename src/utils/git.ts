@@ -6,7 +6,7 @@ export const getGitBranch = async (): Promise<string> => {
   try {
     const branch = execSync("git branch --show-current").toString().trim();
     return branch;
-  } catch (error) {
+  } catch {
     return "";
   }
 };
@@ -15,7 +15,7 @@ export const getGitChanges = async (): Promise<string> => {
   try {
     const changes = execSync("git diff --cached").toString().trim();
     return changes;
-  } catch (error) {
+  } catch {
     return "";
   }
 };
@@ -24,7 +24,7 @@ export const commitChanges = async (message: string): Promise<boolean> => {
   try {
     execSync(`git commit -m "${message}"`);
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 };
@@ -53,7 +53,7 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
     });
 
     return changedFiles;
-  } catch (error) {
+  } catch {
     console.error("Error getting Git status:", error);
     return [];
   }
@@ -69,7 +69,7 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
     const absolutePaths = files.map((f) => path.resolve(repoRoot, f));
     execSync(`git add ${absolutePaths.join(" ")}`, { cwd: repoRoot });
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 };

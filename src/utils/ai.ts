@@ -189,14 +189,14 @@ export class AIBuilder {
    * @private - This method is private and should not be accessed directly
    **/
   private async __generateText(
-    model: any,
+    model: unknown,
     branch_name: string,
     changes: string,
   ): Promise<string | { error: string }> {
-    let [system, prompt] = buildPrompt(branch_name, changes);
-    if (this.prompt) {
-      prompt = `${this.prompt}. The branch name is ${branch_name} and the changes are as follows: ${changes}`;
-    }
+    const [system, initialPrompt] = buildPrompt(branch_name, changes);
+    const prompt = this.prompt
+      ? `${this.prompt}. The branch name is ${branch_name} and the changes are as follows: ${changes}`
+      : initialPrompt;
 
     try {
       const { text } = await generateText({
