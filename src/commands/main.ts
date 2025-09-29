@@ -9,7 +9,7 @@ import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
 
-const getProvider = async (provider: string): Promise<IProvider | null> => {
+const getProvider = async (provider: string, skipPrompt = false): Promise<IProvider | null> => {
   const allKeys = config.getAllKeys();
   const activeProviders = providers.filter((p) => allKeys[p.value]);
 
@@ -26,6 +26,11 @@ const getProvider = async (provider: string): Promise<IProvider | null> => {
   }
 
   if (activeProviders.length === 1) {
+    return activeProviders[0];
+  }
+
+  if (skipPrompt) {
+    // When skip prompt is enabled, use the first available provider
     return activeProviders[0];
   }
 
@@ -50,7 +55,7 @@ const mainAction = async (options) => {
     return;
   }
 
-  const selectedProvider = await getProvider(options.provider);
+  const selectedProvider = await getProvider(options.provider, options.yes);
 
   if (!selectedProvider && !options.provider) {
     spinner.fail(
@@ -80,25 +85,31 @@ const mainAction = async (options) => {
   }
   spinner.succeed(chalk.green(message));
 
-  const { action } = await prompts({
-    type: "select",
-    name: "action",
-    message: "What would you like to do?",
-    choices: [
-      { title: "Commit", value: "commit" },
-      { title: "Copy message to clipboard", value: "copy" },
-      { title: "Regenerate message", value: "regenerate" },
-      { title: "Do nothing", value: "nothing" },
-    ],
-  });
+  let action = "commit";
 
-  if (!action) {
-    ora().fail(chalk.red("No action selected. Doing nothing."));
-    return;
+  if (!options.yes) {
+    const response = await prompts({
+      type: "select",
+      name: "action",
+      message: "What would you like to do?",
+      choices: [
+        { title: "Commit", value: "commit" },
+        { title: "Copy message to clipboard", value: "copy" },
+        { title: "Regenerate message", value: "regenerate" },
+        { title: "Do nothing", value: "nothing" },
+      ],
+    });
+
+    if (!response.action) {
+      ora().fail(chalk.red("No action selected. Doing nothing."));
+      return;
+    }
+
+    action = response.action;
   }
 
   switch (action) {
-    case "commit":
+    case "commit": {
       const result = await commitChanges(message);
       if (result) {
         ora().succeed(chalk.green("Changes committed successfully"));
@@ -108,6 +119,7 @@ const mainAction = async (options) => {
         ora().succeed(chalk.green("Message copied to clipboard"));
       }
       break;
+    }
     case "copy":
       await copyToClipboard(message);
       ora().succeed(chalk.green("Message copied to clipboard"));
@@ -138,6 +150,11 @@ const MainCommand: ICommand = {
       flags: "-P, --provider <provider>",
       default: "",
       description: "The AI provider to use for generating the commit message",
+    },
+    {
+      flags: "-y, --yes",
+      default: false,
+      description: "Automatically commit without prompting (useful for automation)",
     },
   ],
   action: mainAction,
