@@ -9,6 +9,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      GSMART_CONFIG_DIR: ${{ runner.temp }}/gsmart-config
     strategy:
       matrix:
         node-version: [20, 22, 24]
