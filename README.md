@@ -5,6 +5,7 @@
 GSmart is a CLI tool that automatically generates [Conventional Commits](https://www.conventionalcommits.org/) by analyzing your staged git changes. Simply stage your files and let AI craft the perfect commit message for you.
 
 [![Test](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml/badge.svg)](https://github.com/ragnarok22/gsmart/actions)
+[![codecov](https://codecov.io/gh/ragnarok22/gsmart/branch/main/graph/badge.svg)](https://codecov.io/gh/ragnarok22/gsmart)
 [![NPM Downloads](https://img.shields.io/npm/dm/gsmart)](https://www.npmjs.com/package/gsmart)
 [![NPM Version](https://img.shields.io/npm/v/gsmart)](https://www.npmjs.com/package/gsmart)
 [![npm bundle size](https://img.shields.io/bundlephobia/minzip/gsmart)](https://bundlephobia.com/package/gsmart)
