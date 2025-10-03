@@ -2,7 +2,7 @@ import chalk from "chalk";
 import ora from "ora";
 import prompts from "prompts";
 import { ICommand } from "../definitions";
-import { providers } from "../utils/ai";
+import { providers } from "../utils/providers";
 import config from "../utils/config";
 
 /**

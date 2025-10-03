@@ -4,7 +4,8 @@ import prompts from "prompts";
 import { ICommand, IProvider } from "../definitions";
 import { commitChanges, getGitBranch } from "../utils/git";
 import config from "../utils/config";
-import { AIBuilder, getActiveProviders } from "../utils/ai";
+import { AIBuilder } from "../utils/ai";
+import { getActiveProviders } from "../utils/providers";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
@@ -139,8 +140,9 @@ const mainAction = async (options: MainCommandOptions = {}) => {
       ora().succeed(chalk.green("Message copied to clipboard"));
       break;
     case "regenerate":
-      MainCommand.action(options);
-      break;
+      spinner.stop();
+      await MainCommand.action(options);
+      return;
     case "nothing":
       ora().succeed(chalk.yellow("No action taken"));
       break;

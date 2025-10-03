@@ -31,14 +31,9 @@ export type ProviderKeys = {
   [key in Provider]?: string;
 };
 
-export enum StatusFile {
-  Modified = "M",
-  Deleted = "D",
-  Untracked = "??",
-}
-
 export type GitStatus = {
-  status: StatusFile;
+  status: string;
   file_name: string;
   file_path: string;
+  original_path?: string;
 };

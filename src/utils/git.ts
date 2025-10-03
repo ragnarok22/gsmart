@@ -1,11 +1,32 @@
-import { execSync } from "child_process";
-import path from "path";
-import { GitStatus, StatusFile } from "../definitions";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
+import path from "node:path";
+import type { GitStatus } from "../definitions";
+
+type RunGitOptions = SpawnSyncOptions & { trim?: boolean };
+
+const runGit = (args: string[], options: RunGitOptions = {}): string => {
+  const { trim = true, ...spawnOptions } = options;
+  const result = spawnSync("git", args, {
+    encoding: "utf8",
+    ...spawnOptions,
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (result.status !== 0) {
+    const stderr = typeof result.stderr === "string" ? result.stderr : "";
+    throw new Error(stderr || `git ${args.join(" ")}`);
+  }
+
+  const output = typeof result.stdout === "string" ? result.stdout : "";
+  return trim ? output.trim() : output;
+};
 
 export const getGitBranch = async (): Promise<string> => {
   try {
-    const branch = execSync("git branch --show-current").toString().trim();
-    return branch;
+    return runGit(["branch", "--show-current"]);
   } catch {
     return "";
   }
@@ -13,8 +34,7 @@ export const getGitBranch = async (): Promise<string> => {
 
 export const getGitChanges = async (): Promise<string> => {
   try {
-    const changes = execSync("git diff --cached").toString().trim();
-    return changes;
+    return runGit(["diff", "--cached"]);
   } catch {
     return "";
   }
@@ -22,35 +42,54 @@ export const getGitChanges = async (): Promise<string> => {
 
 export const commitChanges = async (message: string): Promise<boolean> => {
   try {
-    execSync(`git commit -m "${message}"`);
+    runGit(["commit", "-m", message]);
     return true;
   } catch {
     return false;
   }
 };
 
+const needsSecondaryPath = (statusCode: string): boolean => {
+  const normalized = statusCode.trim();
+  return normalized.startsWith("R") || normalized.startsWith("C");
+};
+
 export const getGitStatus = async (): Promise<GitStatus[]> => {
   try {
-    const status = execSync("git status --porcelain -z").toString();
+    const status = runGit(["status", "--porcelain", "-z"], { trim: false });
+    if (!status) {
+      return [];
+    }
 
-    const files = status.split("\0").filter((line) => line.trim().length > 0);
+    const entries = status.split("\0").filter((line) => line.length > 0);
+    const changedFiles: GitStatus[] = [];
 
-    const changedFiles = files.map((f) => {
-      const match = f.trim().match(/^(\S{1,2})\s+(.+)$/);
+    for (let index = 0; index < entries.length; index += 1) {
+      const entry = entries[index];
+      const match = entry.match(/^(\S{1,2})\s+(.+)$/);
 
       if (!match) {
-        throw new Error(`Error parsing file status: ${f}`);
+        continue;
       }
 
-      const [, status, fullPath] = match;
-      const file_name = path.basename(fullPath) as string;
+      const [, rawStatus, filePath] = match;
+      const statusCode = rawStatus.trim() || rawStatus;
+      let currentPath = filePath;
+      let originalPath: string | undefined;
 
-      return {
-        status: status.trim() as StatusFile,
-        file_name,
-        file_path: fullPath,
-      };
-    });
+      if (needsSecondaryPath(statusCode) && index + 1 < entries.length) {
+        currentPath = filePath;
+        originalPath = entries[index + 1];
+        index += 1;
+      }
+
+      changedFiles.push({
+        status: statusCode,
+        file_name: path.basename(currentPath),
+        file_path: currentPath,
+        ...(originalPath ? { original_path: originalPath } : {}),
+      });
+    }
 
     return changedFiles;
   } catch (error) {
@@ -62,12 +101,17 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
 export const stageFile = async (file: string | string[]): Promise<boolean> => {
   const files = Array.isArray(file) ? file : [file];
 
+  if (files.length === 0) {
+    return true;
+  }
+
   try {
-    const repoRoot = execSync("git rev-parse --show-toplevel")
-      .toString()
-      .trim();
-    const absolutePaths = files.map((f) => path.resolve(repoRoot, f));
-    execSync(`git add ${absolutePaths.join(" ")}`, { cwd: repoRoot });
+    const repoRoot = runGit(["rev-parse", "--show-toplevel"]);
+    const absolutePaths = Array.from(
+      new Set(files.map((candidate) => path.resolve(repoRoot, candidate))),
+    );
+
+    runGit(["add", "--", ...absolutePaths], { cwd: repoRoot });
     return true;
   } catch {
     return false;

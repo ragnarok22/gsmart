@@ -2,11 +2,55 @@ import clipboard from "clipboardy";
 import chalk from "chalk";
 import prompts from "prompts";
 import { getGitChanges, getGitStatus, stageFile } from "./git";
-import { StatusFile } from "../definitions";
+import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
 
 type RetrieveFilesOptions = {
   autoStage?: boolean;
+};
+
+const normalizeStatus = (status: string): string => status.replace(/\s/g, "");
+
+const formatFileLabel = (file: GitStatus): string => {
+  if (file.original_path) {
+    return `${file.original_path} → ${file.file_path}`;
+  }
+  return file.file_name;
+};
+
+const formatChoiceTitle = (file: GitStatus): string => {
+  const label = formatFileLabel(file);
+  const normalized = normalizeStatus(file.status);
+
+  if (normalized === "??") {
+    return chalk.green(label);
+  }
+
+  if (normalized.includes("D")) {
+    return chalk.red(label);
+  }
+
+  if (normalized.startsWith("A")) {
+    return chalk.green(label);
+  }
+
+  if (normalized.startsWith("R")) {
+    return chalk.cyan(label);
+  }
+
+  return chalk.yellow(label);
+};
+
+const collectPathsToStage = (files: GitStatus[]): string[] => {
+  const paths = files.flatMap((file) => {
+    const selections = [file.file_path];
+    if (file.original_path) {
+      selections.push(file.original_path);
+    }
+    return selections;
+  });
+
+  return Array.from(new Set(paths));
 };
 
 export const copyToClipboard = async (text: string): Promise<void> => {
@@ -28,7 +72,6 @@ export const retrieveFilesToCommit = async (
     return changes;
   }
 
-  // retrieve files with changes
   const status = await getGitStatus();
 
   if (status.length === 0) {
@@ -44,57 +87,38 @@ export const retrieveFilesToCommit = async (
     spinner.stop();
   }
 
-  // get modified files that are not staged
-  const changedFiles = status.map((file) => {
-    if (file.status === StatusFile.Modified) {
-      return {
-        title: chalk.yellow(file.file_name),
-        value: file.file_path,
-      };
-    } else if (file.status === StatusFile.Deleted) {
-      return {
-        title: chalk.red(file.file_name),
-        value: file.file_path,
-      };
-    } else if (file.status === StatusFile.Untracked) {
-      return {
-        title: chalk.green(file.file_name),
-        value: file.file_path,
-      };
-    } else {
-      return {
-        title: file.file_name,
-        value: file.file_path,
-      };
-    }
-  });
+  const choices = status.map((file) => ({
+    title: formatChoiceTitle(file),
+    value: file,
+  }));
 
-  let filesToStage: string[] = [];
+  let filesToStage: GitStatus[] = [];
 
   if (autoStage) {
-    filesToStage = changedFiles.map((file) => file.value);
+    filesToStage = status;
   } else {
-    const { files } = await prompts({
+    const response = await prompts({
       type: "multiselect",
       name: "files",
       message: "Select files to stage",
-      choices: changedFiles.map((file) => ({
-        title: file.title,
-        value: file.value,
-      })),
+      choices,
     });
 
-    if (!files || files.length === 0) {
+    const selected = response.files as GitStatus[] | undefined;
+
+    if (!selected || selected.length === 0) {
       spinner.fail(
         chalk.red("No files selected. Please select files to stage."),
       );
       return null;
     }
-    filesToStage = files;
+
+    filesToStage = selected;
   }
 
-  // staging files to commit
-  const result = await stageFile(filesToStage);
+  const pathsToStage = collectPathsToStage(filesToStage);
+
+  const result = await stageFile(pathsToStage);
   if (result) {
     spinner.succeed(chalk.grey("Files staged successfully"));
     changes = await getGitChanges();

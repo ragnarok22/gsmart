@@ -1,60 +1,13 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
+import { createMistral } from "@ai-sdk/mistral";
 import { generateText, type LanguageModel } from "ai";
 import config from "./config";
-import { IProvider, Provider } from "../definitions";
+import { Provider } from "../definitions";
 import { DEFAULT_PROVIDER } from "./constants";
-import { createMistral } from "@ai-sdk/mistral";
 
-export const providers: IProvider[] = [
-  {
-    title: "OpenAI",
-    value: "openai",
-    description:
-      "OpenAI is an artificial intelligence research laboratory consisting of the for-profit OpenAI LP and the non-profit OpenAI Inc.",
-    active: true,
-  },
-  {
-    title: "Anthropic",
-    value: "anthropic",
-    description:
-      "Anthropic is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
-    active: true,
-  },
-  {
-    title: "Google AI",
-    value: "google",
-    description:
-      "Google AI is a division of Google dedicated to artificial intelligence.",
-    active: true,
-  },
-  {
-    title: "Mistral",
-    value: "mistral",
-    description:
-      "Mistral is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
-    active: true,
-  },
-  {
-    title: "Fireworks AI",
-    value: "fireworks",
-    description:
-      "Fireworks AI is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
-    active: true,
-  },
-  {
-    title: "PlataformIA",
-    value: "plataformia",
-    description:
-      "PlataformIA is a Cuban AI platform offering tools for app creation, workflow automation, and content generation, with APIs for developers.",
-    active: true,
-  },
-];
-
-export const getActiveProviders = (): IProvider[] => {
-  return providers.filter((p) => p.active);
-};
+export { providers, getActiveProviders } from "./providers";
 
 /**
  * Build the prompt for the AI model
@@ -195,7 +148,10 @@ export class AIBuilder {
   ): Promise<string | { error: string }> {
     const [system, initialPrompt] = buildPrompt(branch_name, changes);
     const prompt = this.prompt
-      ? `${this.prompt}. The branch name is ${branch_name} and the changes are as follows: ${changes}`
+      ? `${initialPrompt}
+
+Additional instructions:
+${this.prompt}`
       : initialPrompt;
 
     try {

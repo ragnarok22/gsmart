@@ -1,8 +1,8 @@
 import Conf from "conf";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { Provider, IProvider, ProviderKeys } from "../definitions";
-import { providers } from "./ai";
+import { Provider, ProviderKeys } from "../definitions";
+import { providers } from "./providers";
 
 const resolveConfigDirectory = (): string | undefined => {
   const override = process.env.GSMART_CONFIG_DIR;
@@ -59,7 +59,7 @@ class Config {
    **/
   getAllKeys(): ProviderKeys {
     const keys: { [key in Provider]?: string } = {};
-    providers.forEach((provider: IProvider) => {
+    providers.forEach((provider) => {
       keys[provider.value] = this.__get(`${provider.value}.key`);
     });
 

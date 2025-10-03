@@ -98,9 +98,35 @@ test("retrieveFilesToCommit auto-stages files in non-interactive mode", async ()
     const diff = await retrieveFilesToCommit(spinner, { autoStage: true });
     assert(diff && diff.includes("auto-stage-me"));
 
-    // ensure content is staged
     const staged = await getGitChanges();
     assert(staged.includes("auto-stage-me"));
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("getGitStatus captures rename metadata", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync("file.txt", "hello");
+    execSync("git add file.txt");
+    execSync('git commit -m "initial"');
+
+    execSync("git mv file.txt renamed.txt");
+
+    const status = await getGitStatus();
+    assert.equal(status.length, 1);
+    assert(status[0].status.startsWith("R"));
+    assert.equal(status[0].file_path, "renamed.txt");
+    assert.equal(status[0].original_path, "file.txt");
   } finally {
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
