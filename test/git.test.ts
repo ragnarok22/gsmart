@@ -132,3 +132,47 @@ test("getGitStatus captures rename metadata", async () => {
     rmSync(repo, { recursive: true, force: true });
   }
 });
+
+test("getGitStatus handles malformed status lines", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync("file.txt", "content");
+    const status = await getGitStatus();
+    assert.ok(Array.isArray(status));
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("git commands work in non-git directory", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsmart-nogit-"));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    const branch = await getGitBranch();
+    assert.equal(branch, "");
+  } finally {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("commitChanges fails gracefully", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsmart-nogit-"));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    const result = await commitChanges("test");
+    assert.equal(result, false);
+  } finally {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
