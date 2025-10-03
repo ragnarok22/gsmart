@@ -140,7 +140,7 @@ export class AIBuilder {
         const openai = createOpenAI({
           apiKey,
         });
-        return openai("gpt-5");
+        return openai("gpt-5-codex");
       }
       case "anthropic": {
         const anthropic = createAnthropic({
