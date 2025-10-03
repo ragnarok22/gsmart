@@ -47,7 +47,7 @@ class Config {
   }
 
   private __get(key: string): string {
-    return conf.get(key, "");
+    return conf.get<string>(key, "") as string;
   }
   private __set(key: string, value: unknown): void {
     conf.set(key, value);

@@ -29,6 +29,7 @@
     "start": "node dist/index.js",
     "test": "tsx --test",
     "lint": "eslint . --ext .ts",
+    "typecheck": "tsc --noEmit",
     "prettier": "prettier --write ."
   },
   "dependencies": {

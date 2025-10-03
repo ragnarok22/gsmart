@@ -53,7 +53,7 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
     });
 
     return changedFiles;
-  } catch {
+  } catch (error) {
     console.error("Error getting Git status:", error);
     return [];
   }

@@ -3,7 +3,7 @@ export interface ICommand {
   description: string;
   default?: boolean;
   options?: Option[];
-  action: (args: unknown) => void;
+  action: (args: Record<string, unknown>) => void | Promise<void>;
 }
 
 export type Provider =

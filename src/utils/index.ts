@@ -5,6 +5,10 @@ import { getGitChanges, getGitStatus, stageFile } from "./git";
 import { StatusFile } from "../definitions";
 import { Ora } from "ora";
 
+type RetrieveFilesOptions = {
+  autoStage?: boolean;
+};
+
 export const copyToClipboard = async (text: string): Promise<void> => {
   try {
     await clipboard.write(text);
@@ -15,7 +19,9 @@ export const copyToClipboard = async (text: string): Promise<void> => {
 
 export const retrieveFilesToCommit = async (
   spinner: Ora,
+  options: RetrieveFilesOptions = {},
 ): Promise<string | null> => {
+  const { autoStage = false } = options;
   let changes = await getGitChanges();
 
   if (changes.length > 0) {
@@ -34,7 +40,9 @@ export const retrieveFilesToCommit = async (
     return null;
   }
 
-  spinner.stop();
+  if (!autoStage) {
+    spinner.stop();
+  }
 
   // get modified files that are not staged
   const changedFiles = status.map((file) => {
@@ -61,23 +69,32 @@ export const retrieveFilesToCommit = async (
     }
   });
 
-  const { files } = await prompts({
-    type: "multiselect",
-    name: "files",
-    message: "Select files to stage",
-    choices: changedFiles.map((file) => ({
-      title: file.title,
-      value: file.value,
-    })),
-  });
+  let filesToStage: string[] = [];
 
-  if (!files || files.length === 0) {
-    spinner.fail(chalk.red("No files selected. Please select files to stage."));
-    return null;
+  if (autoStage) {
+    filesToStage = changedFiles.map((file) => file.value);
+  } else {
+    const { files } = await prompts({
+      type: "multiselect",
+      name: "files",
+      message: "Select files to stage",
+      choices: changedFiles.map((file) => ({
+        title: file.title,
+        value: file.value,
+      })),
+    });
+
+    if (!files || files.length === 0) {
+      spinner.fail(
+        chalk.red("No files selected. Please select files to stage."),
+      );
+      return null;
+    }
+    filesToStage = files;
   }
 
   // staging files to commit
-  const result = await stageFile(files);
+  const result = await stageFile(filesToStage);
   if (result) {
     spinner.succeed(chalk.grey("Files staged successfully"));
     changes = await getGitChanges();

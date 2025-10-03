@@ -9,6 +9,12 @@ import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 
 const providers = getActiveProviders();
 
+type MainCommandOptions = {
+  prompt?: string;
+  provider?: string;
+  yes?: boolean;
+};
+
 const getProvider = async (
   provider: string,
   skipPrompt = false,
@@ -24,7 +30,7 @@ const getProvider = async (
     return selectedProvider;
   }
 
-  if (!activeProviders) {
+  if (activeProviders.length === 0) {
     return null;
   }
 
@@ -48,9 +54,11 @@ const getProvider = async (
   return selectedProvider;
 };
 
-const mainAction = async (options) => {
+const mainAction = async (options: MainCommandOptions = {}) => {
   const spinner = ora("").start();
-  const changes = await retrieveFilesToCommit(spinner);
+  const changes = await retrieveFilesToCommit(spinner, {
+    autoStage: Boolean(options.yes),
+  });
   const branch = await getGitBranch();
 
   if (!changes) {
@@ -58,7 +66,10 @@ const mainAction = async (options) => {
     return;
   }
 
-  const selectedProvider = await getProvider(options.provider, options.yes);
+  const selectedProvider = await getProvider(
+    options.provider ?? "",
+    Boolean(options.yes),
+  );
 
   if (!selectedProvider && !options.provider) {
     spinner.fail(
@@ -80,7 +91,7 @@ const mainAction = async (options) => {
 
   if (!spinner.isSpinning) spinner.start();
 
-  const ai = new AIBuilder(selectedProvider.value, options.prompt);
+  const ai = new AIBuilder(selectedProvider.value, options.prompt ?? "");
   const message = await ai.generateCommitMessage(branch, changes);
   if (typeof message === "object") {
     spinner.fail(chalk.red(message.error));
@@ -161,7 +172,7 @@ const MainCommand: ICommand = {
         "Automatically commit without prompting (useful for automation)",
     },
   ],
-  action: mainAction,
+  action: (options) => mainAction(options as MainCommandOptions),
 };
 
 export default MainCommand;

@@ -34,9 +34,9 @@ async function main() {
       }
     }
 
-    cmd.action(() => {
+    cmd.action(async () => {
       const opts = cmd.opts();
-      command.action(opts);
+      await Promise.resolve(command.action(opts));
     });
   }
 

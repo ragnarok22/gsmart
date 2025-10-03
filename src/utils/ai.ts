@@ -1,7 +1,7 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { generateText } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import config from "./config";
 import { IProvider, Provider } from "../definitions";
 import { DEFAULT_PROVIDER } from "./constants";
@@ -133,7 +133,7 @@ export class AIBuilder {
     return this.__generateText(model, branch_name, changes);
   }
 
-  private __generateModel() {
+  private __generateModel(): LanguageModel {
     const apiKey = config.getKey(this.provider);
     switch (this.provider) {
       case "openai": {
@@ -189,7 +189,7 @@ export class AIBuilder {
    * @private - This method is private and should not be accessed directly
    **/
   private async __generateText(
-    model: unknown,
+    model: LanguageModel,
     branch_name: string,
     changes: string,
   ): Promise<string | { error: string }> {
@@ -207,14 +207,13 @@ export class AIBuilder {
       });
 
       return text;
-    } catch (e) {
-      const error = e as Error;
-      const provider = model.provider.split(".")[0];
+    } catch (error) {
       const message =
-        error.message ||
-        "An error occurred while generating the commit message";
+        error instanceof Error && error.message
+          ? error.message
+          : "An error occurred while generating the commit message";
       return {
-        error: `${provider} - ${message}`,
+        error: `${this.provider} - ${message}`,
       };
     }
   }

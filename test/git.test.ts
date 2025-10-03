@@ -13,12 +13,14 @@ import {
   stageFile,
   getGitInfo,
 } from "../src/utils/git.ts";
+import { retrieveFilesToCommit } from "../src/utils/index.ts";
 
 test("git utils basic flow", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
   execSync("git init -b main", { cwd: repo });
   execSync('git config user.email "test@example.com"', { cwd: repo });
   execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
 
   const cwd = process.cwd();
   process.chdir(repo);
@@ -46,6 +48,7 @@ test("git utils basic flow", async () => {
 test("getGitStatus lists untracked files", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
   execSync("git init -b main", { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
 
   const cwd = process.cwd();
   process.chdir(repo);
@@ -55,6 +58,47 @@ test("getGitStatus lists untracked files", async () => {
     assert.equal(status.length, 1);
     assert.equal(status[0].status, "??");
     assert.equal(status[0].file_name, "a.txt");
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+const createSpinnerStub = () => {
+  const spinner = {
+    isSpinning: true,
+    stop() {
+      spinner.isSpinning = false;
+    },
+    fail() {
+      spinner.isSpinning = false;
+    },
+    succeed() {
+      spinner.isSpinning = false;
+    },
+    info() {},
+  };
+
+  return spinner;
+};
+
+test("retrieveFilesToCommit auto-stages files in non-interactive mode", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "auto.txt"), "auto-stage-me");
+    const spinner = createSpinnerStub();
+    const diff = await retrieveFilesToCommit(spinner, { autoStage: true });
+    assert(diff && diff.includes("auto-stage-me"));
+
+    // ensure content is staged
+    const staged = await getGitChanges();
+    assert(staged.includes("auto-stage-me"));
   } finally {
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
