@@ -1,8 +1,28 @@
 import Conf from "conf";
+import { existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { Provider, IProvider, ProviderKeys } from "../definitions";
 import { providers } from "./ai";
 
-const conf = new Conf({ projectName: "gsmart" });
+const resolveConfigDirectory = (): string | undefined => {
+  const override = process.env.GSMART_CONFIG_DIR;
+  if (!override) {
+    return undefined;
+  }
+
+  if (!existsSync(override)) {
+    mkdirSync(override, { recursive: true });
+  }
+
+  return path.resolve(override);
+};
+
+const configDirectory = resolveConfigDirectory();
+
+const conf = new Conf({
+  projectName: "gsmart",
+  ...(configDirectory ? { cwd: configDirectory } : {}),
+});
 
 class Config {
   /**

@@ -1,3 +1,5 @@
+import "../test-support/setup-env";
+
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";

@@ -1,3 +1,5 @@
+import "../test-support/setup-env";
+
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -11,7 +13,8 @@ const importConfig = async () => {
 
 test("set, get and clear key", async () => {
   const configDir = mkdtempSync(join(tmpdir(), "gsmart-config-"));
-  process.env.XDG_CONFIG_HOME = configDir;
+  const previousDir = process.env.GSMART_CONFIG_DIR;
+  process.env.GSMART_CONFIG_DIR = configDir;
   const config = await importConfig();
   try {
     config.setKey("openai", "abc");
@@ -25,6 +28,10 @@ test("set, get and clear key", async () => {
   } finally {
     config.clear();
     rmSync(configDir, { recursive: true, force: true });
-    delete process.env.XDG_CONFIG_HOME;
+    if (previousDir) {
+      process.env.GSMART_CONFIG_DIR = previousDir;
+    } else {
+      delete process.env.GSMART_CONFIG_DIR;
+    }
   }
 });
