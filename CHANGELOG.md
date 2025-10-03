@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Fixed typecheck error in CI by running prebuild before typecheck to generate build-info.ts
+
+### Added
+
+- Test coverage reporting with Node.js built-in coverage support
+- Codecov integration in GitHub Actions workflow
+- Coverage badge in README
+
 ## [0.9.7] - 2025-10-05
 
 ### Changed
