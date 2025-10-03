@@ -17,6 +17,7 @@ GSmart is a CLI tool that automatically generates [Conventional Commits](https:/
 - 🎯 **Smart Commit Messages**: AI-generated conventional commits based on your changes
 - 🔄 **Multiple AI Providers**: Support for OpenAI, Anthropic, Google, Mistral, Fireworks AI, and PlataformIA
 - 📋 **Interactive CLI**: Easy-to-use command line interface with interactive prompts
+- 🧠 **Rename-Aware Staging**: Detects renames and copies so both sides get staged automatically
 - 🔒 **Secure**: API keys stored locally and securely
 - ⚡ **Fast**: Quick analysis and generation of commit messages
 - 📖 **Conventional Commits**: Follows industry-standard commit message format
@@ -92,9 +93,14 @@ gsmart --provider anthropic
 # Use a custom prompt
 gsmart --prompt "Focus on the security implications of these changes"
 
+# Run non-interactively (auto-stage + commit if possible)
+gsmart --yes
+
 # Show help
 gsmart --help
 ```
+
+When `--yes` is set, GSmart stages all detected changes—including renames—and skips interactive prompts so you can automate message generation.
 
 ## 📋 Command Reference
 
@@ -111,6 +117,7 @@ Commands:
   generate [options]               Generate a commit message based on staged changes (default)
     --provider <provider>          Use a specific AI provider
     --prompt <prompt>              Custom prompt for the AI model
+    --yes                         Run non-interactively (auto stage + commit)
 
   login                           Configure AI provider and API key
   reset                           Reset all API keys and configuration
