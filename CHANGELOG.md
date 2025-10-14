@@ -7,15 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- Fixed typecheck error in CI by running prebuild before typecheck to generate build-info.ts
+## [0.10.0] - 2025-10-14
 
 ### Added
 
+- Automatic update checking on CLI startup with update-notifier
 - Test coverage reporting with Node.js built-in coverage support
 - Codecov integration in GitHub Actions workflow
 - Coverage badge in README
+
+### Changed
+
+- Fixed typecheck error in CI by running prebuild before typecheck to generate build-info.ts
+- Updated AI SDK packages (@ai-sdk/anthropic, @ai-sdk/google, ai)
+- Updated linting tooling (ESLint, typescript-eslint)
+- Updated dependencies (zod, conf, type-fest)
+- Removed redundant top-level heading from README
+- Removed bundle size badge from README
 
 ## [0.9.7] - 2025-10-05
 
@@ -211,7 +219,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.9.7...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/ragnarok22/gsmart/compare/v0.9.7...v0.10.0
 [0.9.7]: https://github.com/ragnarok22/gsmart/compare/v0.9.6...v0.9.7
 [0.9.6]: https://github.com/ragnarok22/gsmart/compare/v0.9.5...v0.9.6
 [0.9.5]: https://github.com/ragnarok22/gsmart/compare/v0.9.4...v0.9.5
