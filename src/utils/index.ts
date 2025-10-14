@@ -5,6 +5,8 @@ import { getGitChanges, getGitStatus, stageFile } from "./git";
 import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
 
+export { checkForUpdates } from "./version-check";
+
 type RetrieveFilesOptions = {
   autoStage?: boolean;
 };

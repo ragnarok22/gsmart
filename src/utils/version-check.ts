@@ -20,7 +20,7 @@ export function checkForUpdates(pkg: PackageInfo): void {
     const { current, latest } = notifier.update;
 
     console.log(
-      chalk.yellow("\n┌───────────────────────────────────────────────────┐")
+      chalk.yellow("\n┌───────────────────────────────────────────────────┐"),
     );
     console.log(
       chalk.yellow("│") +
@@ -28,16 +28,16 @@ export function checkForUpdates(pkg: PackageInfo): void {
         chalk.dim(current) +
         chalk.reset(" → ") +
         chalk.green.bold(latest) +
-        " ".repeat(
-          Math.max(0, 30 - current.length - latest.length - 3)
-        ) +
-        chalk.yellow("│")
+        " ".repeat(Math.max(0, 30 - current.length - latest.length - 3)) +
+        chalk.yellow("│"),
     );
     console.log(
       chalk.yellow("│") +
-        chalk.dim(`  Changelog: https://github.com/ragnarok22/gsmart/releases`) +
+        chalk.dim(
+          `  Changelog: https://github.com/ragnarok22/gsmart/releases`,
+        ) +
         " ".repeat(Math.max(0, 1)) +
-        chalk.yellow("│")
+        chalk.yellow("│"),
     );
     console.log(
       chalk.yellow("│") +
@@ -45,10 +45,10 @@ export function checkForUpdates(pkg: PackageInfo): void {
         chalk.bold.cyan(`npm install -g ${pkg.name}`) +
         chalk.cyan(` to update`) +
         " ".repeat(Math.max(0, 6)) +
-        chalk.yellow("│")
+        chalk.yellow("│"),
     );
     console.log(
-      chalk.yellow("└───────────────────────────────────────────────────┘\n")
+      chalk.yellow("└───────────────────────────────────────────────────┘\n"),
     );
   }
 }

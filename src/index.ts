@@ -10,6 +10,7 @@
 import { Command } from "commander";
 import commands from "./gsmart";
 import info from "./build-info";
+import { checkForUpdates } from "./utils/version-check";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0);
@@ -18,6 +19,9 @@ process.on("SIGINT", handleSigTerm);
 process.on("SIGTERM", handleSigTerm);
 
 async function main() {
+  // Check for updates
+  checkForUpdates({ name: info.name, version: info.version });
+
   // Define the program
   const program = new Command();
 
