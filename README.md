@@ -1,5 +1,3 @@
-# GSmart
-
 > **The smart way to write your commit messages using AI** 🤖
 
 GSmart is a CLI tool that automatically generates [Conventional Commits](https://www.conventionalcommits.org/) by analyzing your staged git changes. Simply stage your files and let AI craft the perfect commit message for you.
