@@ -34,26 +34,26 @@
     "prettier": "prettier --write ."
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^2.0.23",
-    "@ai-sdk/google": "^2.0.17",
-    "@ai-sdk/mistral": "^2.0.17",
-    "@ai-sdk/openai": "^2.0.42",
-    "ai": "^5.0.60",
+    "@ai-sdk/anthropic": "^2.0.28",
+    "@ai-sdk/google": "^2.0.23",
+    "@ai-sdk/mistral": "^2.0.19",
+    "@ai-sdk/openai": "^2.0.52",
+    "ai": "^5.0.70",
     "chalk": "5.6.2",
     "clipboardy": "^5.0.0",
     "commander": "^14.0.1",
-    "conf": "^15.0.1",
+    "conf": "^15.0.2",
     "fs-extra": "^11.3.2",
     "ora": "^9.0.0",
     "prompts": "^2.4.2",
-    "zod": "^4.1.11"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
-    "@eslint/js": "^9.36.0",
+    "@eslint/js": "^9.37.0",
     "@eslint/json": "^0.13.2",
     "@types/fs-extra": "^11.0.4",
     "@types/prompts": "^2.4.9",
-    "eslint": "^9.36.0",
+    "eslint": "^9.37.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^16.4.0",
     "prettier": "3.6.2",
@@ -61,9 +61,9 @@
     "ts-node": "^10.9.2",
     "tsup": "^8.5.0",
     "tsx": "^4.20.6",
-    "type-fest": "^5.0.1",
+    "type-fest": "^5.1.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.45.0"
+    "typescript-eslint": "^8.46.1"
   },
-  "packageManager": "pnpm@10.18.0+sha512.e804f889f1cecc40d572db084eec3e4881739f8dec69c0ff10d2d1beff9a4e309383ba27b5b750059d7f4c149535b6cd0d2cb1ed3aeb739239a4284a68f40cfa"
+  "packageManager": "pnpm@10.18.3+sha512.bbd16e6d7286fd7e01f6b3c0b3c932cda2965c06a908328f74663f10a9aea51f1129eea615134bf992831b009eabe167ecb7008b597f40ff9bc75946aadfb08d"
 }
