@@ -159,7 +159,7 @@ pnpm test
 pnpm run lint
 
 # Format code
-pnpm run prettier
+pnpm run format
 ```
 
 ### Project Structure

@@ -13,7 +13,7 @@ GSmart is a CLI tool that generates smart commit messages using AI. It analyzes 
 - **Start**: `pnpm run start` - Runs the compiled CLI from dist/index.js
 - **Test**: `pnpm test` - Runs Node.js built-in test runner with tsx
 - **Lint**: `pnpm run lint` - Runs ESLint on TypeScript files
-- **Format**: `pnpm run prettier` - Formats code with Prettier
+- **Format**: `pnpm run format` - Formats code with Prettier
 
 The project uses pnpm as package manager and requires Node.js with ESM support.
 

@@ -18,7 +18,7 @@ Use pnpm for every workflow to stay aligned with the lockfile. Scripts assume No
 - `pnpm run dev` runs tsup in watch mode for rapid iteration.
 - `pnpm run build` produces the production bundle in `dist/`.
 - `pnpm test` executes the tsx-powered test suite; append `-- --watch` while developing.
-- `pnpm run lint` and `pnpm run prettier` enforce TypeScript, ESLint, and formatting checks.
+- `pnpm run lint` and `pnpm run format` enforce TypeScript, ESLint, and formatting checks.
 
 ## Coding Style & Naming Conventions
 
