@@ -31,13 +31,13 @@
     "test:coverage": "tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-    "prettier": "prettier --write ."
+    "format": "prettier --write ."
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^2.0.44",
-    "@ai-sdk/google": "^2.0.31",
+    "@ai-sdk/google": "^2.0.33",
     "@ai-sdk/mistral": "^2.0.24",
-    "@ai-sdk/openai": "^2.0.65",
+    "@ai-sdk/openai": "^2.0.68",
     "ai": "^5.0.93",
     "chalk": "5.6.2",
     "clipboardy": "^5.0.0",
