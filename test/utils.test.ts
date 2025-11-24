@@ -8,7 +8,6 @@ import { join } from "path";
 import { execSync } from "child_process";
 import clipboard from "clipboardy";
 import { copyToClipboard, retrieveFilesToCommit } from "../src/utils/index.ts";
-import type { GitStatus } from "../src/definitions.ts";
 
 // Import internal functions by testing their effects through public APIs
 // We'll test the helper functions indirectly through retrieveFilesToCommit
