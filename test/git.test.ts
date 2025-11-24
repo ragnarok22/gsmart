@@ -284,6 +284,7 @@ test("getGitStatus handles modified files", async () => {
     execSync('git commit -m "initial"');
 
     writeFileSync("file.txt", "modified");
+    execSync("git add file.txt"); // Stage the modification
 
     const status = await getGitStatus();
     assert.equal(status.length, 1);
@@ -338,6 +339,7 @@ test("getGitStatus handles deleted files", async () => {
     execSync('git commit -m "initial"');
 
     rmSync("file.txt");
+    execSync("git add file.txt"); // Stage the deletion
 
     const status = await getGitStatus();
     assert.equal(status.length, 1);
