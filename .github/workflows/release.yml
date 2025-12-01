@@ -49,7 +49,10 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Publish to npm
-        run: pnpm publish --no-git-checks
+      - name: Enable npm provenance
+        run: npm config set provenance true
+
+      - name: Publish to npm with provenance
+        run: npm publish --provenance --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
