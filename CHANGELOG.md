@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.2] - 2025-12-01
+
+### Changed
+
+- Publish workflow now uses npm provenance signing and defaults to public access for releases
+- Package publish configuration now opts into provenance by default
+
 ## [0.10.1] - 2025-11-13
 
 ### Changed
