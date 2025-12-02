@@ -1,0 +1,301 @@
+{
+  "repo_notes": [
+    {
+      "content": "gsmart is a command-line tool that generates Conventional Commits commit messages by analyzing your Git changes using AI"
+    }
+  ],
+  "pages": [
+    {
+      "title": "Overview",
+      "purpose": "Introduce gsmart, an AI-powered CLI tool for generating conventional commit messages. Explain what it is, why it exists, and provide installation instructions.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Installation and Setup",
+      "purpose": "Detailed installation instructions including Node.js requirements, npm/pnpm installation, and initial configuration with API keys.",
+      "parent": "Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Quick Start Guide",
+      "purpose": "Step-by-step walkthrough of basic usage: login, generating first commit message, and understanding the interactive workflow.",
+      "parent": "Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Key Features",
+      "purpose": "Comprehensive list of gsmart's features including AI provider support, conventional commits, interactive/non-interactive modes, and rename-aware staging.",
+      "parent": "Overview",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "System Architecture",
+      "purpose": "High-level overview of gsmart's architecture: the four-layer design (UI, Command, Service, External), module organization, and data flow patterns.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Module Organization",
+      "purpose": "Explain the directory structure: src/commands, src/utils, src/definitions, and how modules are organized by responsibility.",
+      "parent": "System Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Dependency Management",
+      "purpose": "Detail the external dependencies: AI SDK packages, CLI libraries (commander, prompts, ora, chalk), and how pnpm manages the dependency tree.",
+      "parent": "System Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "CLI Framework",
+      "purpose": "Explain how Commander.js is used to build the CLI, including argument parsing, option handling, and signal management.",
+      "parent": "System Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Command Registration",
+      "purpose": "Describe how commands are registered via src/gsmart.ts, the ICommand interface pattern, and how the default command is set.",
+      "parent": "System Architecture",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Commands",
+      "purpose": "Overview of all available commands (generate, login, reset), their purposes, and how to use them.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Generate Command",
+      "purpose": "In-depth documentation of the generate command: options (--provider, --prompt, --yes), execution flow, and interactive vs. non-interactive modes.",
+      "parent": "Commands",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Login Command",
+      "purpose": "Explain the login command: provider selection workflow, API key input, and secure storage via the config system.",
+      "parent": "Commands",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Reset Command",
+      "purpose": "Document the reset command: clearing configuration, the --force flag, and confirmation prompts.",
+      "parent": "Commands",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "AI Integration",
+      "purpose": "Comprehensive overview of the AI provider system: abstraction architecture, the AIBuilder class, and multi-provider support strategy.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Provider Architecture",
+      "purpose": "Detail the provider abstraction pattern: how AIBuilder unifies six different AI services, provider-specific configurations, and error handling.",
+      "parent": "AI Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "AIBuilder Implementation",
+      "purpose": "Technical deep-dive into the AIBuilder class: constructor, changeProvider method, generateCommitMessage flow, and private methods.",
+      "parent": "AI Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Supported Providers",
+      "purpose": "List all six supported AI providers with their models, API endpoints, base URLs, and specific configuration requirements.",
+      "parent": "AI Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Prompt Construction",
+      "purpose": "Explain how prompts are built: the buildPrompt function, conventional commits format enforcement, and example generation.",
+      "parent": "AI Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Git Integration",
+      "purpose": "Overview of Git operations: the two-layer abstraction (high-level orchestration and atomic operations), and how gsmart interacts with repositories.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Git Operations",
+      "purpose": "Document the five atomic Git functions: getGitBranch, getGitChanges, commitChanges, getGitStatus, stageFile, and the runGit wrapper.",
+      "parent": "Git Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "File Staging Workflow",
+      "purpose": "Explain the retrieveFilesToCommit function: two-phase detection, auto-stage vs. interactive mode, and rename-aware staging.",
+      "parent": "Git Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Status Parsing",
+      "purpose": "Detail how git status --porcelain output is parsed: handling five file state types (untracked, modified, deleted, renamed, added) and the GitStatus interface.",
+      "parent": "Git Integration",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Configuration System",
+      "purpose": "Overview of configuration management: the conf package, GSMART_CONFIG_DIR environment variable, and secure API key storage.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "API Key Storage",
+      "purpose": "Explain the Config class: setKey, getKey, clearKey, clear methods, how keys are stored per provider, and platform-specific storage locations.",
+      "parent": "Configuration System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Provider Registry",
+      "purpose": "Document the provider registry: the providers array structure, IProvider interface, getActiveProviders function, and provider metadata.",
+      "parent": "Configuration System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Type System",
+      "purpose": "Comprehensive documentation of TypeScript types and interfaces defined in src/definitions.ts that form the application's type contracts.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Core Interfaces",
+      "purpose": "Detail the key interfaces: ICommand, IProvider, GitStatus, Provider union type, ProviderKeys, and Option type.",
+      "parent": "Type System",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Utility Functions",
+      "purpose": "Overview of utility modules: file retrieval, clipboard operations, and version checking functionality.",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "File Retrieval and Staging",
+      "purpose": "Deep dive into retrieveFilesToCommit: the orchestration logic, UI feedback via ora, and integration with git utilities.",
+      "parent": "Utility Functions",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    },
+    {
+      "title": "Clipboard Operations",
+      "purpose": "Document the copyToClipboard function: cross-platform clipboard access via clipboardy and error handling.",
+      "parent": "Utility Functions",
+      "page_notes": [
+        {
+          "content": ""
+        }
+      ]
+    }
+  ]
+}
