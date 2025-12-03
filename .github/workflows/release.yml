@@ -23,6 +23,10 @@ jobs:
         with:
           node-version: 22
           cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Upgrade npm to support OIDC
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -50,4 +54,4 @@ jobs:
           prerelease: false
 
       - name: Publish to npm with provenance
-        run: pnpm publish --provenance --access public --no-git-checks
+        run: npm publish --provenance --access public
