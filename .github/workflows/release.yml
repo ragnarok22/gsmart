@@ -13,15 +13,16 @@ jobs:
       id-token: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
@@ -49,8 +50,5 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Enable npm provenance
-        run: npm config set provenance true
-
       - name: Publish to npm with provenance
-        run: npm publish --provenance --access public --no-git-checks
+        run: pnpm publish --provenance --access public --no-git-checks
