@@ -4,7 +4,7 @@
   "description": "CLI to generate smart commit messages using AI.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ragnarok22/gsmart"
+    "url": "git+https://github.com/ragnarok22/gsmart.git"
   },
   "homepage": "https://ragnarok22.github.io/gsmart",
   "keywords": [
@@ -25,7 +25,9 @@
   "type": "module",
   "exports": "./dist/index.js",
   "main": "./dist/index.js",
-  "bin": "./dist/index.js",
+  "bin": {
+    "gsmart": "dist/index.js"
+  },
   "scripts": {
     "dev": "tsup --watch",
     "prebuild": "node prebuild.js",
