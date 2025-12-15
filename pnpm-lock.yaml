@@ -28,7 +28,7 @@ importers:
         version: 5.6.2
       clipboardy:
         specifier: ^5.0.1
-        version: 5.0.1
+        version: 5.0.2
       commander:
         specifier: ^14.0.2
         version: 14.0.2
@@ -751,8 +751,8 @@ packages:
     resolution: {integrity: sha512-/+40ljC3ONVnYIttjMWrlL51nItDAbBrq2upN8BPyvGU/2n5Oxw3tbNwORCaNuNqLJnxGqOfjUuhsv7l5Q4IsQ==}
     engines: {node: '>=18.20'}
 
-  clipboardy@5.0.1:
-    resolution: {integrity: sha512-pJ5ZDWjOT593Nli4TqlRLy33KomlAPxIFntMFxXrCqJON1cGcGPT5nNFxRxJ9m4HbfrccsYve7XwXjywW6nXVw==}
+  clipboardy@5.0.2:
+    resolution: {integrity: sha512-3IG8i8Yfb410yqDlCx9Ve3lYLFN3bD1IkrWcowT1kyTo6y4bwYf2guK9Q8a6zck5vWm7afm6Y61i7BG/Ir3FMA==}
     engines: {node: '>=20'}
 
   color-convert@2.0.1:
@@ -2217,7 +2217,7 @@ snapshots:
 
   cli-spinners@3.3.0: {}
 
-  clipboardy@5.0.1:
+  clipboardy@5.0.2:
     dependencies:
       execa: 9.6.1
       is-wayland: 0.1.0
