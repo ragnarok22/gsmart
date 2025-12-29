@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.4] - 2025-12-29
+
+### Added
+
+- Festive holiday message displayed after each command execution
+- Test coverage for unstaged modified files in git status parsing
+
+### Fixed
+
+- Git status parsing now correctly detects modified files that are not staged
+- Regex pattern updated to match all git status codes including those with leading spaces
+
 ## [0.10.3] - 2025-12-03
 
 ### Changed
@@ -243,7 +255,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.10.3...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.10.4...HEAD
+[0.10.4]: https://github.com/ragnarok22/gsmart/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/ragnarok22/gsmart/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/ragnarok22/gsmart/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/ragnarok22/gsmart/compare/v0.10.0...v0.10.1
