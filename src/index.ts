@@ -11,6 +11,7 @@ import { Command } from "commander";
 import commands from "./gsmart";
 import info from "./build-info";
 import { checkForUpdates } from "./utils/version-check";
+import { showHolidayMessage } from "./utils/holiday";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0);
@@ -41,6 +42,7 @@ async function main() {
     cmd.action(async () => {
       const opts = cmd.opts();
       await Promise.resolve(command.action(opts));
+      showHolidayMessage();
     });
   }
 
