@@ -66,14 +66,14 @@ export const getGitStatus = async (): Promise<GitStatus[]> => {
 
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
-      const match = entry.match(/^(\S{1,2})\s+(.+)$/);
+      const match = entry.match(/^(.{2})\s+(.+)$/);
 
       if (!match) {
         continue;
       }
 
       const [, rawStatus, filePath] = match;
-      const statusCode = rawStatus.trim() || rawStatus;
+      const statusCode = rawStatus;
       let currentPath = filePath;
       let originalPath: string | undefined;
 
