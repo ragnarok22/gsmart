@@ -296,6 +296,33 @@ test("getGitStatus handles modified files", async () => {
   }
 });
 
+test("getGitStatus handles unstaged modified files", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync("file.txt", "original");
+    execSync("git add file.txt");
+    execSync('git commit -m "initial"');
+
+    writeFileSync("file.txt", "modified but not staged");
+    // DO NOT stage the modification
+
+    const status = await getGitStatus();
+    assert.equal(status.length, 1);
+    assert.equal(status[0].status, " M"); // Leading space indicates unstaged
+    assert.equal(status[0].file_name, "file.txt");
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("getGitStatus handles staged and unstaged changes", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
   execSync("git init -b main", { cwd: repo });
