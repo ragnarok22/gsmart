@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-01-01
+
+### Added
+
+- Seasonal message rotation logic for festive occasions throughout the year
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 2.0.53→2.0.56, @ai-sdk/google 2.0.46→2.0.51, @ai-sdk/mistral 2.0.25→2.0.26)
+- Updated fs-extra from 11.3.2 to 11.3.3
+- Updated typescript-eslint from 8.49.0 to 8.50.1
+
+### Fixed
+
+- Holiday messages now restricted to specific dates for better user experience
+- Adjusted update banner padding for cleaner display in version check notifications
+
 ## [0.10.4] - 2025-12-29
 
 ### Added
@@ -255,7 +272,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.10.4...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/ragnarok22/gsmart/compare/v0.10.4...v0.11.0
 [0.10.4]: https://github.com/ragnarok22/gsmart/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/ragnarok22/gsmart/compare/v0.10.2...v0.10.3
 [0.10.2]: https://github.com/ragnarok22/gsmart/compare/v0.10.1...v0.10.2
