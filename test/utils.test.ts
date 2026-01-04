@@ -1,6 +1,6 @@
 import "../test-support/setup-env";
 
-import test from "node:test";
+import test, { mock } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -263,6 +263,50 @@ test("retrieveFilesToCommit handles files in subdirectories", async () => {
     assert(result !== null);
     assert(result.includes("helper"));
   } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("retrieveFilesToCommit returns null when prompt selects no files", async (t) => {
+  if (typeof mock.module !== "function") {
+    t.skip("mock.module is not available in this Node version");
+    return;
+  }
+
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-utils-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+
+  const promptsMock = mock.module("prompts", {
+    defaultExport: async () => ({ files: [] }),
+  });
+
+  try {
+    writeFileSync(join(repo, "unstaged.txt"), "content");
+
+    const spinner = {
+      stop: mock.fn(),
+      fail: mock.fn(),
+      succeed: mock.fn(),
+      info: mock.fn(),
+      isSpinning: true,
+    };
+
+    const { retrieveFilesToCommit: retrieveWithMock } = await import(
+      "../src/utils/index.ts?prompt-empty"
+    );
+
+    const result = await retrieveWithMock(spinner, { autoStage: false });
+    assert.equal(result, null);
+    assert.equal(spinner.fail.mock.calls.length, 1);
+  } finally {
+    promptsMock.restore();
+    mock.reset();
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
   }
