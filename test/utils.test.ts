@@ -268,7 +268,12 @@ test("retrieveFilesToCommit handles files in subdirectories", async () => {
   }
 });
 
-test("retrieveFilesToCommit returns null when prompt selects no files", async () => {
+test("retrieveFilesToCommit returns null when prompt selects no files", async (t) => {
+  if (typeof mock.module !== "function") {
+    t.skip("mock.module is not available in this Node version");
+    return;
+  }
+
   const repo = mkdtempSync(join(tmpdir(), "gsmart-utils-"));
   execSync("git init -b main", { cwd: repo });
   execSync('git config user.email "test@example.com"', { cwd: repo });
