@@ -297,9 +297,8 @@ test("retrieveFilesToCommit returns null when prompt selects no files", async (t
       isSpinning: true,
     };
 
-    const { retrieveFilesToCommit: retrieveWithMock } = await import(
-      "../src/utils/index.ts?prompt-empty"
-    );
+    const { retrieveFilesToCommit: retrieveWithMock } =
+      await import("../src/utils/index.ts?prompt-empty");
 
     const result = await retrieveWithMock(spinner, { autoStage: false });
     assert.equal(result, null);
