@@ -126,7 +126,7 @@ Commands:
 
 | Provider         | Model                                                                             | Get API Key                                                  |
 | ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| **OpenAI**       | [GPT-4o](https://platform.openai.com/docs/models/gpt-4o)                          | [Get Key](https://platform.openai.com/api-keys)              |
+| **OpenAI**       | [GPT-5 Codex](https://platform.openai.com/docs/models/gpt-5-codex)                | [Get Key](https://platform.openai.com/api-keys)              |
 | **Anthropic**    | [Claude](https://www.anthropic.com/claude)                                        | [Get Key](https://console.anthropic.com/settings/keys)       |
 | **Google**       | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash) | [Get Key](https://console.cloud.google.com/apis/credentials) |
 | **Mistral**      | [Mistral Large](https://mistral.ai/technology/#models)                            | [Get Key](https://console.mistral.ai/api-keys/)              |
