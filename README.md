@@ -137,7 +137,7 @@ Commands:
 
 ### Requirements
 
-- Node.js 18+ with ESM support
+- Node.js 20+ with ESM support
 - pnpm (recommended) or npm
 
 ### Scripts

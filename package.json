@@ -15,6 +15,9 @@
   ],
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=20"
+  },
   "publishConfig": {
     "access": "public",
     "provenance": true
