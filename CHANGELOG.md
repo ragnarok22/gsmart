@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-01-04
+
+### Changed
+
+- Raised minimum Node.js version to 20 and refreshed provider docs to reflect the GPT-5 Codex default
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.1→3.0.2, @ai-sdk/google 3.0.1→3.0.2, @ai-sdk/mistral 3.0.1→3.0.2, @ai-sdk/openai 3.0.1→3.0.2, ai 6.0.3→6.0.6, zod 4.2.1→4.3.5, typescript-eslint 8.50.1→8.51.0)
+
+### Fixed
+
+- Git status parsing now preserves rename/copy scores and original paths when reporting changes
+
 ## [0.11.0] - 2026-01-01
 
 ### Added
