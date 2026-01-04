@@ -159,9 +159,11 @@ test("parseGitStatusEntries handles rename/copy scores", () => {
 
   assert.equal(parsed.length, 2);
   assert.equal(parsed[0].status, "R100");
+  assert.equal(parsed[0].file_name, "renamed.txt");
   assert.equal(parsed[0].file_path, "renamed.txt");
   assert.equal(parsed[0].original_path, "original.txt");
   assert.equal(parsed[1].status, "C100");
+  assert.equal(parsed[1].file_name, "copied.txt");
   assert.equal(parsed[1].file_path, "copied.txt");
   assert.equal(parsed[1].original_path, "source.txt");
 });
