@@ -12,6 +12,7 @@ import {
   getGitChanges,
   commitChanges,
   getGitStatus,
+  parseGitStatusEntries,
   stageFile,
   getGitInfo,
 } from "../src/utils/git.ts";
@@ -149,6 +150,20 @@ test("getGitStatus handles malformed status lines", async () => {
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
   }
+});
+
+test("parseGitStatusEntries handles rename/copy scores", () => {
+  const statusOutput =
+    "R100 renamed.txt\0original.txt\0C100 copied.txt\0source.txt\0";
+  const parsed = parseGitStatusEntries(statusOutput);
+
+  assert.equal(parsed.length, 2);
+  assert.equal(parsed[0].status, "R100");
+  assert.equal(parsed[0].file_path, "renamed.txt");
+  assert.equal(parsed[0].original_path, "original.txt");
+  assert.equal(parsed[1].status, "C100");
+  assert.equal(parsed[1].file_path, "copied.txt");
+  assert.equal(parsed[1].original_path, "source.txt");
 });
 
 test("git commands work in non-git directory", async () => {

@@ -50,48 +50,54 @@ export const commitChanges = async (message: string): Promise<boolean> => {
 };
 
 const needsSecondaryPath = (statusCode: string): boolean => {
-  const normalized = statusCode.trim();
-  return normalized.startsWith("R") || normalized.startsWith("C");
+  const normalized = statusCode.replace(/\s/g, "");
+  const firstStatus = normalized[0] ?? "";
+  return firstStatus === "R" || firstStatus === "C";
+};
+
+export const parseGitStatusEntries = (status: string): GitStatus[] => {
+  if (!status) {
+    return [];
+  }
+
+  const entries = status.split("\0").filter((line) => line.length > 0);
+  const changedFiles: GitStatus[] = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const match = entry.match(/^(.{2,4})\s+(.+)$/);
+
+    if (!match) {
+      continue;
+    }
+
+    const [, rawStatus, filePath] = match;
+    const statusCode = rawStatus;
+    const statusCodeXY = statusCode.slice(0, 2);
+    let currentPath = filePath;
+    let originalPath: string | undefined;
+
+    if (needsSecondaryPath(statusCodeXY) && index + 1 < entries.length) {
+      currentPath = filePath;
+      originalPath = entries[index + 1];
+      index += 1;
+    }
+
+    changedFiles.push({
+      status: statusCode,
+      file_name: path.basename(currentPath),
+      file_path: currentPath,
+      ...(originalPath ? { original_path: originalPath } : {}),
+    });
+  }
+
+  return changedFiles;
 };
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {
   try {
     const status = runGit(["status", "--porcelain", "-z"], { trim: false });
-    if (!status) {
-      return [];
-    }
-
-    const entries = status.split("\0").filter((line) => line.length > 0);
-    const changedFiles: GitStatus[] = [];
-
-    for (let index = 0; index < entries.length; index += 1) {
-      const entry = entries[index];
-      const match = entry.match(/^(.{2})\s+(.+)$/);
-
-      if (!match) {
-        continue;
-      }
-
-      const [, rawStatus, filePath] = match;
-      const statusCode = rawStatus;
-      let currentPath = filePath;
-      let originalPath: string | undefined;
-
-      if (needsSecondaryPath(statusCode) && index + 1 < entries.length) {
-        currentPath = filePath;
-        originalPath = entries[index + 1];
-        index += 1;
-      }
-
-      changedFiles.push({
-        status: statusCode,
-        file_name: path.basename(currentPath),
-        file_path: currentPath,
-        ...(originalPath ? { original_path: originalPath } : {}),
-      });
-    }
-
-    return changedFiles;
+    return parseGitStatusEntries(status);
   } catch (error) {
     console.error("Error getting Git status:", error);
     return [];
