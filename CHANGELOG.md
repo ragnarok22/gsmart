@@ -266,7 +266,7 @@ As of v0.9.0, GSmart supports the following AI providers:
 
 GSmart is built with modern technologies:
 
-- Node.js 18+ with ESM support
+- Node.js 20+ with ESM support
 - TypeScript for type safety
 - Commander.js for CLI framework
 - AI SDK for provider integrations
