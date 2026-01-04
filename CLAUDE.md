@@ -38,7 +38,7 @@ The CLI follows a command pattern where:
 ### AI Provider System
 
 - Multiple AI providers supported through unified `AIBuilder` class
-- Each provider uses different models (GPT-4o, Claude, Gemini, Mistral, etc.)
+- Each provider uses different models (gpt-5-codex, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance)
 - Providers configured with specific base URLs and model names
 - API keys stored securely using the conf package
 
