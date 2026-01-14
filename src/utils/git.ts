@@ -78,8 +78,8 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
     let originalPath: string | undefined;
 
     if (needsSecondaryPath(statusCodeXY) && index + 1 < entries.length) {
-      currentPath = filePath;
       originalPath = entries[index + 1];
+      currentPath = filePath;
       index += 1;
     }
 

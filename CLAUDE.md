@@ -44,7 +44,7 @@ The CLI follows a command pattern where:
 
 ### Git Integration
 
-- Uses `execSync` for git commands (status, diff, commit)
+- Uses `spawnSync` for git commands (status, diff, commit)
 - Parses `git status --porcelain` for file change detection
 - Requires staged changes in git to generate commit messages
 - Supports commit message generation based on git diff output
