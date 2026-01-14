@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  getHolidayForDate,
-  showHolidayMessage,
-} from "../src/utils/holiday.ts";
+import { getHolidayForDate, showHolidayMessage } from "../src/utils/holiday.ts";
 
 const captureConsoleLog = (fn: () => void): string[] => {
   const originalLog = console.log;

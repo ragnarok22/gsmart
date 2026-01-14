@@ -5,12 +5,9 @@ import assert from "node:assert/strict";
 // Mock console.log to capture output
 
 const createChalkMock = () => {
-  const bold = Object.assign(
-    (message: string) => `[bold]${message}[/bold]`,
-    {
-      cyan: (message: string) => `[bold.cyan]${message}[/bold.cyan]`,
-    },
-  );
+  const bold = Object.assign((message: string) => `[bold]${message}[/bold]`, {
+    cyan: (message: string) => `[bold.cyan]${message}[/bold.cyan]`,
+  });
 
   return {
     bold,
@@ -54,9 +51,8 @@ test("checkForUpdates calls update-notifier with package info", async (t) => {
   const pkg = { name: "gsmart", version: "1.2.3" };
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?call-args"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?call-args");
     checkWithMock(pkg);
   });
 
@@ -89,9 +85,8 @@ test("checkForUpdates accepts valid package info", async (t) => {
   ];
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?valid-packages"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?valid-packages");
     for (const pkg of validPackages) {
       assert.doesNotThrow(() => {
         checkWithMock(pkg);
@@ -121,9 +116,8 @@ test("checkForUpdates logs update details when update is available", async (t) =
   });
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?update-available"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?update-available");
     checkWithMock({ name: "gsmart", version: "1.0.0" });
   });
 
@@ -155,9 +149,8 @@ test("checkForUpdates prints formatted update notice with package name", async (
   });
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?formatted-message"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?formatted-message");
     checkWithMock({ name: "@scope/gsmart", version: "0.9.0" });
   });
 
@@ -180,7 +173,9 @@ test("checkForUpdates prints formatted update notice with package name", async (
     "expected current and latest versions to be highlighted",
   );
   assert(
-    logs[2].includes("Changelog: https://github.com/ragnarok22/gsmart/releases"),
+    logs[2].includes(
+      "Changelog: https://github.com/ragnarok22/gsmart/releases",
+    ),
     "expected changelog link",
   );
   assert(
@@ -213,9 +208,8 @@ test("checkForUpdates pads update message rows with spaces", async (t) => {
   });
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?padding"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?padding");
     checkWithMock({ name: "gsmart", version: "1.0.0" });
   });
 
@@ -251,9 +245,8 @@ test("checkForUpdates does not log when no update is available", async (t) => {
   });
 
   const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } = await import(
-      "../src/utils/version-check.ts?update-none"
-    );
+    const { checkForUpdates: checkWithMock } =
+      await import("../src/utils/version-check.ts?update-none");
     checkWithMock({ name: "gsmart", version: "1.0.0" });
   });
 
