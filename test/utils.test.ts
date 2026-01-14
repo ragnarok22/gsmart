@@ -8,6 +8,7 @@ import { join } from "path";
 import { execSync } from "child_process";
 import { copyToClipboard, retrieveFilesToCommit } from "../src/utils/index.ts";
 import chalk from "chalk";
+import esmock from "esmock";
 
 // Import internal functions by testing their effects through public APIs
 // We'll test the helper functions indirectly through retrieveFilesToCommit
@@ -269,12 +270,7 @@ test("retrieveFilesToCommit handles files in subdirectories", async () => {
   }
 });
 
-test("retrieveFilesToCommit returns null when prompt selects no files", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
+test("retrieveFilesToCommit returns null when prompt selects no files", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-utils-"));
   execSync("git init -b main", { cwd: repo });
   execSync('git config user.email "test@example.com"', { cwd: repo });
@@ -282,10 +278,6 @@ test("retrieveFilesToCommit returns null when prompt selects no files", async (t
 
   const cwd = process.cwd();
   process.chdir(repo);
-
-  const promptsMock = mock.module("prompts", {
-    defaultExport: async () => ({ files: [] }),
-  });
 
   try {
     writeFileSync(join(repo, "unstaged.txt"), "content");
@@ -298,26 +290,25 @@ test("retrieveFilesToCommit returns null when prompt selects no files", async (t
       isSpinning: true,
     };
 
-    const { retrieveFilesToCommit: retrieveWithMock } =
-      await import("../src/utils/index.ts?prompt-empty");
+    const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+      "../src/utils/index.ts",
+      {
+        prompts: {
+          default: async () => ({ files: [] }),
+        },
+      },
+    );
 
     const result = await retrieveWithMock(spinner, { autoStage: false });
     assert.equal(result, null);
     assert.equal(spinner.fail.mock.calls.length, 1);
   } finally {
-    promptsMock.restore();
-    mock.reset();
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
   }
 });
 
-test("retrieveFilesToCommit formats choices and stops spinner for prompts", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
+test("retrieveFilesToCommit formats choices and stops spinner for prompts", async () => {
   const statusEntries = [
     {
       status: "??",
@@ -341,64 +332,59 @@ test("retrieveFilesToCommit formats choices and stops spinner for prompts", asyn
     choices: { title: string; value: unknown }[];
   } | null = null;
   let changesCalls = 0;
-  const stageFileMock = mock.fn(async () => true);
+  const stageFileCalls: unknown[][] = [];
 
-  const promptsMock = mock.module("prompts", {
-    defaultExport: async (options) => {
-      capturedPrompt = options;
-      return { files: options.choices.map((choice) => choice.value) };
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async (options: {
+          choices: { title: string; value: unknown }[];
+        }) => {
+          capturedPrompt = options;
+          return { files: options.choices.map((choice) => choice.value) };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async (...args: unknown[]) => {
+          stageFileCalls.push(args);
+          return true;
+        },
+      },
     },
-  });
+  );
 
-  const gitMock = mock.module("../src/utils/git.ts", {
-    getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
-    getGitStatus: async () => statusEntries,
-    stageFile: stageFileMock,
-  });
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
 
-  try {
-    const { retrieveFilesToCommit: retrieveWithMock } =
-      await import("../src/utils/index.ts?prompt-choices");
+  const result = await retrieveWithMock(spinner, { autoStage: false });
 
-    const spinner = {
-      stop: mock.fn(),
-      fail: mock.fn(),
-      succeed: mock.fn(),
-      info: mock.fn(),
-      isSpinning: true,
-    };
-
-    const result = await retrieveWithMock(spinner, { autoStage: false });
-
-    assert.equal(result, "diff");
-    assert.equal(spinner.stop.mock.calls.length, 1);
-    assert.ok(capturedPrompt);
-    assert.equal(capturedPrompt.choices.length, 3);
-    assert.equal(capturedPrompt.choices[0].title, chalk.green("new.txt"));
-    assert.equal(capturedPrompt.choices[1].title, chalk.red("removed.txt"));
-    assert.equal(
-      capturedPrompt.choices[2].title,
-      chalk.cyan("original.txt → renamed.txt"),
-    );
-    assert.deepEqual(stageFileMock.mock.calls[0].arguments[0], [
-      "new.txt",
-      "removed.txt",
-      "renamed.txt",
-      "original.txt",
-    ]);
-  } finally {
-    promptsMock.restore();
-    gitMock.restore();
-    mock.reset();
-  }
+  assert.equal(result, "diff");
+  assert.equal(spinner.stop.mock.calls.length, 1);
+  assert.ok(capturedPrompt);
+  assert.equal(capturedPrompt.choices.length, 3);
+  assert.equal(capturedPrompt.choices[0].title, chalk.green("new.txt"));
+  assert.equal(capturedPrompt.choices[1].title, chalk.red("removed.txt"));
+  assert.equal(
+    capturedPrompt.choices[2].title,
+    chalk.cyan("original.txt → renamed.txt"),
+  );
+  assert.deepEqual(stageFileCalls[0][0], [
+    "new.txt",
+    "removed.txt",
+    "renamed.txt",
+    "original.txt",
+  ]);
 });
 
-test("retrieveFilesToCommit marks deleted statuses as red even when added", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
+test("retrieveFilesToCommit marks deleted statuses as red even when added", async () => {
   const statusEntries = [
     {
       status: "AD",
@@ -411,75 +397,63 @@ test("retrieveFilesToCommit marks deleted statuses as red even when added", asyn
     choices: { title: string; value: unknown }[];
   } | null = null;
   let changesCalls = 0;
-  const stageFileMock = mock.fn(async () => true);
 
-  const promptsMock = mock.module("prompts", {
-    defaultExport: async (options) => {
-      capturedPrompt = options;
-      return { files: options.choices.map((choice) => choice.value) };
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async (options: {
+          choices: { title: string; value: unknown }[];
+        }) => {
+          capturedPrompt = options;
+          return { files: options.choices.map((choice) => choice.value) };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => true,
+      },
     },
-  });
+  );
 
-  const gitMock = mock.module("../src/utils/git.ts", {
-    getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
-    getGitStatus: async () => statusEntries,
-    stageFile: stageFileMock,
-  });
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
 
-  try {
-    const { retrieveFilesToCommit: retrieveWithMock } =
-      await import("../src/utils/index.ts?prompt-delete-priority");
+  const result = await retrieveWithMock(spinner, { autoStage: false });
 
-    const spinner = {
-      stop: mock.fn(),
-      fail: mock.fn(),
-      succeed: mock.fn(),
-      info: mock.fn(),
-      isSpinning: true,
-    };
-
-    const result = await retrieveWithMock(spinner, { autoStage: false });
-
-    assert.equal(result, "diff");
-    assert.ok(capturedPrompt);
-    assert.equal(capturedPrompt.choices.length, 1);
-    assert.equal(capturedPrompt.choices[0].title, chalk.red("conflicted.txt"));
-  } finally {
-    promptsMock.restore();
-    gitMock.restore();
-    mock.reset();
-  }
+  assert.equal(result, "diff");
+  assert.ok(capturedPrompt);
+  assert.equal(capturedPrompt.choices.length, 1);
+  assert.equal(capturedPrompt.choices[0].title, chalk.red("conflicted.txt"));
 });
 
-test("retrieveFilesToCommit reports no status entries", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
+test("retrieveFilesToCommit reports no status entries", async () => {
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => "",
+        getGitStatus: async () => [],
+        stageFile: async () => true,
+      },
+    },
+  );
 
-  const gitMock = mock.module("../src/utils/git.ts", {
-    getGitChanges: async () => "",
-    getGitStatus: async () => [],
-    stageFile: async () => true,
-  });
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
 
-  try {
-    const { retrieveFilesToCommit: retrieveWithMock } =
-      await import("../src/utils/index.ts?status-empty");
-
-    const spinner = {
-      stop: mock.fn(),
-      fail: mock.fn(),
-      succeed: mock.fn(),
-      info: mock.fn(),
-      isSpinning: true,
-    };
-
-    const result = await retrieveWithMock(spinner, { autoStage: false });
-    assert.equal(result, null);
-    assert.equal(spinner.fail.mock.calls.length, 1);
-  } finally {
-    gitMock.restore();
-    mock.reset();
-  }
+  const result = await retrieveWithMock(spinner, { autoStage: false });
+  assert.equal(result, null);
+  assert.equal(spinner.fail.mock.calls.length, 1);
 });
