@@ -225,16 +225,16 @@ test("checkForUpdates pads update message rows with spaces", async (t) => {
 
   assert(logs[1].includes("  Update available: "));
   assert(
-    logs[1].match(/\s+$/),
-    "expected update row to end with padding spaces",
+    logs[1].match(/\s+\[yellow\]│\[\/yellow\]$/),
+    "expected update row to pad spaces before the closing border",
   );
   assert(
-    logs[2].match(/\s+$/),
-    "expected changelog row to end with padding spaces",
+    logs[2].match(/\s+\[yellow\]│\[\/yellow\]$/),
+    "expected changelog row to pad spaces before the closing border",
   );
   assert(
-    logs[3].match(/\s+$/),
-    "expected install row to end with padding spaces",
+    logs[3].match(/\s+\[yellow\]│\[\/yellow\]$/),
+    "expected install row to pad spaces before the closing border",
   );
 });
 
