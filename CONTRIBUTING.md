@@ -10,7 +10,7 @@ We love your input! We want to make contributing to this project as easy and tra
 
 ## We Develop with GitHub
 
-We use github to host code, to track issues and feature requests, as well as accept pull requests.
+We use GitHub to host code, to track issues and feature requests, as well as accept pull requests.
 
 ## We Use [GitHub Flow](https://guides.github.com/introduction/flow/index.html), So All Code Changes Happen Through Pull Requests
 
