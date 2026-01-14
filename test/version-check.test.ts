@@ -2,22 +2,7 @@ import "../test-support/setup-env";
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { checkForUpdates } from "../src/utils/version-check.ts";
-
 // Mock console.log to capture output
-const captureConsoleLog = (fn: () => void): string[] => {
-  const originalLog = console.log;
-  const logs: string[] = [];
-  console.log = (...args: unknown[]) => {
-    logs.push(args.map((arg) => String(arg)).join(" "));
-  };
-  try {
-    fn();
-    return logs;
-  } finally {
-    console.log = originalLog;
-  }
-};
 
 const captureConsoleLogAsync = async (
   fn: () => Promise<void>,
