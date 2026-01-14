@@ -154,7 +154,7 @@ test("getGitStatus handles malformed status lines", async () => {
 
 test("parseGitStatusEntries handles rename/copy scores", () => {
   const statusOutput =
-    "R100 original.txt\0renamed.txt\0C100 source.txt\0copied.txt\0";
+    "R100 renamed.txt\0original.txt\0C100 copied.txt\0source.txt\0";
   const parsed = parseGitStatusEntries(statusOutput);
 
   assert.equal(parsed.length, 2);
