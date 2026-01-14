@@ -2,22 +2,7 @@ import "../test-support/setup-env";
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { checkForUpdates } from "../src/utils/version-check.ts";
-
 // Mock console.log to capture output
-const captureConsoleLog = (fn: () => void): string[] => {
-  const originalLog = console.log;
-  const logs: string[] = [];
-  console.log = (...args: unknown[]) => {
-    logs.push(args.map((arg) => String(arg)).join(" "));
-  };
-  try {
-    fn();
-    return logs;
-  } finally {
-    console.log = originalLog;
-  }
-};
 
 const captureConsoleLogAsync = async (
   fn: () => Promise<void>,
@@ -35,44 +20,69 @@ const captureConsoleLogAsync = async (
   }
 };
 
-test("checkForUpdates does nothing when no update is available", async () => {
-  const pkg = {
-    name: "gsmart",
-    version: "999.999.999", // Very high version, no update should be available
-  };
+test("checkForUpdates calls update-notifier with package info", async (t) => {
+  if (typeof mock.module !== "function") {
+    t.skip("mock.module is not available in this Node version");
+    return;
+  }
 
-  const logs = captureConsoleLog(() => {
-    checkForUpdates(pkg);
+  const updateNotifierSpy = mock.fn(() => ({ update: null }));
+  const updateNotifierMock = mock.module("update-notifier", {
+    defaultExport: updateNotifierSpy,
   });
 
-  // Should not log anything if no update is available
+  const pkg = { name: "gsmart", version: "1.2.3" };
+
+  const logs = await captureConsoleLogAsync(async () => {
+    const { checkForUpdates: checkWithMock } = await import(
+      "../src/utils/version-check.ts?call-args"
+    );
+    checkWithMock(pkg);
+  });
+
+  updateNotifierMock.restore();
+  mock.reset();
+
+  assert.equal(updateNotifierSpy.mock.calls.length, 1);
+  assert.deepEqual(updateNotifierSpy.mock.calls[0].arguments[0], {
+    pkg,
+    updateCheckInterval: 1000 * 60 * 60 * 24,
+  });
   assert.equal(logs.length, 0);
 });
 
-test("checkForUpdates handles package with name and version", () => {
-  const pkg = {
-    name: "test-package",
-    version: "0.0.1",
-  };
+test("checkForUpdates accepts valid package info", async (t) => {
+  if (typeof mock.module !== "function") {
+    t.skip("mock.module is not available in this Node version");
+    return;
+  }
 
-  // Should not throw
-  assert.doesNotThrow(() => {
-    checkForUpdates(pkg);
+  const updateNotifierSpy = mock.fn(() => ({ update: null }));
+  const updateNotifierMock = mock.module("update-notifier", {
+    defaultExport: updateNotifierSpy,
   });
-});
 
-test("checkForUpdates accepts valid package info", () => {
   const validPackages = [
     { name: "gsmart", version: "1.0.0" },
     { name: "test-pkg", version: "0.0.1" },
     { name: "@scope/package", version: "2.3.4" },
   ];
 
-  for (const pkg of validPackages) {
-    assert.doesNotThrow(() => {
-      checkForUpdates(pkg);
-    }, `Should accept package: ${pkg.name}@${pkg.version}`);
-  }
+  const logs = await captureConsoleLogAsync(async () => {
+    const { checkForUpdates: checkWithMock } = await import(
+      "../src/utils/version-check.ts?valid-packages"
+    );
+    for (const pkg of validPackages) {
+      assert.doesNotThrow(() => {
+        checkWithMock(pkg);
+      }, `Should accept package: ${pkg.name}@${pkg.version}`);
+    }
+  });
+
+  updateNotifierMock.restore();
+  mock.reset();
+
+  assert.equal(logs.length, 0);
 });
 
 test("checkForUpdates logs update details when update is available", async (t) => {
