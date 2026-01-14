@@ -393,6 +393,64 @@ test("retrieveFilesToCommit formats choices and stops spinner for prompts", asyn
   }
 });
 
+test("retrieveFilesToCommit marks deleted statuses as red even when added", async (t) => {
+  if (typeof mock.module !== "function") {
+    t.skip("mock.module is not available in this Node version");
+    return;
+  }
+
+  const statusEntries = [
+    {
+      status: "AD",
+      file_name: "conflicted.txt",
+      file_path: "conflicted.txt",
+    },
+  ];
+
+  let capturedPrompt: {
+    choices: { title: string; value: unknown }[];
+  } | null = null;
+  let changesCalls = 0;
+  const stageFileMock = mock.fn(async () => true);
+
+  const promptsMock = mock.module("prompts", {
+    defaultExport: async (options) => {
+      capturedPrompt = options;
+      return { files: options.choices.map((choice) => choice.value) };
+    },
+  });
+
+  const gitMock = mock.module("../src/utils/git.ts", {
+    getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
+    getGitStatus: async () => statusEntries,
+    stageFile: stageFileMock,
+  });
+
+  try {
+    const { retrieveFilesToCommit: retrieveWithMock } =
+      await import("../src/utils/index.ts?prompt-delete-priority");
+
+    const spinner = {
+      stop: mock.fn(),
+      fail: mock.fn(),
+      succeed: mock.fn(),
+      info: mock.fn(),
+      isSpinning: true,
+    };
+
+    const result = await retrieveWithMock(spinner, { autoStage: false });
+
+    assert.equal(result, "diff");
+    assert.ok(capturedPrompt);
+    assert.equal(capturedPrompt.choices.length, 1);
+    assert.equal(capturedPrompt.choices[0].title, chalk.red("conflicted.txt"));
+  } finally {
+    promptsMock.restore();
+    gitMock.restore();
+    mock.reset();
+  }
+});
+
 test("retrieveFilesToCommit reports no status entries", async (t) => {
   if (typeof mock.module !== "function") {
     t.skip("mock.module is not available in this Node version");
