@@ -1,5 +1,83 @@
 import chalk from "chalk";
 
+type Holiday =
+  | "new-year"
+  | "valentines"
+  | "easter"
+  | "halloween"
+  | "thanksgiving"
+  | "christmas"
+  | "new-year-eve";
+
+const getEasterDate = (year: number): { month: number; day: number } => {
+  // Anonymous Gregorian algorithm
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return { month, day };
+};
+
+const getThanksgivingDate = (year: number): { month: number; day: number } => {
+  const november = 10;
+  const firstOfMonth = new Date(year, november, 1);
+  const dayOfWeek = firstOfMonth.getDay();
+  const daysUntilThursday = (4 - dayOfWeek + 7) % 7;
+  const firstThursday = 1 + daysUntilThursday;
+  const fourthThursday = firstThursday + 21;
+
+  return { month: november + 1, day: fourthThursday };
+};
+
+export const getHolidayForDate = (date: Date): Holiday | null => {
+  const month = date.getMonth() + 1; // 1-12
+  const day = date.getDate();
+  const year = date.getFullYear();
+  const easter = getEasterDate(year);
+  const thanksgiving = getThanksgivingDate(year);
+
+  if (month === 1 && day === 1) {
+    return "new-year";
+  }
+
+  if (month === 2 && day === 14) {
+    return "valentines";
+  }
+
+  if (month === easter.month && day === easter.day) {
+    return "easter";
+  }
+
+  if (month === 10 && day === 31) {
+    return "halloween";
+  }
+
+  if (month === thanksgiving.month && day === thanksgiving.day) {
+    return "thanksgiving";
+  }
+
+  if (month === 12 && (day === 24 || day === 25)) {
+    return "christmas";
+  }
+
+  if (month === 12 && day === 31) {
+    return "new-year-eve";
+  }
+
+  return null;
+};
+
 /**
  * Display a Christmas/Winter holiday message with snow
  */
@@ -140,66 +218,31 @@ export function showSpringMessage(): void {
  * Only shows messages on specific special days
  */
 export function showHolidayMessage(): void {
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-12
-  const day = now.getDate();
+  const holiday = getHolidayForDate(new Date());
 
-  // New Year's Day (January 1)
-  if (month === 1 && day === 1) {
-    showNewYearMessage();
-    return;
+  switch (holiday) {
+    case "new-year":
+      showNewYearMessage();
+      return;
+    case "valentines":
+      showValentinesMessage();
+      return;
+    case "easter":
+      showEasterMessage();
+      return;
+    case "halloween":
+      showHalloweenMessage();
+      return;
+    case "thanksgiving":
+      showThanksgivingMessage();
+      return;
+    case "christmas":
+      showChristmasMessage();
+      return;
+    case "new-year-eve":
+      showNewYearMessage();
+      return;
+    default:
+      return;
   }
-
-  // Valentine's Day (February 14)
-  if (month === 2 && day === 14) {
-    showValentinesMessage();
-    return;
-  }
-
-  // Easter Sunday (varies, typically early April - using April 20 as example)
-  // Note: Easter dates change yearly, this is a simplified check
-  if (month === 4 && day === 20) {
-    showEasterMessage();
-    return;
-  }
-
-  // Independence Day (July 4 - US)
-  // Uncomment if you want to add this
-  // if (month === 7 && day === 4) {
-  //   showSummerMessage();
-  //   return;
-  // }
-
-  // Halloween (October 31)
-  if (month === 10 && day === 31) {
-    showHalloweenMessage();
-    return;
-  }
-
-  // Thanksgiving (4th Thursday of November - using November 28 as example)
-  // Note: Thanksgiving dates change yearly, this is a simplified check
-  if (month === 11 && day === 28) {
-    showThanksgivingMessage();
-    return;
-  }
-
-  // Christmas Eve (December 24)
-  if (month === 12 && day === 24) {
-    showChristmasMessage();
-    return;
-  }
-
-  // Christmas Day (December 25)
-  if (month === 12 && day === 25) {
-    showChristmasMessage();
-    return;
-  }
-
-  // New Year's Eve (December 31)
-  if (month === 12 && day === 31) {
-    showNewYearMessage();
-    return;
-  }
-
-  // Default: No message for regular days
 }
