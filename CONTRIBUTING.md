@@ -29,7 +29,7 @@ In short, when you submit code changes, your submissions are understood to be un
 
 ## Report bugs using GitHub's [issues](https://github.com/ragnarok22/gsmart/issues)
 
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](); it's that easy!
+We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/ragnarok22/gsmart/issues/new/choose); it's that easy!
 
 ## Write bug reports with detail, background, and sample code
 
@@ -52,7 +52,7 @@ People _love_ thorough bug reports. I'm not even kidding.
 I'm again borrowing these from [Facebook's Guidelines](https://github.com/facebook/draft-js/blob/a9316a723f9e918afde44dea68b5f9f39b7d9b00/CONTRIBUTING.md)
 
 - 2 spaces for indentation rather than tabs
-- You can try running `npm run lint` for style unification
+- You can try running `pnpm run lint` for style unification
 
 ## License
 
