@@ -1,6 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { getHolidayForDate, showHolidayMessage } from "../src/utils/holiday.ts";
+import {
+  getHolidayForDate,
+  showHolidayMessage,
+  showChristmasMessage,
+  showNewYearMessage,
+  showValentinesMessage,
+  showEasterMessage,
+  showHalloweenMessage,
+  showThanksgivingMessage,
+  showSummerMessage,
+  showSpringMessage,
+} from "../src/utils/holiday.ts";
 
 const captureConsoleLog = (fn: () => void): string[] => {
   const originalLog = console.log;
@@ -99,4 +110,132 @@ test("showHolidayMessage prints nothing on non-holidays", () => {
   });
 
   assert.equal(logs.length, 0);
+});
+
+test("showHolidayMessage prints a New Year greeting on January 1st", () => {
+  const logs = captureConsoleLog(() => {
+    withMockedDate(new Date(2024, 0, 1), () => {
+      showHolidayMessage();
+    });
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   N E W   Y E A R")));
+});
+
+test("showHolidayMessage prints a Valentine's greeting", () => {
+  const logs = captureConsoleLog(() => {
+    withMockedDate(new Date(2024, 1, 14), () => {
+      showHolidayMessage();
+    });
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   V A L E N T I N E S")));
+});
+
+test("showHolidayMessage prints an Easter greeting", () => {
+  const logs = captureConsoleLog(() => {
+    withMockedDate(new Date(2024, 2, 31), () => {
+      showHolidayMessage();
+    });
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   E A S T E R")));
+});
+
+test("showHolidayMessage prints a Halloween greeting", () => {
+  const logs = captureConsoleLog(() => {
+    withMockedDate(new Date(2024, 9, 31), () => {
+      showHolidayMessage();
+    });
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   H A L L O W E E N")));
+});
+
+test("showHolidayMessage prints a Thanksgiving greeting", () => {
+  const logs = captureConsoleLog(() => {
+    withMockedDate(new Date(2024, 10, 28), () => {
+      showHolidayMessage();
+    });
+  });
+
+  assert(
+    logs.some((line) => line.includes("H A P P Y   T H A N K S G I V I N G")),
+  );
+});
+
+// Direct tests for standalone message functions
+
+test("showChristmasMessage prints holiday greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showChristmasMessage();
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   H O L I D A Y S")));
+  assert(logs.some((line) => line.includes("🎄")));
+});
+
+test("showNewYearMessage prints new year greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showNewYearMessage();
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   N E W   Y E A R")));
+  assert(logs.some((line) => line.includes("🎉")));
+});
+
+test("showValentinesMessage prints valentine greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showValentinesMessage();
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   V A L E N T I N E S")));
+  assert(logs.some((line) => line.includes("💘")));
+});
+
+test("showEasterMessage prints easter greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showEasterMessage();
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   E A S T E R")));
+  assert(logs.some((line) => line.includes("🐣")));
+});
+
+test("showHalloweenMessage prints halloween greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showHalloweenMessage();
+  });
+
+  assert(logs.some((line) => line.includes("H A P P Y   H A L L O W E E N")));
+  assert(logs.some((line) => line.includes("🎃")));
+});
+
+test("showThanksgivingMessage prints thanksgiving greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showThanksgivingMessage();
+  });
+
+  assert(
+    logs.some((line) => line.includes("H A P P Y   T H A N K S G I V I N G")),
+  );
+  assert(logs.some((line) => line.includes("🦃")));
+});
+
+test("showSummerMessage prints summer greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showSummerMessage();
+  });
+
+  assert(logs.some((line) => line.includes("E N J O Y   S U M M E R")));
+  assert(logs.some((line) => line.includes("🌞")));
+});
+
+test("showSpringMessage prints spring greeting", () => {
+  const logs = captureConsoleLog(() => {
+    showSpringMessage();
+  });
+
+  assert(logs.some((line) => line.includes("E N J O Y   S P R I N G")));
+  assert(logs.some((line) => line.includes("🌷")));
 });
