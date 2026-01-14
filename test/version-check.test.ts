@@ -1,8 +1,8 @@
 import "../test-support/setup-env";
 
-import test, { mock } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
-// Mock console.log to capture output
+import esmock from "esmock";
 
 const createChalkMock = () => {
   const bold = Object.assign((message: string) => `[bold]${message}[/bold]`, {
@@ -21,61 +21,48 @@ const createChalkMock = () => {
   };
 };
 
-const captureConsoleLogAsync = async (
-  fn: () => Promise<void>,
-): Promise<string[]> => {
+const captureConsoleLogs = (fn: () => void): string[] => {
   const originalLog = console.log;
   const logs: string[] = [];
   console.log = (...args: unknown[]) => {
     logs.push(args.map((arg) => String(arg)).join(" "));
   };
   try {
-    await fn();
+    fn();
     return logs;
   } finally {
     console.log = originalLog;
   }
 };
 
-test("checkForUpdates calls update-notifier with package info", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
-  const updateNotifierSpy = mock.fn(() => ({ update: null }));
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: updateNotifierSpy,
+test("checkForUpdates calls update-notifier with package info", async () => {
+  let capturedArgs: unknown = null;
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: (args: unknown) => {
+        capturedArgs = args;
+        return { update: null };
+      },
+    },
   });
 
   const pkg = { name: "gsmart", version: "1.2.3" };
-
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?call-args");
-    checkWithMock(pkg);
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates(pkg);
   });
 
-  updateNotifierMock.restore();
-  mock.reset();
-
-  assert.equal(updateNotifierSpy.mock.calls.length, 1);
-  assert.deepEqual(updateNotifierSpy.mock.calls[0].arguments[0], {
+  assert.deepEqual(capturedArgs, {
     pkg,
     updateCheckInterval: 1000 * 60 * 60 * 24,
   });
   assert.equal(logs.length, 0);
 });
 
-test("checkForUpdates accepts valid package info", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
-  const updateNotifierSpy = mock.fn(() => ({ update: null }));
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: updateNotifierSpy,
+test("checkForUpdates accepts valid package info", async () => {
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
   });
 
   const validPackages = [
@@ -84,79 +71,57 @@ test("checkForUpdates accepts valid package info", async (t) => {
     { name: "@scope/package", version: "2.3.4" },
   ];
 
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?valid-packages");
+  const logs = captureConsoleLogs(() => {
     for (const pkg of validPackages) {
       assert.doesNotThrow(() => {
-        checkWithMock(pkg);
+        checkForUpdates(pkg);
       }, `Should accept package: ${pkg.name}@${pkg.version}`);
     }
   });
 
-  updateNotifierMock.restore();
-  mock.reset();
-
   assert.equal(logs.length, 0);
 });
 
-test("checkForUpdates logs update details when update is available", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: () => ({
-      update: {
-        current: "1.0.0",
-        latest: "1.2.0",
-      },
-    }),
+test("checkForUpdates logs update details when update is available", async () => {
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({
+        update: {
+          current: "1.0.0",
+          latest: "1.2.0",
+        },
+      }),
+    },
   });
 
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?update-available");
-    checkWithMock({ name: "gsmart", version: "1.0.0" });
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates({ name: "gsmart", version: "1.0.0" });
   });
-
-  updateNotifierMock.restore();
-  mock.reset();
 
   assert(logs.some((line) => line.includes("Update available")));
   assert(logs.some((line) => line.includes("1.0.0")));
   assert(logs.some((line) => line.includes("1.2.0")));
 });
 
-test("checkForUpdates prints formatted update notice with package name", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
+test("checkForUpdates prints formatted update notice with package name", async () => {
   const chalkMock = createChalkMock();
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: () => ({
-      update: {
-        current: "0.9.0",
-        latest: "1.0.0",
-      },
-    }),
-  });
-  const chalkModuleMock = mock.module("chalk", {
-    defaultExport: chalkMock,
-  });
-
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?formatted-message");
-    checkWithMock({ name: "@scope/gsmart", version: "0.9.0" });
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({
+        update: {
+          current: "0.9.0",
+          latest: "1.0.0",
+        },
+      }),
+    },
+    chalk: {
+      default: chalkMock,
+    },
   });
 
-  updateNotifierMock.restore();
-  chalkModuleMock.restore();
-  mock.reset();
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates({ name: "@scope/gsmart", version: "0.9.0" });
+  });
 
   assert.equal(logs.length, 5);
   assert.equal(
@@ -188,34 +153,25 @@ test("checkForUpdates prints formatted update notice with package name", async (
   );
 });
 
-test("checkForUpdates pads update message rows with spaces", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
+test("checkForUpdates pads update message rows with spaces", async () => {
   const chalkMock = createChalkMock();
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: () => ({
-      update: {
-        current: "1.0.0",
-        latest: "1.0.10",
-      },
-    }),
-  });
-  const chalkModuleMock = mock.module("chalk", {
-    defaultExport: chalkMock,
-  });
-
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?padding");
-    checkWithMock({ name: "gsmart", version: "1.0.0" });
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({
+        update: {
+          current: "1.0.0",
+          latest: "1.0.10",
+        },
+      }),
+    },
+    chalk: {
+      default: chalkMock,
+    },
   });
 
-  updateNotifierMock.restore();
-  chalkModuleMock.restore();
-  mock.reset();
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates({ name: "gsmart", version: "1.0.0" });
+  });
 
   assert(logs[1].includes("  Update available: "));
   assert(
@@ -232,26 +188,16 @@ test("checkForUpdates pads update message rows with spaces", async (t) => {
   );
 });
 
-test("checkForUpdates does not log when no update is available", async (t) => {
-  if (typeof mock.module !== "function") {
-    t.skip("mock.module is not available in this Node version");
-    return;
-  }
-
-  const updateNotifierMock = mock.module("update-notifier", {
-    defaultExport: () => ({
-      update: null,
-    }),
+test("checkForUpdates does not log when no update is available", async () => {
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
   });
 
-  const logs = await captureConsoleLogAsync(async () => {
-    const { checkForUpdates: checkWithMock } =
-      await import("../src/utils/version-check.ts?update-none");
-    checkWithMock({ name: "gsmart", version: "1.0.0" });
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates({ name: "gsmart", version: "1.0.0" });
   });
-
-  updateNotifierMock.restore();
-  mock.reset();
 
   assert.equal(logs.length, 0);
 });

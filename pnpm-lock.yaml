@@ -71,6 +71,9 @@ importers:
       eslint-config-prettier:
         specifier: ^10.1.8
         version: 10.1.8(eslint@9.39.2)
+      esmock:
+        specifier: ^2.7.3
+        version: 2.7.3
       globals:
         specifier: ^17.0.0
         version: 17.0.0
@@ -1427,6 +1430,13 @@ packages:
     peerDependenciesMeta:
       jiti:
         optional: true
+
+  esmock@2.7.3:
+    resolution:
+      {
+        integrity: sha512-/M/YZOjgyLaVoY6K83pwCsGE1AJQnj4S4GyXLYgi/Y79KL8EeW6WU7Rmjc89UO7jv6ec8+j34rKeWOfiLeEu0A==,
+      }
+    engines: { node: ">=14.16.0" }
 
   espree@10.4.0:
     resolution:
@@ -3497,6 +3507,8 @@ snapshots:
       optionator: 0.9.4
     transitivePeerDependencies:
       - supports-color
+
+  esmock@2.7.3: {}
 
   espree@10.4.0:
     dependencies:
