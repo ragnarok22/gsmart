@@ -457,3 +457,205 @@ test("retrieveFilesToCommit reports no status entries", async () => {
   assert.equal(result, null);
   assert.equal(spinner.fail.mock.calls.length, 1);
 });
+
+test("retrieveFilesToCommit formats Added status as green", async () => {
+  const statusEntries = [
+    {
+      status: "A ",
+      file_name: "added.txt",
+      file_path: "added.txt",
+    },
+  ];
+
+  let capturedPrompt: {
+    choices: { title: string; value: unknown }[];
+  } | null = null;
+  let changesCalls = 0;
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async (options: {
+          choices: { title: string; value: unknown }[];
+        }) => {
+          capturedPrompt = options;
+          return { files: options.choices.map((choice) => choice.value) };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => true,
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, { autoStage: false });
+
+  assert.equal(result, "diff");
+  assert.ok(capturedPrompt);
+  assert.equal(capturedPrompt.choices.length, 1);
+  assert.equal(capturedPrompt.choices[0].title, chalk.green("added.txt"));
+});
+
+test("retrieveFilesToCommit formats Modified status as yellow", async () => {
+  const statusEntries = [
+    {
+      status: " M",
+      file_name: "modified.txt",
+      file_path: "modified.txt",
+    },
+  ];
+
+  let capturedPrompt: {
+    choices: { title: string; value: unknown }[];
+  } | null = null;
+  let changesCalls = 0;
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async (options: {
+          choices: { title: string; value: unknown }[];
+        }) => {
+          capturedPrompt = options;
+          return { files: options.choices.map((choice) => choice.value) };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => true,
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, { autoStage: false });
+
+  assert.equal(result, "diff");
+  assert.ok(capturedPrompt);
+  assert.equal(capturedPrompt.choices.length, 1);
+  assert.equal(capturedPrompt.choices[0].title, chalk.yellow("modified.txt"));
+});
+
+test("retrieveFilesToCommit returns null when stageFile fails", async () => {
+  const statusEntries = [
+    {
+      status: "??",
+      file_name: "new.txt",
+      file_path: "new.txt",
+    },
+  ];
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async (options: {
+          choices: { title: string; value: unknown }[];
+        }) => {
+          return { files: options.choices.map((choice) => choice.value) };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => "",
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => false,
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, { autoStage: false });
+
+  assert.equal(result, null);
+  assert.equal(spinner.fail.mock.calls.length, 1);
+});
+
+test("retrieveFilesToCommit with autoStage stages all files without prompting", async () => {
+  const statusEntries = [
+    {
+      status: "??",
+      file_name: "file1.txt",
+      file_path: "file1.txt",
+    },
+    {
+      status: " M",
+      file_name: "file2.txt",
+      file_path: "file2.txt",
+    },
+  ];
+
+  let promptsCalled = false;
+  let changesCalls = 0;
+  const stageFileCalls: unknown[][] = [];
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      prompts: {
+        default: async () => {
+          promptsCalled = true;
+          return { files: [] };
+        },
+      },
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "staged diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async (...args: unknown[]) => {
+          stageFileCalls.push(args);
+          return true;
+        },
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, { autoStage: true });
+
+  assert.equal(result, "staged diff");
+  assert.equal(
+    promptsCalled,
+    false,
+    "prompts should not be called in autoStage mode",
+  );
+  assert.equal(
+    spinner.stop.mock.calls.length,
+    0,
+    "spinner.stop should not be called in autoStage mode",
+  );
+  assert.equal(spinner.succeed.mock.calls.length, 1);
+  assert.deepEqual(stageFileCalls[0][0], ["file1.txt", "file2.txt"]);
+});

@@ -178,4 +178,64 @@ describe("index utils", () => {
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  it("retrieveFilesToCommit handles modified files in autoStage mode", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "gsmart-index-"));
+    execSync("git init -b main", { cwd: repo });
+    execSync('git config user.email "test@example.com"', { cwd: repo });
+    execSync('git config user.name "Test"', { cwd: repo });
+    execSync("git config commit.gpgsign false", { cwd: repo });
+
+    const cwd = process.cwd();
+    process.chdir(repo);
+    try {
+      // Create and commit a file
+      writeFileSync(join(repo, "modified.txt"), "original content");
+      execSync("git add modified.txt");
+      execSync('git commit -m "initial"');
+
+      // Modify the file (creates M status)
+      writeFileSync(join(repo, "modified.txt"), "modified content");
+
+      const spinner = ora();
+      const succeedMock = mock.method(spinner, "succeed", () => {});
+
+      const result = await retrieveFilesToCommit(spinner, { autoStage: true });
+
+      assert.ok(result);
+      assert.ok(result.includes("modified content"));
+      assert.strictEqual(succeedMock.mock.calls.length, 1);
+
+      succeedMock.mock.restore();
+    } finally {
+      process.chdir(cwd);
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("retrieveFilesToCommit uses default options when none provided", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "gsmart-index-"));
+    execSync("git init -b main", { cwd: repo });
+    execSync('git config user.email "test@example.com"', { cwd: repo });
+    execSync('git config user.name "Test"', { cwd: repo });
+
+    const cwd = process.cwd();
+    process.chdir(repo);
+    try {
+      // Create and stage a file
+      writeFileSync(join(repo, "file.txt"), "content");
+      execSync("git add file.txt");
+
+      const spinner = ora();
+
+      // Call without options to test default behavior
+      const result = await retrieveFilesToCommit(spinner);
+
+      assert.ok(result);
+      assert.ok(result.includes("content"));
+    } finally {
+      process.chdir(cwd);
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
 });
