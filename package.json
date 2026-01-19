@@ -11,8 +11,17 @@
     "cli",
     "ai",
     "git",
-    "gsmart"
+    "gsmart",
+    "commit",
+    "conventional-commits",
+    "openai",
+    "anthropic",
+    "gemini",
+    "mistral"
   ],
+  "bugs": {
+    "url": "https://github.com/ragnarok22/gsmart/issues"
+  },
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
   "engines": {
