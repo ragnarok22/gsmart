@@ -25,17 +25,26 @@
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "pnpm": ">=10"
   },
   "publishConfig": {
     "access": "public",
     "provenance": true
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
+  "sideEffects": false,
   "type": "module",
-  "exports": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
@@ -45,13 +54,17 @@
     "dev": "tsup --watch",
     "prebuild": "node prebuild.js",
     "build": "tsup",
+    "clean": "rimraf dist",
     "start": "node dist/index.js",
     "test": "tsx --test test/**/*.test.ts",
     "test:coverage": "tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/**/*.test.ts",
     "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.15",
@@ -78,6 +91,7 @@
     "esmock": "^2.7.3",
     "globals": "^17.0.0",
     "prettier": "3.8.0",
+    "rimraf": "^6.1.2",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
