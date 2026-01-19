@@ -8,6 +8,8 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      GSMART_CONFIG_DIR: ${{ github.workspace }}/.tmp/gsmart-config
     permissions:
       contents: write
       id-token: write
@@ -27,6 +29,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
 
       - name: Build project
         run: pnpm run build
@@ -52,3 +60,5 @@ jobs:
 
       - name: Publish to npm with provenance
         run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
