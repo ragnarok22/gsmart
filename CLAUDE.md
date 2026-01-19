@@ -9,13 +9,19 @@ GSmart is a CLI tool that generates smart commit messages using AI. It analyzes 
 ## Development Commands
 
 - **Build**: `pnpm run build` - Compiles TypeScript to ESM format using tsup
+- **Clean**: `pnpm run clean` - Removes the dist directory
 - **Development**: `pnpm run dev` - Runs tsup in watch mode for development
 - **Start**: `pnpm run start` - Runs the compiled CLI from dist/index.js
 - **Test**: `pnpm test` - Runs Node.js built-in test runner with tsx
-- **Lint**: `pnpm run lint` - Runs ESLint on TypeScript files
+- **Test Coverage**: `pnpm run test:coverage` - Runs tests with coverage report
+- **Lint**: `pnpm run lint` - Runs ESLint on project files
+- **Lint Fix**: `pnpm run lint:fix` - Runs ESLint with auto-fix
+- **Typecheck**: `pnpm run typecheck` - Runs TypeScript type checking
 - **Format**: `pnpm run format` - Formats code with Prettier
+- **Format Check**: `pnpm run format:check` - Checks formatting without writing
+- **Check**: `pnpm run check` - Runs lint, typecheck, and test in sequence
 
-The project uses pnpm as package manager and requires Node.js with ESM support.
+The project uses pnpm (>=10) as package manager and requires Node.js (>=20) with ESM support.
 
 ## Architecture
 
@@ -80,3 +86,5 @@ Uses Node.js built-in test runner with tsx for TypeScript support. Tests are loc
 - **Target**: esnext with source maps and minification
 - **Output**: Single ESM bundle in `dist/` directory suitable for npm publishing
 - **Pre-build**: Custom prebuild.js script (generates build info)
+- **Module Resolution**: Uses `bundler` moduleResolution for modern ESM compatibility
+- **Tree-shaking**: Package marked with `sideEffects: false` for optimal bundling
