@@ -37,6 +37,7 @@
   "type": "module",
   "exports": "./dist/index.js",
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "gsmart": "dist/index.js"
   },
@@ -45,9 +46,10 @@
     "prebuild": "node prebuild.js",
     "build": "tsup",
     "start": "node dist/index.js",
-    "test": "tsx --test",
-    "test:coverage": "tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout",
-    "lint": "eslint . --ext .ts",
+    "test": "tsx --test test/**/*.test.ts",
+    "test:coverage": "tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/**/*.test.ts",
+    "lint": "eslint .",
+    "prepublishOnly": "pnpm run build",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write ."
   },
