@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-01-19
+
+### Changed
+
+- Simplified test script globs and switched to node --import tsx for test execution
+- Added lint/typecheck steps to release CI workflow and configured publish environment
+- Refined package exports and added maintenance scripts
+- Removed unused fs-extra and related packages from dependencies
+- Updated package metadata with additional keywords and bugs URL
+- Documented release workflow instructions and additional commands
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.12→3.0.15, @ai-sdk/google 3.0.7→3.0.10, @ai-sdk/mistral 3.0.6→3.0.9, @ai-sdk/openai 3.0.9→3.0.12, ai 6.0.7→6.0.40)
+- Updated development tooling (globals 16.5.0→17.0.0, prettier 3.7.3→3.8.0, typescript-eslint 8.51.0→8.53.0, pnpm 10.x→10.28.1)
+- Expanded test coverage for holiday messages, version checks, git status formatting, and utility functions
+
+### Fixed
+
+- Corrected rename status parsing and path ordering in git utils
+- Fixed movable holiday date calculations for accurate seasonal messages
+
 ## [0.11.1] - 2026-01-04
 
 ### Changed
@@ -283,7 +302,9 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/ragnarok22/gsmart/compare/v0.11.1...v0.11.2
+[0.11.1]: https://github.com/ragnarok22/gsmart/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/ragnarok22/gsmart/compare/v0.10.4...v0.11.0
 [0.10.4]: https://github.com/ragnarok22/gsmart/compare/v0.10.3...v0.10.4
 [0.10.3]: https://github.com/ragnarok22/gsmart/compare/v0.10.2...v0.10.3
