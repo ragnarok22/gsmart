@@ -68,19 +68,19 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.15",
-    "@ai-sdk/google": "^3.0.10",
-    "@ai-sdk/mistral": "^3.0.9",
-    "@ai-sdk/openai": "^3.0.12",
-    "ai": "^6.0.40",
+    "@ai-sdk/anthropic": "^3.0.35",
+    "@ai-sdk/google": "^3.0.20",
+    "@ai-sdk/mistral": "^3.0.18",
+    "@ai-sdk/openai": "^3.0.25",
+    "ai": "^6.0.67",
     "chalk": "5.6.2",
-    "clipboardy": "^5.0.2",
-    "commander": "^14.0.2",
+    "clipboardy": "^5.2.0",
+    "commander": "^14.0.3",
     "conf": "^15.0.2",
-    "ora": "^9.0.0",
+    "ora": "^9.1.0",
     "prompts": "^2.4.2",
     "update-notifier": "^7.3.1",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
@@ -90,13 +90,13 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "esmock": "^2.7.3",
-    "globals": "^17.0.0",
+    "globals": "^17.3.0",
     "prettier": "3.8.1",
     "rimraf": "^6.1.2",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.53.0"
+    "typescript-eslint": "^8.54.0"
   },
   "packageManager": "pnpm@10.28.1+sha512.7d7dbbca9e99447b7c3bf7a73286afaaf6be99251eb9498baefa7d406892f67b879adb3a1d7e687fc4ccc1a388c7175fbaae567a26ab44d1067b54fcb0d6a316"
 }
