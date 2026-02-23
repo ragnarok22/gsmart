@@ -28,7 +28,7 @@ importers:
         version: 5.6.2
       clipboardy:
         specifier: ^5.2.0
-        version: 5.2.0
+        version: 5.3.0
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -123,12 +123,6 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/provider-utils@4.0.13':
-    resolution: {integrity: sha512-HHG72BN4d+OWTcq2NwTxOm/2qvk1duYsnhCDtsbYwn/h/4zeqURu1S0+Cn0nY2Ysq9a9HGKvrYuMn9bgFhR2Og==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
   '@ai-sdk/provider-utils@4.0.14':
     resolution: {integrity: sha512-7bzKd9lgiDeXM7O4U4nQ8iTxguAOkg8LZGD9AfDVZYjO5cKYRwBPwVjboFcVrxncRHu0tYxZtXZtiLKpG4pEng==}
     engines: {node: '>=18'}
@@ -140,10 +134,6 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/provider@3.0.7':
-    resolution: {integrity: sha512-VkPLrutM6VdA924/mG8OS+5frbVTcu6e046D2bgDo00tehBANR1QBJ/mPcZ9tXMFOsVcm6SQArOregxePzTFPw==}
-    engines: {node: '>=18'}
 
   '@ai-sdk/provider@3.0.8':
     resolution: {integrity: sha512-oGMAgGoQdBXbZqNG0Ze56CHjDZ1IDYOwGYxYjO5KLSlz5HiNQ9udIXsPZ61VWaHGZ5XW/jyjmr6t2xz2jGVwbQ==}
@@ -758,8 +748,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  clipboardy@5.2.0:
-    resolution: {integrity: sha512-qlXzpbPfFtMKUMeLRkKDe42uRfhRVGTv86VOy7vDVjFh5cHhkCrxPlXfgiJdL65X/Lr+iJtl1haUtq7dMfEilA==}
+  clipboardy@5.3.0:
+    resolution: {integrity: sha512-EOei1RJTbqXbXhUBMGN8C/Pf+QIPrnDWx9ztlmcW5Hljqj/oVlPrlrDw2O4xh5ViHcvHX3+A0zBrCdcptKTaJA==}
     engines: {node: '>=20'}
 
   color-convert@2.0.1:
@@ -1118,8 +1108,8 @@ packages:
     resolution: {integrity: sha512-QkbMsWkIfkrzOPxenwye0h56iAXirZYHG9eHVPb22fO9y+wPbaX/CHacOWBa/I++4ohTcByimhM1/nyCsH8KNA==}
     engines: {node: '>=20'}
 
-  is-wsl@3.1.0:
-    resolution: {integrity: sha512-UcVfVfaK4Sc4m7X3dUSoHoozQGBEFeDC+zVo06t98xe8CzHSZZBekNXH+tu0NalHolcJ/QAGqS46Hef7QXBIMw==}
+  is-wsl@3.1.1:
+    resolution: {integrity: sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==}
     engines: {node: '>=16'}
 
   is64bit@2.0.0:
@@ -1735,13 +1725,6 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.15(zod@4.3.6)
       zod: 4.3.6
 
-  '@ai-sdk/provider-utils@4.0.13(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.7
-      '@standard-schema/spec': 1.1.0
-      eventsource-parser: 3.0.6
-      zod: 4.3.6
-
   '@ai-sdk/provider-utils@4.0.14(zod@4.3.6)':
     dependencies:
       '@ai-sdk/provider': 3.0.8
@@ -1755,10 +1738,6 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
       zod: 4.3.6
-
-  '@ai-sdk/provider@3.0.7':
-    dependencies:
-      json-schema: 0.4.0
 
   '@ai-sdk/provider@3.0.8':
     dependencies:
@@ -2273,12 +2252,12 @@ snapshots:
     dependencies:
       run-jxa: 3.0.0
 
-  clipboardy@5.2.0:
+  clipboardy@5.3.0:
     dependencies:
       clipboard-image: 0.1.0
       execa: 9.6.1
       is-wayland: 0.1.0
-      is-wsl: 3.1.0
+      is-wsl: 3.1.1
       is64bit: 2.0.0
       powershell-utils: 0.2.0
 
@@ -2632,7 +2611,7 @@ snapshots:
 
   is-wayland@0.1.0: {}
 
-  is-wsl@3.1.0:
+  is-wsl@3.1.1:
     dependencies:
       is-inside-container: 1.0.0
 
