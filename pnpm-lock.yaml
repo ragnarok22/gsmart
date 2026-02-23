@@ -28,7 +28,7 @@ importers:
         version: 5.6.2
       clipboardy:
         specifier: ^5.2.0
-        version: 5.2.0
+        version: 5.3.0
       commander:
         specifier: ^14.0.3
         version: 14.0.3
@@ -753,8 +753,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  clipboardy@5.2.0:
-    resolution: {integrity: sha512-qlXzpbPfFtMKUMeLRkKDe42uRfhRVGTv86VOy7vDVjFh5cHhkCrxPlXfgiJdL65X/Lr+iJtl1haUtq7dMfEilA==}
+  clipboardy@5.3.0:
+    resolution: {integrity: sha512-EOei1RJTbqXbXhUBMGN8C/Pf+QIPrnDWx9ztlmcW5Hljqj/oVlPrlrDw2O4xh5ViHcvHX3+A0zBrCdcptKTaJA==}
     engines: {node: '>=20'}
 
   color-convert@2.0.1:
@@ -1117,8 +1117,8 @@ packages:
     resolution: {integrity: sha512-QkbMsWkIfkrzOPxenwye0h56iAXirZYHG9eHVPb22fO9y+wPbaX/CHacOWBa/I++4ohTcByimhM1/nyCsH8KNA==}
     engines: {node: '>=20'}
 
-  is-wsl@3.1.0:
-    resolution: {integrity: sha512-UcVfVfaK4Sc4m7X3dUSoHoozQGBEFeDC+zVo06t98xe8CzHSZZBekNXH+tu0NalHolcJ/QAGqS46Hef7QXBIMw==}
+  is-wsl@3.1.1:
+    resolution: {integrity: sha512-e6rvdUCiQCAuumZslxRJWR/Doq4VpPR82kqclvcS0efgt430SlGIk05vdCN58+VrzgtIcfNODjozVielycD4Sw==}
     engines: {node: '>=16'}
 
   is64bit@2.0.0:
@@ -2263,12 +2263,12 @@ snapshots:
     dependencies:
       run-jxa: 3.0.0
 
-  clipboardy@5.2.0:
+  clipboardy@5.3.0:
     dependencies:
       clipboard-image: 0.1.0
       execa: 9.6.1
       is-wayland: 0.1.0
-      is-wsl: 3.1.0
+      is-wsl: 3.1.1
       is64bit: 2.0.0
       powershell-utils: 0.2.0
 
@@ -2624,7 +2624,7 @@ snapshots:
 
   is-wayland@0.1.0: {}
 
-  is-wsl@3.1.0:
+  is-wsl@3.1.1:
     dependencies:
       is-inside-container: 1.0.0
 
