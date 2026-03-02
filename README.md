@@ -133,6 +133,18 @@ Commands:
 | **Fireworks AI** | [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)          | [Get Key](https://fireworks.ai/api-keys)                     |
 | **PlataformIA**  | [Radiance](https://docs.plataformia.com/llm-chat-api)                             | [Get Key](https://console.plataformia.com/api-keys)          |
 
+## 🧩 Skill for AI Agents
+
+Do your AI agents write commits for you? Improve your commit quality with the `write-conventional-commit` skill.
+
+Install it with:
+
+```bash
+npx skills add ragnarok22/agent-skills --skill write-conventional-commit
+```
+
+Repository: [ragnarok22/agent-skills](https://github.com/ragnarok22/agent-skills)
+
 ## 🛠️ Development
 
 ### Requirements
