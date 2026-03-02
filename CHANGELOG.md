@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-03-02
+
+### Changed
+
+- Updated AI and runtime dependency ranges (@ai-sdk/anthropic 3.0.15→3.0.35, @ai-sdk/google 3.0.10→3.0.20, @ai-sdk/mistral 3.0.9→3.0.18, @ai-sdk/openai 3.0.12→3.0.25, ai 6.0.40→6.0.67, clipboardy 5.0.2→5.2.0, commander 14.0.2→14.0.3, ora 9.0.0→9.1.0, zod 4.3.5→4.3.6)
+- Updated development tooling (@eslint/json 0.14.0→1.0.0, globals 17.0.0→17.3.0, prettier 3.8.0→3.8.1, typescript-eslint 8.53.0→8.54.0)
+- Updated package manager metadata from pnpm 10.28.1 to 10.30.3
+- Refreshed the lockfile with Dependabot updates for resolved dependency versions and security fixes
+
 ## [0.11.2] - 2026-01-19
 
 ### Changed
