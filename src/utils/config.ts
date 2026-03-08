@@ -66,6 +66,18 @@ class Config {
     return keys;
   }
 
+  setPrompt(prompt: string): void {
+    return this.__set("defaultPrompt", prompt);
+  }
+
+  getPrompt(): string {
+    return this.__get("defaultPrompt");
+  }
+
+  clearPrompt(): void {
+    return this.__delete("defaultPrompt");
+  }
+
   private __get(key: string): string {
     return conf.get<string>(key, "") as string;
   }

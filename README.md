@@ -98,6 +98,22 @@ gsmart --yes
 gsmart --help
 ```
 
+### Configuration
+
+```bash
+# Open the interactive configuration menu
+gsmart config
+
+# Set a default prompt that will be used on every run
+gsmart config --add-custom-prompt "Always use imperative mood and mention the ticket number"
+
+# Show the current default prompt
+gsmart config --show
+
+# Clear the default prompt
+gsmart config --clear-custom-prompt
+```
+
 When `--yes` is set, GSmart stages all detected changes—including renames—and skips interactive prompts so you can automate message generation.
 
 ## 📋 Command Reference
@@ -119,6 +135,12 @@ Commands:
 
   login                           Configure AI provider and API key
   reset                           Reset all API keys and configuration
+
+  config [options]                Manage gsmart configuration (default prompt, commit style)
+    -s, --show                    Show current configuration
+    --add-custom-prompt <prompt>  Set the default prompt non-interactively
+    --clear-custom-prompt         Clear the default prompt non-interactively
+
   help [command]                  Display help for command
 ```
 
