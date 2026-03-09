@@ -17,6 +17,7 @@ GSmart is a CLI tool that automatically generates [Conventional Commits](https:/
 - 📋 **Interactive CLI**: Easy-to-use command line interface with interactive prompts
 - 🧠 **Rename-Aware Staging**: Detects renames and copies so both sides get staged automatically
 - 🔒 **Secure**: API keys stored locally and securely
+- ⏱️ **Timeout Protection**: Configurable request timeout prevents hanging on unresponsive APIs
 - ⚡ **Fast**: Quick analysis and generation of commit messages
 - 📖 **Conventional Commits**: Follows industry-standard commit message format
 - 🐚 **Shell Completions**: Tab completions for bash, zsh, and fish
@@ -100,6 +101,21 @@ gsmart --help
 ```
 
 When `--yes` is set, GSmart stages all detected changes—including renames—and skips interactive prompts so you can automate message generation.
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable         | Description                        | Default |
+| ---------------- | ---------------------------------- | ------- |
+| `GSMART_TIMEOUT` | AI request timeout in milliseconds | `30000` |
+
+```bash
+# Set a custom timeout (e.g., 60 seconds)
+GSMART_TIMEOUT=60000 gsmart
+```
+
+If a request exceeds the timeout, GSmart exits cleanly with a user-friendly error message instead of hanging indefinitely.
 
 ## 📋 Command Reference
 
@@ -208,9 +224,10 @@ pnpm run format
 src/
 ├── commands/          # CLI command implementations (generate, login, reset, completions)
 ├── utils/
-│   ├── ai.ts         # AI provider integrations
-│   ├── git.ts        # Git operations
-│   └── config.ts     # Configuration management
+│   ├── ai.ts         # AI provider integrations and timeout handling
+│   ├── constants.ts  # Shared constants (defaults, timeouts)
+│   ├── config.ts     # Configuration management
+│   └── git.ts        # Git operations
 ├── gsmart.ts         # Command registration
 └── index.ts          # CLI entry point
 ```

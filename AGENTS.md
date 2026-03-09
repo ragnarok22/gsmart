@@ -19,8 +19,9 @@ src/
 │   ├── reset.ts      # Configuration reset
 │   └── completions.ts # Shell completion script generator (bash, zsh, fish)
 └── utils/            # Reusable helpers (side-effect free)
-    ├── ai.ts         # AI provider abstraction and prompt building
+    ├── ai.ts         # AI provider abstraction, prompt building, and timeout handling
     ├── config.ts     # Persistent API key storage using conf package
+    ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS)
     └── git.ts        # Git command wrappers for status, diff, commits
 
 test/                 # Tests mirror source with .test.ts suffix
@@ -64,6 +65,7 @@ The CLI follows a command pattern:
 - Supported providers: OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA
 - Models: gpt-5-codex, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance
 - API keys stored securely using the conf package
+- Requests have a 30s default timeout (configurable via `GSMART_TIMEOUT` env var)
 
 ### Git Integration
 
