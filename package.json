@@ -87,7 +87,7 @@
     "@eslint/json": "^1.0.0",
     "@types/prompts": "^2.4.9",
     "@types/update-notifier": "^6.0.8",
-    "eslint": "^9.39.2",
+    "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "esmock": "^2.7.3",
     "globals": "^17.3.0",
