@@ -175,4 +175,107 @@ describe("parseFlag", () => {
     assert.strictEqual(result.long, "force");
     assert.strictEqual(result.takesValue, false);
   });
+
+  it("parses long-only flag", () => {
+    const result = parseFlag({ flags: "--verbose", description: "test" });
+    assert.strictEqual(result.short, undefined);
+    assert.strictEqual(result.long, "verbose");
+  });
+
+  it("parses short-only flag", () => {
+    const result = parseFlag({ flags: "-v", description: "test" });
+    assert.strictEqual(result.short, "v");
+    assert.strictEqual(result.long, undefined);
+  });
+});
+
+describe("CompletionsCommand action", () => {
+  it("writes bash completion to stdout", (t) => {
+    const chunks: string[] = [];
+    t.mock.method(process.stdout, "write", (chunk: string) => {
+      chunks.push(chunk);
+      return true;
+    });
+
+    CompletionsCommand.action({ shell: "bash" });
+    assert.ok(
+      chunks.join("").includes("complete -F _gsmart_completions gsmart"),
+    );
+  });
+
+  it("writes zsh completion to stdout", (t) => {
+    const chunks: string[] = [];
+    t.mock.method(process.stdout, "write", (chunk: string) => {
+      chunks.push(chunk);
+      return true;
+    });
+
+    CompletionsCommand.action({ shell: "zsh" });
+    assert.ok(chunks.join("").includes("#compdef gsmart"));
+  });
+
+  it("writes fish completion to stdout", (t) => {
+    const chunks: string[] = [];
+    t.mock.method(process.stdout, "write", (chunk: string) => {
+      chunks.push(chunk);
+      return true;
+    });
+
+    CompletionsCommand.action({ shell: "fish" });
+    assert.ok(chunks.join("").includes("complete -c gsmart -f"));
+  });
+});
+
+describe("generators handle edge-case commands", () => {
+  it("skips commands with no options or arguments in fish", () => {
+    const cmds = [{ name: "bare", description: "No opts", action: () => {} }];
+    const script = generateFishCompletion(cmds, {});
+    assert.ok(!script.includes("__fish_seen_subcommand_from bare"));
+    assert.ok(script.includes("__fish_use_subcommand"));
+  });
+
+  it("skips commands with no options or arguments in zsh args", () => {
+    const cmds = [{ name: "bare", description: "No opts", action: () => {} }];
+    const script = generateZshCompletion(cmds, {});
+    assert.ok(script.includes("'bare:No opts'"));
+    assert.ok(!script.includes("bare)"));
+  });
+
+  it("handles flag with only long name", () => {
+    const cmds = [
+      {
+        name: "test",
+        description: "Test",
+        options: [{ flags: "--verbose", description: "Verbose" }],
+        action: () => {},
+      },
+    ];
+    const bash = generateBashCompletion(cmds, {});
+    assert.ok(bash.includes("--verbose"));
+
+    const fish = generateFishCompletion(cmds, {});
+    const testLine = fish
+      .split("\n")
+      .find((l) => l.includes("__fish_seen_subcommand_from test"));
+    assert.ok(testLine);
+    assert.ok(testLine.includes("-l verbose"));
+    assert.ok(!testLine.includes("-s "));
+  });
+
+  it("handles flag with value but no flagValues entry", () => {
+    const cmds = [
+      {
+        name: "test",
+        description: "Test",
+        options: [{ flags: "-o, --output <path>", description: "Output" }],
+        action: () => {},
+      },
+    ];
+    const fish = generateFishCompletion(cmds, {});
+    assert.ok(fish.includes("-r"));
+    assert.ok(!fish.includes("-a '"));
+
+    const zsh = generateZshCompletion(cmds, {});
+    assert.ok(zsh.includes(":output:"));
+  });
 });
