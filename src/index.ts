@@ -58,7 +58,9 @@ async function main() {
         });
       }
       await Promise.resolve(command.action(opts));
-      showHolidayMessage();
+      if (!command.silent) {
+        showHolidayMessage();
+      }
     });
   }
 

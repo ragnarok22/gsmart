@@ -253,6 +253,7 @@ export function generateFishCompletion(
 const CompletionsCommand: ICommand = {
   name: "completions",
   description: "Output shell completion script for bash, zsh, or fish",
+  silent: true,
   arguments: [
     {
       name: "shell",

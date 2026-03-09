@@ -2,6 +2,7 @@ export interface ICommand {
   name: string;
   description: string;
   default?: boolean;
+  silent?: boolean;
   options?: Option[];
   arguments?: Argument[];
   action: (args: Record<string, unknown>) => void | Promise<void>;
