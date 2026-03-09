@@ -6,130 +6,167 @@ import {
   generateBashCompletion,
   generateZshCompletion,
   generateFishCompletion,
+  parseFlag,
 } from "../src/commands/completions";
+import MainCommand from "../src/commands/main";
+import LoginCommand from "../src/commands/login";
+import ResetCommand from "../src/commands/reset";
+import CompletionsCommand from "../src/commands/completions";
+import { getActiveProviders } from "../src/utils/providers";
 
-const COMMANDS = ["generate", "login", "reset", "completions"];
-const PROVIDERS = [
-  "openai",
-  "anthropic",
-  "google",
-  "mistral",
-  "fireworks",
-  "plataformia",
+// Derive test data from actual definitions — single source of truth
+const allCommands = [
+  MainCommand,
+  LoginCommand,
+  ResetCommand,
+  CompletionsCommand,
 ];
-const GENERATE_FLAGS = ["-p", "--prompt", "-P", "--provider", "-y", "--yes"];
-const RESET_FLAGS = ["-f", "--force"];
-const FISH_GENERATE_FLAGS = [
-  "-s p",
-  "-l prompt",
-  "-s P",
-  "-l provider",
-  "-s y",
-  "-l yes",
-];
-const FISH_RESET_FLAGS = ["-s f", "-l force"];
+const providerValues = getActiveProviders().map((p) => p.value);
+const flagValues = { provider: providerValues };
+
+const COMMANDS = allCommands.map((c) => c.name);
+const PROVIDERS = providerValues;
+
+const bashFlags = (cmd: typeof MainCommand) =>
+  (cmd.options || []).flatMap((opt) => {
+    const f = parseFlag(opt);
+    return [f.short ? `-${f.short}` : "", f.long ? `--${f.long}` : ""].filter(
+      Boolean,
+    );
+  });
+
+const fishFlags = (cmd: typeof MainCommand) =>
+  (cmd.options || []).flatMap((opt) => {
+    const f = parseFlag(opt);
+    return [
+      f.short ? `-s ${f.short}` : "",
+      f.long ? `-l ${f.long}` : "",
+    ].filter(Boolean);
+  });
 
 describe("bash completion", () => {
+  const generate = () => generateBashCompletion(allCommands, flagValues);
+
   it("includes shell-specific marker", () => {
-    const script = generateBashCompletion();
-    assert.ok(script.includes("complete -F _gsmart_completions gsmart"));
+    assert.ok(generate().includes("complete -F _gsmart_completions gsmart"));
   });
 
   it("includes all commands", () => {
-    const script = generateBashCompletion();
+    const script = generate();
     for (const cmd of COMMANDS) {
       assert.ok(script.includes(cmd), `Missing command: ${cmd}`);
     }
   });
 
   it("includes all provider values", () => {
-    const script = generateBashCompletion();
+    const script = generate();
     for (const provider of PROVIDERS) {
       assert.ok(script.includes(provider), `Missing provider: ${provider}`);
     }
   });
 
   it("includes generate flags", () => {
-    const script = generateBashCompletion();
-    for (const flag of GENERATE_FLAGS) {
+    const script = generate();
+    for (const flag of bashFlags(MainCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
   });
 
   it("includes reset flags", () => {
-    const script = generateBashCompletion();
-    for (const flag of RESET_FLAGS) {
+    const script = generate();
+    for (const flag of bashFlags(ResetCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
   });
 });
 
 describe("zsh completion", () => {
+  const generate = () => generateZshCompletion(allCommands, flagValues);
+
   it("includes shell-specific marker", () => {
-    const script = generateZshCompletion();
-    assert.ok(script.includes("#compdef gsmart"));
+    assert.ok(generate().includes("#compdef gsmart"));
   });
 
   it("includes all commands", () => {
-    const script = generateZshCompletion();
+    const script = generate();
     for (const cmd of COMMANDS) {
       assert.ok(script.includes(cmd), `Missing command: ${cmd}`);
     }
   });
 
   it("includes all provider values", () => {
-    const script = generateZshCompletion();
+    const script = generate();
     for (const provider of PROVIDERS) {
       assert.ok(script.includes(provider), `Missing provider: ${provider}`);
     }
   });
 
   it("includes generate flags", () => {
-    const script = generateZshCompletion();
-    for (const flag of GENERATE_FLAGS) {
+    const script = generate();
+    for (const flag of bashFlags(MainCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
   });
 
   it("includes reset flags", () => {
-    const script = generateZshCompletion();
-    for (const flag of RESET_FLAGS) {
+    const script = generate();
+    for (const flag of bashFlags(ResetCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
   });
 });
 
 describe("fish completion", () => {
+  const generate = () => generateFishCompletion(allCommands, flagValues);
+
   it("includes shell-specific marker", () => {
-    const script = generateFishCompletion();
-    assert.ok(script.includes("complete -c gsmart"));
+    assert.ok(generate().includes("complete -c gsmart"));
   });
 
   it("includes all commands", () => {
-    const script = generateFishCompletion();
+    const script = generate();
     for (const cmd of COMMANDS) {
       assert.ok(script.includes(cmd), `Missing command: ${cmd}`);
     }
   });
 
   it("includes all provider values", () => {
-    const script = generateFishCompletion();
+    const script = generate();
     for (const provider of PROVIDERS) {
       assert.ok(script.includes(provider), `Missing provider: ${provider}`);
     }
   });
 
   it("includes generate flags", () => {
-    const script = generateFishCompletion();
-    for (const flag of FISH_GENERATE_FLAGS) {
+    const script = generate();
+    for (const flag of fishFlags(MainCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
   });
 
   it("includes reset flags", () => {
-    const script = generateFishCompletion();
-    for (const flag of FISH_RESET_FLAGS) {
+    const script = generate();
+    for (const flag of fishFlags(ResetCommand)) {
       assert.ok(script.includes(flag), `Missing flag: ${flag}`);
     }
+  });
+});
+
+describe("parseFlag", () => {
+  it("parses short and long flags", () => {
+    const result = parseFlag({
+      flags: "-p, --prompt <prompt>",
+      description: "test",
+    });
+    assert.strictEqual(result.short, "p");
+    assert.strictEqual(result.long, "prompt");
+    assert.strictEqual(result.takesValue, true);
+  });
+
+  it("parses flags without value", () => {
+    const result = parseFlag({ flags: "-f, --force", description: "test" });
+    assert.strictEqual(result.short, "f");
+    assert.strictEqual(result.long, "force");
+    assert.strictEqual(result.takesValue, false);
   });
 });

@@ -130,16 +130,18 @@ GSmart supports tab completions for bash, zsh, and fish. Run the `completions` c
 
 ### Bash
 
+Add to your `~/.bashrc`:
+
 ```bash
-gsmart completions bash >> ~/.bashrc
-source ~/.bashrc
+eval "$(gsmart completions bash)"
 ```
 
 ### Zsh
 
+Add to your `~/.zshrc`:
+
 ```bash
-gsmart completions zsh >> ~/.zshrc
-source ~/.zshrc
+eval "$(gsmart completions zsh)"
 ```
 
 ### Fish
