@@ -175,7 +175,7 @@ ${commandList}
             _describe -t commands 'gsmart commands' commands
             ;;
         args)
-            case $words[1] in
+            case $line[1] in
 ${argCases}
             esac
             ;;

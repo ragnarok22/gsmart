@@ -87,6 +87,12 @@ describe("zsh completion", () => {
     assert.ok(generate().includes("#compdef gsmart"));
   });
 
+  it("dispatches subcommands using $line[1]", () => {
+    const script = generate();
+    assert.ok(script.includes("case $line[1] in"));
+    assert.ok(!script.includes("case $words[1] in"));
+  });
+
   it("includes all commands", () => {
     const script = generate();
     for (const cmd of COMMANDS) {
