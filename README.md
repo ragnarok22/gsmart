@@ -19,6 +19,7 @@ GSmart is a CLI tool that automatically generates [Conventional Commits](https:/
 - 🔒 **Secure**: API keys stored locally and securely
 - ⚡ **Fast**: Quick analysis and generation of commit messages
 - 📖 **Conventional Commits**: Follows industry-standard commit message format
+- 🐚 **Shell Completions**: Tab completions for bash, zsh, and fish
 
 ## 🚀 Quick Start
 
@@ -119,7 +120,34 @@ Commands:
 
   login                           Configure AI provider and API key
   reset                           Reset all API keys and configuration
+  completions <shell>             Output shell completion script (bash, zsh, or fish)
   help [command]                  Display help for command
+```
+
+## 🐚 Shell Completions
+
+GSmart supports tab completions for bash, zsh, and fish. Run the `completions` command and add the output to your shell configuration:
+
+### Bash
+
+Add to your `~/.bashrc`:
+
+```bash
+eval "$(gsmart completions bash)"
+```
+
+### Zsh
+
+Add to your `~/.zshrc`:
+
+```bash
+eval "$(gsmart completions zsh)"
+```
+
+### Fish
+
+```bash
+gsmart completions fish > ~/.config/fish/completions/gsmart.fish
 ```
 
 ## 🤖 Supported AI Providers
@@ -178,7 +206,7 @@ pnpm run format
 
 ```
 src/
-├── commands/          # CLI command implementations
+├── commands/          # CLI command implementations (generate, login, reset, completions)
 ├── utils/
 │   ├── ai.ts         # AI provider integrations
 │   ├── git.ts        # Git operations

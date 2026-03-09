@@ -34,6 +34,7 @@
   },
   "files": [
     "dist",
+    "scripts",
     "LICENSE",
     "README.md"
   ],
@@ -60,6 +61,7 @@
     "test:coverage": "node --import tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/*.test.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "postinstall": "node scripts/postinstall.js || true",
     "prepublishOnly": "pnpm run build",
     "pretypecheck": "node prebuild.js",
     "typecheck": "tsc --noEmit",

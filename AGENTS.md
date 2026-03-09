@@ -16,7 +16,8 @@ src/
 ├── commands/         # CLI command implementations (one file per command)
 │   ├── generate.ts   # Default command for commit message generation
 │   ├── login.ts      # API key configuration
-│   └── reset.ts      # Configuration reset
+│   ├── reset.ts      # Configuration reset
+│   └── completions.ts # Shell completion script generator (bash, zsh, fish)
 └── utils/            # Reusable helpers (side-effect free)
     ├── ai.ts         # AI provider abstraction and prompt building
     ├── config.ts     # Persistent API key storage using conf package
@@ -53,7 +54,7 @@ Use **pnpm** for all workflows. Requires Node.js >=20 with ESM support.
 
 The CLI follows a command pattern:
 
-- Each command exports an `ICommand` object with name, description, options, and action
+- Each command exports an `ICommand` object with name, description, options, arguments, and action
 - Commands are registered in `src/gsmart.ts` and loaded by the main program
 - The default command is "generate" which analyzes staged changes and creates commit messages
 
@@ -74,7 +75,7 @@ The CLI follows a command pattern:
 
 ### Type Safety
 
-- Strong TypeScript typing with interfaces for commands, providers, and git status
+- Strong TypeScript typing with interfaces for commands (options and arguments), providers, and git status
 - Provider types constrained to specific string literals
 - Git status enum for file change types (Modified, Deleted, Untracked)
 
