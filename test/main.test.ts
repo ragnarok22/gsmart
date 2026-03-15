@@ -40,6 +40,7 @@ async function buildMainCommand(overrides: {
   aiResult?: string | { error: string };
   promptsResponses?: Record<string, unknown>;
   commitResult?: boolean;
+  stagedFileNames?: string[];
 }) {
   const {
     changes = "diff content",
@@ -48,6 +49,7 @@ async function buildMainCommand(overrides: {
     aiResult = "feat: test commit",
     promptsResponses = {},
     commitResult = true,
+    stagedFileNames = ["file1.txt", "file2.txt"],
   } = overrides;
 
   let committedMessage = "";
@@ -68,6 +70,7 @@ async function buildMainCommand(overrides: {
           committedMessage = msg;
           return commitResult;
         },
+        getStagedFileNames: async () => stagedFileNames,
       },
       "../src/utils/config.ts": {
         default: {
@@ -269,4 +272,75 @@ test("main command has correct metadata", async () => {
   assert.ok(MainCommand.options?.some((o) => o.flags.includes("--prompt")));
   assert.ok(MainCommand.options?.some((o) => o.flags.includes("--provider")));
   assert.ok(MainCommand.options?.some((o) => o.flags.includes("--yes")));
+  assert.ok(MainCommand.options?.some((o) => o.flags.includes("--dry-run")));
+});
+
+// ===========================================================================
+// MainCommand: --dry-run mode
+// ===========================================================================
+
+test("main --dry-run shows message without committing", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    promptsResponses: {},
+  });
+
+  await MainCommand.action({ dryRun: true, yes: true });
+
+  assert.equal(getCommittedMessage(), "");
+});
+
+test("main --dry-run exits before action prompt", async () => {
+  const { MainCommand, getCommittedMessage, getClipboardText } =
+    await buildMainCommand({
+      promptsResponses: { value: "openai" },
+    });
+
+  await MainCommand.action({ dryRun: true });
+
+  assert.equal(getCommittedMessage(), "");
+  assert.equal(getClipboardText(), "");
+});
+
+test("main --dry-run works with --provider flag", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    allKeys: { openai: "sk-key", anthropic: "ak-key" },
+  });
+
+  await MainCommand.action({ dryRun: true, provider: "openai" });
+
+  assert.equal(getCommittedMessage(), "");
+});
+
+test("main --dry-run works with --prompt flag", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    promptsResponses: {},
+  });
+
+  await MainCommand.action({
+    dryRun: true,
+    prompt: "custom prompt",
+    yes: true,
+  });
+
+  assert.equal(getCommittedMessage(), "");
+});
+
+test("main --dry-run exits early when no staged changes", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    changes: null,
+  });
+
+  await MainCommand.action({ dryRun: true });
+
+  assert.equal(getCommittedMessage(), "");
+});
+
+test("main --dry-run still fails when AI returns error", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    aiResult: { error: "API rate limit exceeded" },
+  });
+
+  await MainCommand.action({ dryRun: true, yes: true });
+
+  assert.equal(getCommittedMessage(), "");
 });

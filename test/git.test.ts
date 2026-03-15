@@ -15,6 +15,9 @@ import {
   parseGitStatusEntries,
   stageFile,
   getGitInfo,
+  getStagedFileNames,
+  unstageFiles,
+  parseDiffFileNames,
 } from "../src/utils/git.ts";
 import { retrieveFilesToCommit } from "../src/utils/index.ts";
 
@@ -484,6 +487,174 @@ test("getGitInfo returns branch and changes together", async () => {
     const [branch, changes] = await getGitInfo();
     assert.equal(branch, "develop");
     assert(changes.includes("content"));
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("getStagedFileNames returns list of staged file paths", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "file1.txt"), "content1");
+    writeFileSync(join(repo, "file2.txt"), "content2");
+    await stageFile(["file1.txt", "file2.txt"]);
+
+    const names = await getStagedFileNames();
+    assert.deepEqual(names.sort(), ["file1.txt", "file2.txt"]);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("getStagedFileNames returns empty array when nothing is staged", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "unstaged.txt"), "not staged");
+
+    const names = await getStagedFileNames();
+    assert.deepEqual(names, []);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("unstageFiles removes files from the staging area", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "file1.txt"), "content1");
+    writeFileSync(join(repo, "file2.txt"), "content2");
+    await stageFile(["file1.txt", "file2.txt"]);
+
+    const beforeNames = await getStagedFileNames();
+    assert.deepEqual(beforeNames.sort(), ["file1.txt", "file2.txt"]);
+
+    const result = await unstageFiles(["file1.txt", "file2.txt"]);
+    assert.equal(result, true);
+
+    const afterNames = await getStagedFileNames();
+    assert.deepEqual(afterNames, []);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("unstageFiles handles empty array", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    const result = await unstageFiles([]);
+    assert.equal(result, true);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("unstageFiles handles single file as string", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "file.txt"), "content");
+    await stageFile("file.txt");
+
+    const result = await unstageFiles("file.txt");
+    assert.equal(result, true);
+
+    const names = await getStagedFileNames();
+    assert.deepEqual(names, []);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("parseDiffFileNames extracts file names from diff output", () => {
+  const diff = `diff --git a/src/utils/index.ts b/src/utils/index.ts
+index 1234567..abcdefg 100644
+--- a/src/utils/index.ts
++++ b/src/utils/index.ts
+@@ -1,3 +1,4 @@
++import something
+diff --git a/src/commands/main.ts b/src/commands/main.ts
+index 1234567..abcdefg 100644
+--- a/src/commands/main.ts
++++ b/src/commands/main.ts
+@@ -1,3 +1,4 @@
++import something`;
+
+  const names = parseDiffFileNames(diff);
+  assert.deepEqual(names, ["src/utils/index.ts", "src/commands/main.ts"]);
+});
+
+test("parseDiffFileNames returns empty array for empty diff", () => {
+  assert.deepEqual(parseDiffFileNames(""), []);
+});
+
+test("parseDiffFileNames deduplicates file names", () => {
+  const diff = `diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt
+diff --git a/file.txt b/file.txt
+--- a/file.txt
++++ b/file.txt`;
+
+  const names = parseDiffFileNames(diff);
+  assert.deepEqual(names, ["file.txt"]);
+});
+
+test("retrieveFilesToCommit with dryRun restores index after staging", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "dry-run.txt"), "dry-run-content");
+    const spinner = createSpinnerStub();
+    const diff = await retrieveFilesToCommit(spinner, {
+      autoStage: true,
+      dryRun: true,
+    });
+
+    // Should still return the diff content for AI processing
+    assert(diff && diff.includes("dry-run-content"));
+
+    // But files should NOT remain staged
+    const stagedAfter = await getStagedFileNames();
+    assert.deepEqual(stagedAfter, [], "Files should be unstaged after dry-run");
   } finally {
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
