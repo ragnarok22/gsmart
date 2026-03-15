@@ -12,8 +12,15 @@ import ora from "ora";
 
 describe("index utils", () => {
   it("copyToClipboard returns true on success", async () => {
+    const clipboard = await import("clipboardy");
+    const originalWrite = clipboard.default.write;
+
+    clipboard.default.write = async () => {};
+
     const result = await copyToClipboard("test text");
     assert.strictEqual(result, true);
+
+    clipboard.default.write = originalWrite;
   });
 
   it("copyToClipboard returns false on error", async () => {
