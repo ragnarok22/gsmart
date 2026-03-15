@@ -163,7 +163,7 @@ export const parseDiffFileNames = (diff: string): string[] => {
   while ((match = regex.exec(diff)) !== null) {
     names.push(match[1]);
   }
-  return [...new Set(names)];
+  return Array.from(new Set(names));
 };
 
 export const getGitInfo = async (): Promise<[string, string]> => {
