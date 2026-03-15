@@ -156,14 +156,26 @@ const mainAction = async (options: MainCommandOptions = {}) => {
         ora().succeed(chalk.green("Changes committed successfully"));
       } else {
         ora().fail(chalk.red("Failed to commit changes."));
-        await copyToClipboard(message);
-        ora().succeed(chalk.green("Message copied to clipboard"));
+        const fallback = await copyToClipboard(message);
+        if (fallback) {
+          ora().succeed(chalk.green("Message copied to clipboard"));
+        } else {
+          ora().warn(chalk.yellow("Could not copy message to clipboard"));
+          console.log(message);
+        }
       }
       break;
     }
     case "copy":
-      await copyToClipboard(message);
-      ora().succeed(chalk.green("Message copied to clipboard"));
+      {
+        const copied = await copyToClipboard(message);
+        if (copied) {
+          ora().succeed(chalk.green("Message copied to clipboard"));
+        } else {
+          ora().warn(chalk.yellow("Could not copy message to clipboard"));
+          console.log(message);
+        }
+      }
       break;
     case "regenerate":
       spinner.stop();
