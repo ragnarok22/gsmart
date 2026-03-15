@@ -383,6 +383,7 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -475,6 +476,7 @@ test("passes correct provider to config.getKey", async () => {
           return "fake-key";
         },
       },
+      validateApiKey: () => null,
     },
   });
 
