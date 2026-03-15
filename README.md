@@ -157,7 +157,7 @@ Commands:
     -s, --show                    Show current configuration
     --add-custom-prompt <prompt>  Set the default prompt non-interactively
     --clear-custom-prompt         Clear the default prompt non-interactively
-    
+
   completions <shell>             Output shell completion script (bash, zsh, or fish)
 
   help [command]                  Display help for command

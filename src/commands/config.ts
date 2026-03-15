@@ -2,11 +2,7 @@ import chalk from "chalk";
 import ora from "ora";
 import prompts from "prompts";
 import { ICommand } from "../definitions";
-import {
-  setPrompt,
-  getPrompt,
-  clearPrompt,
-} from "../utils/prompt-config";
+import { setPrompt, getPrompt, clearPrompt } from "../utils/prompt-config";
 
 const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";

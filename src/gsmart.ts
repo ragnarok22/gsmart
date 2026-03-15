@@ -3,7 +3,13 @@ import {
   LoginCommand,
   ResetCommand,
   CompletionsCommand,
-  ConfigCommand
+  ConfigCommand,
 } from "./commands";
 
-export default [MainCommand, LoginCommand, ResetCommand, CompletionsCommand, ConfigCommand];
+export default [
+  MainCommand,
+  LoginCommand,
+  ResetCommand,
+  CompletionsCommand,
+  ConfigCommand,
+];
