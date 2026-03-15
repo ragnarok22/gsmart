@@ -1,7 +1,7 @@
 import clipboard from "clipboardy";
 import chalk from "chalk";
 import prompts from "prompts";
-import { getGitChanges, getGitStatus, stageFile } from "./git";
+import { getGitChanges, getGitStatus, stageFile, unstageFiles } from "./git";
 import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
 
@@ -9,6 +9,7 @@ export { checkForUpdates } from "./version-check";
 
 type RetrieveFilesOptions = {
   autoStage?: boolean;
+  dryRun?: boolean;
 };
 
 const normalizeStatus = (status: string): string => status.replace(/\s/g, "");
@@ -67,7 +68,7 @@ export const retrieveFilesToCommit = async (
   spinner: Ora,
   options: RetrieveFilesOptions = {},
 ): Promise<string | null> => {
-  const { autoStage = false } = options;
+  const { autoStage = false, dryRun = false } = options;
   let changes = await getGitChanges();
 
   if (changes.length > 0) {
@@ -120,13 +121,24 @@ export const retrieveFilesToCommit = async (
 
   const pathsToStage = collectPathsToStage(filesToStage);
 
-  const result = await stageFile(pathsToStage);
-  if (result) {
-    spinner.succeed(chalk.grey("Files staged successfully"));
-    changes = await getGitChanges();
+  if (dryRun) {
+    const staged = await stageFile(pathsToStage);
+    if (staged) {
+      changes = await getGitChanges();
+      await unstageFiles(pathsToStage);
+    } else {
+      spinner.fail(chalk.red("Failed to stage files"));
+      return null;
+    }
   } else {
-    spinner.fail(chalk.red("Failed to stage files"));
-    return null;
+    const staged = await stageFile(pathsToStage);
+    if (staged) {
+      spinner.succeed(chalk.grey("Files staged successfully"));
+      changes = await getGitChanges();
+    } else {
+      spinner.fail(chalk.red("Failed to stage files"));
+      return null;
+    }
   }
 
   return changes;

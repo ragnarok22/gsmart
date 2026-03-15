@@ -124,6 +124,48 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
   }
 };
 
+export const unstageFiles = async (
+  files: string | string[],
+): Promise<boolean> => {
+  const paths = Array.isArray(files) ? files : [files];
+
+  if (paths.length === 0) {
+    return true;
+  }
+
+  try {
+    const repoRoot = runGit(["rev-parse", "--show-toplevel"]);
+    const absolutePaths = Array.from(
+      new Set(paths.map((candidate) => path.resolve(repoRoot, candidate))),
+    );
+
+    runGit(["reset", "HEAD", "--", ...absolutePaths], { cwd: repoRoot });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export const getStagedFileNames = async (): Promise<string[]> => {
+  try {
+    const output = runGit(["diff", "--cached", "--name-only"]);
+    if (!output) return [];
+    return output.split("\n").filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+};
+
+export const parseDiffFileNames = (diff: string): string[] => {
+  const regex = /^diff --git a\/.+ b\/(.+)$/gm;
+  const names: string[] = [];
+  let match;
+  while ((match = regex.exec(diff)) !== null) {
+    names.push(match[1]);
+  }
+  return Array.from(new Set(names));
+};
+
 export const getGitInfo = async (): Promise<[string, string]> => {
   const branch = await getGitBranch();
   const changes = await getGitChanges();

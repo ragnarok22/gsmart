@@ -2,7 +2,7 @@ import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
 import { ICommand, IProvider } from "../definitions";
-import { commitChanges, getGitBranch } from "../utils/git";
+import { commitChanges, getGitBranch, parseDiffFileNames } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder } from "../utils/ai";
 import { getActiveProviders } from "../utils/providers";
@@ -14,6 +14,7 @@ type MainCommandOptions = {
   prompt?: string;
   provider?: string;
   yes?: boolean;
+  dryRun?: boolean;
 };
 
 const getProvider = async (
@@ -59,6 +60,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   const spinner = ora("").start();
   const changes = await retrieveFilesToCommit(spinner, {
     autoStage: Boolean(options.yes),
+    dryRun: Boolean(options.dryRun),
   });
   const branch = await getGitBranch();
 
@@ -100,6 +102,17 @@ const mainAction = async (options: MainCommandOptions = {}) => {
     return;
   }
   spinner.succeed(chalk.green(message));
+
+  if (options.dryRun) {
+    const fileNames = parseDiffFileNames(changes);
+    if (fileNames.length > 0) {
+      console.log(chalk.cyan("\nStaged files:"));
+      for (const file of fileNames) {
+        console.log(chalk.grey(`  ${file}`));
+      }
+    }
+    return;
+  }
 
   let action = "commit";
 
@@ -173,6 +186,12 @@ const MainCommand: ICommand = {
       default: false,
       description:
         "Automatically commit without prompting (useful for automation)",
+    },
+    {
+      flags: "-d, --dry-run",
+      default: false,
+      description:
+        "Show the generated commit message and staged files without committing",
     },
   ],
   action: (options) => mainAction(options as MainCommandOptions),
