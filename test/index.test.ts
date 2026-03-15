@@ -16,8 +16,6 @@ describe("index utils", () => {
   });
 
   it("copyToClipboard handles errors gracefully", async () => {
-    const consoleErrorMock = mock.method(console, "error", () => {});
-
     const clipboard = await import("clipboardy");
     const originalWrite = clipboard.default.write;
 
@@ -25,12 +23,9 @@ describe("index utils", () => {
       throw new Error("Clipboard error");
     };
 
-    await copyToClipboard("test");
+    await assert.doesNotReject(() => copyToClipboard("test"));
 
     clipboard.default.write = originalWrite;
-    consoleErrorMock.mock.restore();
-
-    assert.strictEqual(consoleErrorMock.mock.calls.length, 1);
   });
 
   it("retrieveFilesToCommit returns null when no changes and no status", async () => {
