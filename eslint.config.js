@@ -18,6 +18,10 @@ export default defineConfig([
     files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
     languageOptions: { globals: globals.browser },
   },
+  {
+    files: ["scripts/**/*.js"],
+    languageOptions: { globals: globals.node },
+  },
   tseslint.configs.recommended,
   {
     files: ["**/*.json"],

@@ -16,10 +16,12 @@ src/
 ├── commands/         # CLI command implementations (one file per command)
 │   ├── generate.ts   # Default command for commit message generation
 │   ├── login.ts      # API key configuration
-│   └── reset.ts      # Configuration reset
+│   ├── reset.ts      # Configuration reset
+│   └── completions.ts # Shell completion script generator (bash, zsh, fish)
 └── utils/            # Reusable helpers (side-effect free)
-    ├── ai.ts         # AI provider abstraction and prompt building
+    ├── ai.ts         # AI provider abstraction, prompt building, and timeout handling
     ├── config.ts     # Persistent API key storage using conf package
+    ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS)
     └── git.ts        # Git command wrappers for status, diff, commits
 
 test/                 # Tests mirror source with .test.ts suffix
@@ -53,7 +55,7 @@ Use **pnpm** for all workflows. Requires Node.js >=20 with ESM support.
 
 The CLI follows a command pattern:
 
-- Each command exports an `ICommand` object with name, description, options, and action
+- Each command exports an `ICommand` object with name, description, options, arguments, and action
 - Commands are registered in `src/gsmart.ts` and loaded by the main program
 - The default command is "generate" which analyzes staged changes and creates commit messages
 
@@ -63,6 +65,7 @@ The CLI follows a command pattern:
 - Supported providers: OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA
 - Models: gpt-5-codex, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance
 - API keys stored securely using the conf package
+- Requests have a 30s default timeout (configurable via `GSMART_TIMEOUT` env var)
 
 ### Git Integration
 
@@ -74,7 +77,7 @@ The CLI follows a command pattern:
 
 ### Type Safety
 
-- Strong TypeScript typing with interfaces for commands, providers, and git status
+- Strong TypeScript typing with interfaces for commands (options and arguments), providers, and git status
 - Provider types constrained to specific string literals
 - Git status enum for file change types (Modified, Deleted, Untracked)
 

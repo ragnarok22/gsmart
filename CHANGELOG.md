@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-03-09
+
+### Added
+
+- Shell completion generator command for bash, zsh, and fish shells
+- Shell completions generated from command metadata
+- Post-install message with shell completion instructions
+- Option for silent commands to skip holiday message
+
+### Fixed
+
+- Request timeout handling for AI commit generation (30s default, configurable via `GSMART_TIMEOUT` env var)
+- Zsh subcommand dispatch in shell completions using correct `$line[1]` syntax
+
+### Changed
+
+- Documented AI timeout configuration and constants.ts
+- Documented shell completions support
+- Added instructions for write-conventional-commit skill to README
+- Removed unused zod dependency
+- Updated AI SDK packages (@ai-sdk/google 3.0.34→3.0.43, @ai-sdk/mistral 3.0.21→3.0.24, @ai-sdk/openai 3.0.37→3.0.41, ai 6.0.77→6.0.116)
+- Updated development tooling (eslint 9.39.2→10.0.3)
+- Updated package manager metadata from pnpm 10.30.3 to 10.31.0
+
 ## [0.11.3] - 2026-03-02
 
 ### Changed
@@ -311,7 +335,9 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/ragnarok22/gsmart/compare/v0.11.3...v0.12.0
+[0.11.3]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/ragnarok22/gsmart/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/ragnarok22/gsmart/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/ragnarok22/gsmart/compare/v0.10.4...v0.11.0

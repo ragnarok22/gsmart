@@ -5,7 +5,7 @@ import { createMistral } from "@ai-sdk/mistral";
 import { generateText, type LanguageModel } from "ai";
 import config from "./config";
 import { Provider } from "../definitions";
-import { DEFAULT_PROVIDER } from "./constants";
+import { DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS } from "./constants";
 
 export { providers, getActiveProviders } from "./providers";
 
@@ -154,16 +154,23 @@ Additional instructions:
 ${this.prompt}`
       : initialPrompt;
 
+    const timeoutMs = Number(process.env.GSMART_TIMEOUT) || DEFAULT_TIMEOUT_MS;
+
     try {
       const { text } = await generateText({
         model,
         system,
         prompt,
-        // temperature: 0.7,
+        timeout: { totalMs: timeoutMs },
       });
 
       return text;
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        return {
+          error: `${this.provider} - Request timed out after ${timeoutMs / 1000}s. Please check your network connection and try again.`,
+        };
+      }
       const message =
         error instanceof Error && error.message
           ? error.message

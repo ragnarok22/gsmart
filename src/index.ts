@@ -7,7 +7,7 @@
 //  \____/\____/ |_| |_| |_| \__,_||_|    \__| CLI
 //  Created by: Reinier Hernández
 
-import { Command } from "commander";
+import { Argument as CommanderArgument, Command } from "commander";
 import commands from "./gsmart";
 import info from "./build-info";
 import { checkForUpdates } from "./utils/version-check";
@@ -39,10 +39,28 @@ async function main() {
       }
     }
 
-    cmd.action(async () => {
+    if (command.arguments) {
+      for (const arg of command.arguments) {
+        const syntax = arg.required ? `<${arg.name}>` : `[${arg.name}]`;
+        const cmdArg = new CommanderArgument(syntax, arg.description);
+        if (arg.choices) {
+          cmdArg.choices(arg.choices);
+        }
+        cmd.addArgument(cmdArg);
+      }
+    }
+
+    cmd.action(async (...actionArgs: unknown[]) => {
       const opts = cmd.opts();
+      if (command.arguments) {
+        command.arguments.forEach((arg, index) => {
+          opts[arg.name] = actionArgs[index];
+        });
+      }
       await Promise.resolve(command.action(opts));
-      showHolidayMessage();
+      if (!command.silent) {
+        showHolidayMessage();
+      }
     });
   }
 

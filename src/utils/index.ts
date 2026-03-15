@@ -94,7 +94,7 @@ export const retrieveFilesToCommit = async (
     value: file,
   }));
 
-  let filesToStage: GitStatus[] = [];
+  let filesToStage: GitStatus[];
 
   if (autoStage) {
     filesToStage = status;

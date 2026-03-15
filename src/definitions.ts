@@ -2,7 +2,9 @@ export interface ICommand {
   name: string;
   description: string;
   default?: boolean;
+  silent?: boolean;
   options?: Option[];
+  arguments?: Argument[];
   action: (args: Record<string, unknown>) => void | Promise<void>;
 }
 
@@ -18,6 +20,13 @@ export type Option = {
   flags: string;
   description: string;
   default?: string | boolean | string[];
+};
+
+export type Argument = {
+  name: string;
+  description: string;
+  required?: boolean;
+  choices?: string[];
 };
 
 export interface IProvider {
