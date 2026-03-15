@@ -92,7 +92,8 @@ const mainAction = async (options: MainCommandOptions = {}) => {
 
   if (!spinner.isSpinning) spinner.start();
 
-  const ai = new AIBuilder(selectedProvider.value, options.prompt ?? "");
+  const prompt = options.prompt || config.getPrompt() || "";
+  const ai = new AIBuilder(selectedProvider.value, prompt);
   const message = await ai.generateCommitMessage(branch, changes);
   if (typeof message === "object") {
     spinner.fail(chalk.red(message.error));
