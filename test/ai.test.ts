@@ -735,6 +735,90 @@ test("returns network error for APICallError without status code wrapping ECONNR
   assert.ok(error.startsWith("google"));
 });
 
+test("returns network error for APICallError without status code wrapping ENOTFOUND", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "getaddrinfo ENOTFOUND api.openai.com",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for APICallError without status code wrapping DNS failure", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "dns resolution failed",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("mistral", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("mistral"));
+});
+
+test("returns network error for APICallError without status code wrapping network error", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "network error occurred",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns generic HTTP unknown for APICallError without status code and non-network message", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "unexpected internal error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("HTTP unknown"));
+  assert.ok(error.includes("Please try again"));
+});
+
 test("returns generic HTTP error for other status codes", async () => {
   const { APICallError } = await import("ai");
   const { AIBuilder } = await buildMockedAIWithError(
@@ -754,4 +838,72 @@ test("returns generic HTTP error for other status codes", async () => {
   const error = (result as { error: string }).error;
   assert.ok(error.includes("HTTP 500"));
   assert.ok(error.includes("Please try again"));
+});
+
+test("returns network error for ENOTFOUND plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("getaddrinfo ENOTFOUND api.openai.com"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for DNS failure plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("dns resolution failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns network error for generic network keyword in Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("network request failed"),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("anthropic"));
+});
+
+test("returns network error for fetch failed plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("fetch failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns generic error for non-network plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("some random failure"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("some random failure"));
+  assert.ok(!error.includes("Could not reach"));
 });
