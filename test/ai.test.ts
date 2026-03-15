@@ -110,7 +110,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
       generateText: async () => {
-        throw new Error("API rate limit exceeded");
+        throw new Error("Something went wrong");
       },
     },
     "../src/utils/config.ts": {
@@ -124,7 +124,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
 
   assert.equal(typeof result, "object");
   assert.ok(
-    (result as { error: string }).error.includes("API rate limit exceeded"),
+    (result as { error: string }).error.includes("Something went wrong"),
   );
 });
 
@@ -484,4 +484,455 @@ test("passes correct provider to config.getKey", async () => {
   await builder.generateCommitMessage("main", "diff");
 
   assert.equal(capturedProvider, "mistral");
+});
+
+// ===========================================================================
+// Error classification
+// ===========================================================================
+
+async function buildMockedAIWithError(errorFactory: () => unknown) {
+  const realAI = await import("ai");
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      ...realAI,
+      generateText: async () => {
+        throw errorFactory();
+      },
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
+    },
+  });
+  return { AIBuilder };
+}
+
+test("returns auth error for APICallError with status 401", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Unauthorized",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 401,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Invalid API key"));
+  assert.ok(error.includes("gsmart login"));
+});
+
+test("returns auth error for APICallError with status 403", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Forbidden",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 403,
+      }),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Invalid API key"));
+  assert.ok(error.startsWith("anthropic"));
+});
+
+test("returns rate limit error for APICallError with status 429", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Too Many Requests",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 429,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Rate limited"));
+  assert.ok(error.includes("Wait a moment"));
+});
+
+test("returns model unavailable error for APICallError with status 404", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Not Found",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 404,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("not available"));
+  assert.ok(error.includes("try a different provider"));
+});
+
+test("returns model unavailable error for NoSuchModelError", async () => {
+  const { NoSuchModelError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new NoSuchModelError({
+        modelId: "gpt-99",
+        modelType: "languageModel",
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes('Model "gpt-99"'));
+  assert.ok(error.includes("not available"));
+});
+
+test("returns malformed response error for EmptyResponseBodyError", async () => {
+  const { EmptyResponseBodyError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new EmptyResponseBodyError(),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new InvalidResponseDataError({ data: { bad: "data" } }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new JSONParseError({ text: "not json", cause: new Error("parse") }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for NoContentGeneratedError", async () => {
+  const { NoContentGeneratedError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new NoContentGeneratedError(),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns network error for TypeError with fetch failed message", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("fetch failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns original message for non-network TypeError", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("Cannot read properties of undefined (reading 'foo')"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Cannot read properties of undefined"));
+  assert.ok(!error.includes("Could not reach"));
+});
+
+test("returns original message for TypeError from invalid SDK response", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("Expected string but received object"),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Expected string but received object"));
+  assert.ok(error.startsWith("anthropic"));
+  assert.ok(!error.includes("internet connection"));
+});
+
+test("returns network error for ECONNREFUSED", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("connect ECONNREFUSED 127.0.0.1:443"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns network error for APICallError without status code wrapping fetch failure", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "fetch failed",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for APICallError without status code wrapping ECONNREFUSED", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "connect ECONNREFUSED 127.0.0.1:443",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("google", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("google"));
+});
+
+test("returns network error for APICallError without status code wrapping ENOTFOUND", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "getaddrinfo ENOTFOUND api.openai.com",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for APICallError without status code wrapping DNS failure", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "dns resolution failed",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("mistral", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("mistral"));
+});
+
+test("returns network error for APICallError without status code wrapping network error", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "network error occurred",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns generic HTTP unknown for APICallError without status code and non-network message", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "unexpected internal error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("HTTP unknown"));
+  assert.ok(error.includes("Please try again"));
+});
+
+test("returns generic HTTP error for other status codes", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Internal Server Error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("HTTP 500"));
+  assert.ok(error.includes("Please try again"));
+});
+
+test("returns network error for ENOTFOUND plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("getaddrinfo ENOTFOUND api.openai.com"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for DNS failure plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("dns resolution failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns network error for generic network keyword in Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("network request failed"),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("anthropic"));
+});
+
+test("returns network error for fetch failed plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("fetch failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns generic error for non-network plain Error", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("some random failure"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("some random failure"));
+  assert.ok(!error.includes("Could not reach"));
 });

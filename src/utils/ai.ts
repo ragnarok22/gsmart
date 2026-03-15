@@ -2,7 +2,16 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createMistral } from "@ai-sdk/mistral";
-import { generateText, type LanguageModel } from "ai";
+import {
+  generateText,
+  type LanguageModel,
+  APICallError,
+  NoSuchModelError,
+  EmptyResponseBodyError,
+  InvalidResponseDataError,
+  JSONParseError,
+  NoContentGeneratedError,
+} from "ai";
 import config, { validateApiKey } from "./config";
 import { Provider } from "../definitions";
 import { DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS } from "./constants";
@@ -61,6 +70,79 @@ Examples:
 Return ONLY the commit message. No explanations or additional text.`;
   return [system, prompt];
 };
+
+function classifyError(
+  error: unknown,
+  provider: string,
+  timeoutMs: number,
+): string {
+  if (error instanceof Error && error.name === "AbortError") {
+    return `${provider} - Request timed out after ${timeoutMs / 1000}s. Please check your network connection and try again.`;
+  }
+
+  if (APICallError.isInstance(error)) {
+    const status = error.statusCode;
+
+    if (status === 401 || status === 403) {
+      return `${provider} - Invalid API key. Run \`gsmart login\` to reconfigure.`;
+    }
+
+    if (status === 429) {
+      return `${provider} - Rate limited by ${provider}. Wait a moment and try again.`;
+    }
+
+    if (status === 404) {
+      return `${provider} - Model is not available. Check your plan or try a different provider.`;
+    }
+
+    if (status == null) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("fetch failed") ||
+        msg.includes("econnrefused") ||
+        msg.includes("enotfound") ||
+        msg.includes("network") ||
+        msg.includes("dns")
+      ) {
+        return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
+      }
+    }
+
+    return `${provider} - API request failed (HTTP ${status ?? "unknown"}). Please try again.`;
+  }
+
+  if (NoSuchModelError.isInstance(error)) {
+    return `${provider} - Model "${error.modelId}" is not available. Check your plan or try a different provider.`;
+  }
+
+  if (
+    EmptyResponseBodyError.isInstance(error) ||
+    InvalidResponseDataError.isInstance(error) ||
+    JSONParseError.isInstance(error) ||
+    NoContentGeneratedError.isInstance(error)
+  ) {
+    return `${provider} - Unexpected response from ${provider}. Please try again.`;
+  }
+
+  if (error instanceof Error) {
+    const msg = error.message.toLowerCase();
+    if (
+      msg.includes("fetch failed") ||
+      msg.includes("econnrefused") ||
+      msg.includes("enotfound") ||
+      msg.includes("network") ||
+      msg.includes("dns")
+    ) {
+      return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
+    }
+  }
+
+  const message =
+    error instanceof Error && error.message
+      ? error.message
+      : "An error occurred while generating the commit message";
+  return `${provider} - ${message}`;
+}
 
 export class AIBuilder {
   provider: Provider;
@@ -172,18 +254,7 @@ ${this.prompt}`
 
       return text;
     } catch (error) {
-      if (error instanceof Error && error.name === "AbortError") {
-        return {
-          error: `${this.provider} - Request timed out after ${timeoutMs / 1000}s. Please check your network connection and try again.`,
-        };
-      }
-      const message =
-        error instanceof Error && error.message
-          ? error.message
-          : "An error occurred while generating the commit message";
-      return {
-        error: `${this.provider} - ${message}`,
-      };
+      return { error: classifyError(error, this.provider, timeoutMs) };
     }
   }
 }
