@@ -597,6 +597,151 @@ test("retrieveFilesToCommit returns null when stageFile fails", async () => {
   assert.equal(spinner.fail.mock.calls.length, 1);
 });
 
+test("retrieveFilesToCommit in dry-run unstages files after reading changes", async () => {
+  const statusEntries = [
+    {
+      status: "??",
+      file_name: "file.txt",
+      file_path: "file.txt",
+    },
+  ];
+
+  let changesCalls = 0;
+  const unstageCalls: unknown[][] = [];
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "dry-run diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => true,
+        unstageFiles: async (...args: unknown[]) => {
+          unstageCalls.push(args);
+          return true;
+        },
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    warn: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, {
+    autoStage: true,
+    dryRun: true,
+  });
+
+  assert.equal(result, "dry-run diff");
+  assert.equal(unstageCalls.length, 1, "unstageFiles should be called once");
+  assert.deepEqual(unstageCalls[0][0], ["file.txt"]);
+  assert.equal(
+    spinner.warn.mock.calls.length,
+    0,
+    "no warning when unstage succeeds",
+  );
+  assert.equal(
+    spinner.succeed.mock.calls.length,
+    0,
+    "dry-run should not show succeed message",
+  );
+});
+
+test("retrieveFilesToCommit in dry-run warns when unstaging fails", async () => {
+  const statusEntries = [
+    {
+      status: "??",
+      file_name: "file.txt",
+      file_path: "file.txt",
+    },
+  ];
+
+  let changesCalls = 0;
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => (changesCalls++ === 0 ? "" : "dry-run diff"),
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => true,
+        unstageFiles: async () => false,
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    warn: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, {
+    autoStage: true,
+    dryRun: true,
+  });
+
+  assert.equal(result, "dry-run diff");
+  assert.equal(
+    spinner.warn.mock.calls.length,
+    1,
+    "should warn on unstage failure",
+  );
+  const warnArg = String(spinner.warn.mock.calls[0].arguments[0]);
+  assert.ok(
+    warnArg.includes("failed to unstage"),
+    "warning should mention unstage failure",
+  );
+});
+
+test("retrieveFilesToCommit in dry-run returns null when staging fails", async () => {
+  const statusEntries = [
+    {
+      status: "??",
+      file_name: "file.txt",
+      file_path: "file.txt",
+    },
+  ];
+
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => "",
+        getGitStatus: async () => statusEntries,
+        stageFile: async () => false,
+        unstageFiles: async () => true,
+      },
+    },
+  );
+
+  const spinner = {
+    stop: mock.fn(),
+    fail: mock.fn(),
+    succeed: mock.fn(),
+    warn: mock.fn(),
+    info: mock.fn(),
+    isSpinning: true,
+  };
+
+  const result = await retrieveWithMock(spinner, {
+    autoStage: true,
+    dryRun: true,
+  });
+
+  assert.equal(result, null);
+  assert.equal(spinner.fail.mock.calls.length, 1);
+});
+
 test("retrieveFilesToCommit with autoStage stages all files without prompting", async () => {
   const statusEntries = [
     {
