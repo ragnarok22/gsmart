@@ -485,3 +485,231 @@ test("passes correct provider to config.getKey", async () => {
 
   assert.equal(capturedProvider, "mistral");
 });
+
+// ===========================================================================
+// Error classification
+// ===========================================================================
+
+async function buildMockedAIWithError(errorFactory: () => unknown) {
+  const realAI = await import("ai");
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      ...realAI,
+      generateText: async () => {
+        throw errorFactory();
+      },
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
+    },
+  });
+  return { AIBuilder };
+}
+
+test("returns auth error for APICallError with status 401", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Unauthorized",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 401,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Invalid API key"));
+  assert.ok(error.includes("gsmart login"));
+});
+
+test("returns auth error for APICallError with status 403", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Forbidden",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 403,
+      }),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Invalid API key"));
+  assert.ok(error.startsWith("anthropic"));
+});
+
+test("returns rate limit error for APICallError with status 429", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Too Many Requests",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 429,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Rate limited"));
+  assert.ok(error.includes("Wait a moment"));
+});
+
+test("returns model unavailable error for APICallError with status 404", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Not Found",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 404,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("not available"));
+  assert.ok(error.includes("try a different provider"));
+});
+
+test("returns model unavailable error for NoSuchModelError", async () => {
+  const { NoSuchModelError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new NoSuchModelError({
+        modelId: "gpt-99",
+        modelType: "languageModel",
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes('Model "gpt-99"'));
+  assert.ok(error.includes("not available"));
+});
+
+test("returns malformed response error for EmptyResponseBodyError", async () => {
+  const { EmptyResponseBodyError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new EmptyResponseBodyError(),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new InvalidResponseDataError({ data: { bad: "data" } }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new JSONParseError({ text: "not json", cause: new Error("parse") }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns malformed response error for NoContentGeneratedError", async () => {
+  const { NoContentGeneratedError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new NoContentGeneratedError(),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Unexpected response"));
+});
+
+test("returns network error for TypeError from fetch", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("fetch failed"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for ECONNREFUSED", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new Error("connect ECONNREFUSED 127.0.0.1:443"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+});
+
+test("returns generic HTTP error for other status codes", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "Internal Server Error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("HTTP 500"));
+  assert.ok(error.includes("Please try again"));
+});
