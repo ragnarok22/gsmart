@@ -95,6 +95,19 @@ function classifyError(
       return `${provider} - Model is not available. Check your plan or try a different provider.`;
     }
 
+    if (status == null) {
+      const msg = error.message.toLowerCase();
+      if (
+        msg.includes("fetch failed") ||
+        msg.includes("econnrefused") ||
+        msg.includes("enotfound") ||
+        msg.includes("network") ||
+        msg.includes("dns")
+      ) {
+        return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
+      }
+    }
+
     return `${provider} - API request failed (HTTP ${status ?? "unknown"}). Please try again.`;
   }
 

@@ -693,6 +693,48 @@ test("returns network error for ECONNREFUSED", async () => {
   assert.ok(error.includes("Could not reach"));
 });
 
+test("returns network error for APICallError without status code wrapping fetch failure", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "fetch failed",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.includes("internet connection"));
+});
+
+test("returns network error for APICallError without status code wrapping ECONNREFUSED", async () => {
+  const { APICallError } = await import("ai");
+  const { AIBuilder } = await buildMockedAIWithError(
+    () =>
+      new APICallError({
+        message: "connect ECONNREFUSED 127.0.0.1:443",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: undefined as unknown as number,
+      }),
+  );
+
+  const builder = new AIBuilder("google", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Could not reach"));
+  assert.ok(error.startsWith("google"));
+});
+
 test("returns generic HTTP error for other status codes", async () => {
   const { APICallError } = await import("ai");
   const { AIBuilder } = await buildMockedAIWithError(
