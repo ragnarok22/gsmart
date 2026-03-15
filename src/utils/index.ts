@@ -4,6 +4,7 @@ import prompts from "prompts";
 import { getGitChanges, getGitStatus, stageFile, unstageFiles } from "./git";
 import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
+import { debugLog } from "./debug";
 
 export { checkForUpdates } from "./version-check";
 
@@ -60,7 +61,7 @@ export const copyToClipboard = async (text: string): Promise<void> => {
   try {
     await clipboard.write(text);
   } catch {
-    console.error("An error occurred while copying the text to the clipboard");
+    debugLog("clipboard", "Failed to copy text to clipboard");
   }
 };
 

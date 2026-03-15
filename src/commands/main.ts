@@ -7,6 +7,7 @@ import config from "../utils/config";
 import { AIBuilder } from "../utils/ai";
 import { getActiveProviders } from "../utils/providers";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
+import { debugLog, debugTime } from "../utils/debug";
 
 const providers = getActiveProviders();
 
@@ -88,6 +89,9 @@ const mainAction = async (options: MainCommandOptions = {}) => {
     return;
   }
 
+  debugLog("generate", `provider: ${selectedProvider.title}`);
+  debugLog("generate", `branch: ${branch}`);
+
   if (options.provider) {
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   }
@@ -96,6 +100,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
 
   const prompt = options.prompt || config.getPrompt() || "";
   const ai = new AIBuilder(selectedProvider.value, prompt);
+  const stopTimer = debugTime("generate");
   const message = await ai.generateCommitMessage(branch, changes, {
     onRetry: (attempt, maxRetries) => {
       spinner.text = chalk.yellow(
@@ -103,6 +108,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
       );
     },
   });
+  stopTimer();
   if (typeof message === "object") {
     spinner.fail(chalk.red(message.error));
     return;
