@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
 import { providers } from "./providers";
+import { debugLog } from "./debug";
 
 const MIN_KEY_LENGTH = 10;
 
