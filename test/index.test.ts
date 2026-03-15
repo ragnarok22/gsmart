@@ -217,6 +217,42 @@ describe("index utils", () => {
     }
   });
 
+  it("retrieveFilesToCommit in dry-run unstages files after reading changes", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "gsmart-index-"));
+    execSync("git init -b main", { cwd: repo });
+    execSync('git config user.email "test@example.com"', { cwd: repo });
+    execSync('git config user.name "Test"', { cwd: repo });
+
+    const cwd = process.cwd();
+    process.chdir(repo);
+    try {
+      writeFileSync(join(repo, "file.txt"), "dry-run content");
+
+      const spinner = ora();
+
+      const result = await retrieveFilesToCommit(spinner, {
+        autoStage: true,
+        dryRun: true,
+      });
+
+      assert.ok(result);
+      assert.ok(result.includes("dry-run content"));
+
+      // Verify files were unstaged after dry-run
+      const stagedAfter = execSync("git diff --cached --name-only", {
+        cwd: repo,
+      }).toString();
+      assert.strictEqual(
+        stagedAfter.trim(),
+        "",
+        "files should be unstaged after dry-run",
+      );
+    } finally {
+      process.chdir(cwd);
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it("retrieveFilesToCommit uses default options when none provided", async () => {
     const repo = mkdtempSync(join(tmpdir(), "gsmart-index-"));
     execSync("git init -b main", { cwd: repo });
