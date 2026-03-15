@@ -1084,6 +1084,12 @@ test("isRetryableError returns false for non-network TypeError", async () => {
   );
 });
 
+test("isRetryableError returns false for TypeError with empty message", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new TypeError("")), false);
+  assert.equal(isRetryableError(new TypeError()), false);
+});
+
 test("isRetryableError returns true for plain Error with network keyword", async () => {
   const isRetryableError = await getIsRetryableError();
   assert.equal(
@@ -1161,10 +1167,39 @@ test("isRetryableError returns false for EmptyResponseBodyError", async () => {
   assert.equal(isRetryableError(new EmptyResponseBodyError()), false);
 });
 
+test("isRetryableError returns false for InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new InvalidResponseDataError({
+    data: {},
+    message: "invalid data",
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new JSONParseError({ text: "{bad", message: "parse error" });
+  assert.equal(isRetryableError(err), false);
+});
+
 test("isRetryableError returns false for NoContentGeneratedError", async () => {
   const { NoContentGeneratedError } = await import("ai");
   const isRetryableError = await getIsRetryableError();
   assert.equal(isRetryableError(new NoContentGeneratedError()), false);
+});
+
+test("isRetryableError returns false for APICallError without status and non-network message", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "unexpected internal error",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: undefined as unknown as number,
+  });
+  assert.equal(isRetryableError(err), false);
 });
 
 test("isRetryableError returns false for generic Error", async () => {
@@ -1443,4 +1478,120 @@ test("default maxRetries is DEFAULT_MAX_RETRIES", async () => {
   });
 
   assert.equal(getCallCount(), DEFAULT_MAX_RETRIES);
+});
+
+test("does not retry non-network TypeError", async () => {
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new TypeError("Expected string but received object");
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes(
+      "Expected string but received object",
+    ),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("retries network TypeError then succeeds", async () => {
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount === 1) {
+      throw new TypeError("fetch failed");
+    }
+    return { text: "feat: fetch recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: fetch recovered");
+  assert.equal(getCallCount(), 2);
+});
+
+test("does not retry EmptyResponseBodyError", async () => {
+  const { EmptyResponseBodyError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new EmptyResponseBodyError();
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new InvalidResponseDataError({
+      data: {},
+      message: "invalid data",
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new JSONParseError({ text: "{bad", message: "parse error" });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry non-network plain Error", async () => {
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new Error("some random failure");
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("some random failure"),
+  );
+  assert.equal(getCallCount(), 1);
 });
