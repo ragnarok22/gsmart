@@ -60,6 +60,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   const spinner = ora("").start();
   const changes = await retrieveFilesToCommit(spinner, {
     autoStage: Boolean(options.yes),
+    dryRun: Boolean(options.dryRun),
   });
   const branch = await getGitBranch();
 
