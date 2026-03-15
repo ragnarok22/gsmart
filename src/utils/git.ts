@@ -124,6 +124,16 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
   }
 };
 
+export const getStagedFileNames = async (): Promise<string[]> => {
+  try {
+    const output = runGit(["diff", "--cached", "--name-only"]);
+    if (!output) return [];
+    return output.split("\n").filter((line) => line.length > 0);
+  } catch {
+    return [];
+  }
+};
+
 export const getGitInfo = async (): Promise<[string, string]> => {
   const branch = await getGitBranch();
   const changes = await getGitChanges();

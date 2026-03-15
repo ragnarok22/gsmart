@@ -2,7 +2,7 @@ import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
 import { ICommand, IProvider } from "../definitions";
-import { commitChanges, getGitBranch } from "../utils/git";
+import { commitChanges, getGitBranch, getStagedFileNames } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder } from "../utils/ai";
 import { getActiveProviders } from "../utils/providers";
@@ -14,6 +14,7 @@ type MainCommandOptions = {
   prompt?: string;
   provider?: string;
   yes?: boolean;
+  dryRun?: boolean;
 };
 
 const getProvider = async (
@@ -100,6 +101,17 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   }
   spinner.succeed(chalk.green(message));
 
+  if (options.dryRun) {
+    const stagedFiles = await getStagedFileNames();
+    if (stagedFiles.length > 0) {
+      console.log(chalk.cyan("\nStaged files:"));
+      for (const file of stagedFiles) {
+        console.log(chalk.grey(`  ${file}`));
+      }
+    }
+    return;
+  }
+
   let action = "commit";
 
   if (!options.yes) {
@@ -172,6 +184,12 @@ const MainCommand: ICommand = {
       default: false,
       description:
         "Automatically commit without prompting (useful for automation)",
+    },
+    {
+      flags: "-d, --dry-run",
+      default: false,
+      description:
+        "Show the generated commit message and staged files without committing",
     },
   ],
   action: (options) => mainAction(options as MainCommandOptions),
