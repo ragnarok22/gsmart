@@ -164,6 +164,44 @@ test("retrieveFilesToCommit handles renamed files", async () => {
   }
 });
 
+test("retrieveFilesToCommit auto-stages unstaged rename without failing", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-utils-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    // Create and commit a file
+    writeFileSync("before.txt", "rename me");
+    execSync("git add before.txt");
+    execSync('git commit -m "initial"');
+
+    // Rename via plain mv (not git mv) so the rename is unstaged
+    execSync("mv before.txt after.txt");
+
+    const spinner = {
+      stop: () => {},
+      fail: () => {},
+      succeed: () => {},
+      info: () => {},
+      isSpinning: true,
+    };
+
+    const result = await retrieveFilesToCommit(spinner, { autoStage: true });
+    assert(result !== null, "auto-stage should succeed for unstaged renames");
+    assert(
+      result.includes("after.txt"),
+      "diff should reference the new file name",
+    );
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 test("retrieveFilesToCommit handles deleted files", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-utils-"));
   execSync("git init -b main", { cwd: repo });
