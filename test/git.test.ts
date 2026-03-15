@@ -15,6 +15,7 @@ import {
   parseGitStatusEntries,
   stageFile,
   getGitInfo,
+  getStagedFileNames,
 } from "../src/utils/git.ts";
 import { retrieveFilesToCommit } from "../src/utils/index.ts";
 
@@ -484,6 +485,47 @@ test("getGitInfo returns branch and changes together", async () => {
     const [branch, changes] = await getGitInfo();
     assert.equal(branch, "develop");
     assert(changes.includes("content"));
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("getStagedFileNames returns list of staged file paths", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "file1.txt"), "content1");
+    writeFileSync(join(repo, "file2.txt"), "content2");
+    await stageFile(["file1.txt", "file2.txt"]);
+
+    const names = await getStagedFileNames();
+    assert.deepEqual(names.sort(), ["file1.txt", "file2.txt"]);
+  } finally {
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("getStagedFileNames returns empty array when nothing is staged", async () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
+  execSync("git init -b main", { cwd: repo });
+  execSync('git config user.email "test@example.com"', { cwd: repo });
+  execSync('git config user.name "Test"', { cwd: repo });
+  execSync("git config commit.gpgsign false", { cwd: repo });
+
+  const cwd = process.cwd();
+  process.chdir(repo);
+  try {
+    writeFileSync(join(repo, "unstaged.txt"), "not staged");
+
+    const names = await getStagedFileNames();
+    assert.deepEqual(names, []);
   } finally {
     process.chdir(cwd);
     rmSync(repo, { recursive: true, force: true });
