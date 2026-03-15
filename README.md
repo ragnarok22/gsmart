@@ -16,8 +16,11 @@ GSmart is a CLI tool that automatically generates [Conventional Commits](https:/
 - 🔄 **Multiple AI Providers**: Support for OpenAI, Anthropic, Google, Mistral, Fireworks AI, and PlataformIA
 - 📋 **Interactive CLI**: Easy-to-use command line interface with interactive prompts
 - 🧠 **Rename-Aware Staging**: Detects renames and copies so both sides get staged automatically
-- 🔒 **Secure**: API keys stored locally and securely
+- 🔒 **Secure**: API keys stored locally and securely, validated before use
 - ⏱️ **Timeout Protection**: Configurable request timeout prevents hanging on unresponsive APIs
+- 🔁 **Automatic Retries**: Retries transient network errors with user feedback
+- 🐛 **Debug Mode**: `--debug` flag for detailed logging and timing information
+- 🧪 **Dry Run**: Preview staged files without committing using `--dry-run`
 - ⚡ **Fast**: Quick analysis and generation of commit messages
 - 📖 **Conventional Commits**: Follows industry-standard commit message format
 - 🐚 **Shell Completions**: Tab completions for bash, zsh, and fish
@@ -96,6 +99,12 @@ gsmart --prompt "Focus on the security implications of these changes"
 # Run non-interactively (auto-stage + commit if possible)
 gsmart --yes
 
+# Preview staged files without committing
+gsmart --dry-run
+
+# Enable debug logging for troubleshooting
+gsmart --debug
+
 # Show help
 gsmart --help
 ```
@@ -149,6 +158,8 @@ Commands:
     --provider <provider>          Use a specific AI provider
     --prompt <prompt>              Custom prompt for the AI model
     --yes                         Run non-interactively (auto stage + commit)
+    --dry-run                     Preview staged files without committing
+    --debug                       Enable debug logging and timing
 
   login                           Configure AI provider and API key
   reset                           Reset all API keys and configuration
@@ -245,12 +256,14 @@ pnpm run format
 
 ```
 src/
-├── commands/          # CLI command implementations (generate, login, reset, completions)
+├── commands/          # CLI command implementations (generate, login, reset, config, completions)
 ├── utils/
-│   ├── ai.ts         # AI provider integrations and timeout handling
+│   ├── ai.ts         # AI provider integrations, retry handling, and timeout
 │   ├── constants.ts  # Shared constants (defaults, timeouts)
-│   ├── config.ts     # Configuration management
-│   └── git.ts        # Git operations
+│   ├── config.ts     # Configuration and API key management
+│   ├── debug.ts      # Debug logging utilities
+│   ├── git.ts        # Git operations
+│   └── prompt-config.ts # Custom prompt persistence
 ├── gsmart.ts         # Command registration
 └── index.ts          # CLI entry point
 ```
