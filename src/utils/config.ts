@@ -109,12 +109,15 @@ class Config {
   }
 
   private __get(key: string): string {
+    debugLog("config", `read ${key}`);
     return conf.get<string>(key, "") as string;
   }
   private __set(key: string, value: unknown): void {
+    debugLog("config", `write ${key}`);
     conf.set(key, value);
   }
   private __delete(key: string): void {
+    debugLog("config", `delete ${key}`);
     return conf.delete(key);
   }
   public clear(): void {

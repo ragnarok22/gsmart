@@ -16,7 +16,8 @@ describe("debug", () => {
     _resetForTesting();
     stderrWrite = mock.fn(() => true);
     originalWrite = process.stderr.write;
-    process.stderr.write = stderrWrite as unknown as typeof process.stderr.write;
+    process.stderr.write =
+      stderrWrite as unknown as typeof process.stderr.write;
   });
 
   afterEach(() => {
