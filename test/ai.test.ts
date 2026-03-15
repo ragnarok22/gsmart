@@ -27,6 +27,7 @@ async function buildMockedAI(
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -93,6 +94,7 @@ test("generateCommitMessage returns {error} on timeout", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -113,6 +115,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -138,6 +141,7 @@ test("error includes provider name in message", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "bad-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -159,6 +163,7 @@ test("handles non-Error thrown values gracefully", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -182,6 +187,7 @@ test("handles Error with empty message", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -240,6 +246,7 @@ test("each provider creates the correct model", async () => {
       },
       "../src/utils/config.ts": {
         default: { getKey: () => "fake-key" },
+        validateApiKey: () => null,
       },
     });
 
@@ -269,6 +276,7 @@ test("invalid provider throws an error", async () => {
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -375,6 +383,7 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
     },
   });
 
@@ -385,6 +394,68 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
   builder.changeProvider("google");
   await builder.generateCommitMessage("main", "diff");
   assert.equal(capturedModelId, "gemini-2.0-flash");
+});
+
+// ===========================================================================
+// API key validation
+// ===========================================================================
+
+test("generateCommitMessage returns error when API key is missing", async () => {
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      generateText: async () => ({ text: "feat: test" }),
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "" },
+      validateApiKey: (await import("../src/utils/config.ts")).validateApiKey,
+    },
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("No API key found"));
+  assert.ok(error.includes("gsmart login"));
+});
+
+test("generateCommitMessage returns error when API key has wrong prefix", async () => {
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      generateText: async () => ({ text: "feat: test" }),
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "wrong-prefix-key-1234567890" },
+      validateApiKey: (await import("../src/utils/config.ts")).validateApiKey,
+    },
+  });
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("unexpected format"));
+  assert.ok(error.includes("gsmart login"));
+});
+
+test("generateCommitMessage proceeds when API key is valid", async () => {
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      generateText: async () => ({ text: "feat: valid key" }),
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "sk-1234567890abcdef" },
+      validateApiKey: (await import("../src/utils/config.ts")).validateApiKey,
+    },
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "string");
+  assert.equal(result, "feat: valid key");
 });
 
 // ===========================================================================
@@ -405,6 +476,7 @@ test("passes correct provider to config.getKey", async () => {
           return "fake-key";
         },
       },
+      validateApiKey: () => null,
     },
   });
 

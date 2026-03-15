@@ -3,7 +3,7 @@ import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createMistral } from "@ai-sdk/mistral";
 import { generateText, type LanguageModel } from "ai";
-import config from "./config";
+import config, { validateApiKey } from "./config";
 import { Provider } from "../definitions";
 import { DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS } from "./constants";
 
@@ -82,6 +82,12 @@ export class AIBuilder {
    * @returns - The generated commit message
    **/
   generateCommitMessage(branch_name: string, changes: string) {
+    const apiKey = config.getKey(this.provider);
+    const validationError = validateApiKey(this.provider, apiKey);
+    if (validationError) {
+      return Promise.resolve({ error: validationError });
+    }
+
     const model = this.__generateModel();
     return this.__generateText(model, branch_name, changes);
   }

@@ -4,6 +4,35 @@ import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
 import { providers } from "./providers";
 
+const MIN_KEY_LENGTH = 10;
+
+const providerKeyPrefixes: Partial<Record<Provider, string[]>> = {
+  openai: ["sk-"],
+  anthropic: ["sk-ant-"],
+  google: ["AIza"],
+};
+
+/**
+ * Validate an API key format for a given provider.
+ * Returns null if valid, or an error message string if invalid.
+ */
+export function validateApiKey(provider: Provider, key: string): string | null {
+  if (!key || key.trim().length === 0) {
+    return `No API key found for ${provider}. Run \`gsmart login\` to configure your API key.`;
+  }
+
+  if (key.trim().length < MIN_KEY_LENGTH) {
+    return `API key for ${provider} appears too short. Run \`gsmart login\` to reconfigure your API key.`;
+  }
+
+  const prefixes = providerKeyPrefixes[provider];
+  if (prefixes && !prefixes.some((prefix) => key.startsWith(prefix))) {
+    return `API key for ${provider} has an unexpected format (expected prefix: ${prefixes.join(" or ")}). Run \`gsmart login\` to reconfigure your API key.`;
+  }
+
+  return null;
+}
+
 const resolveConfigDirectory = (): string | undefined => {
   const override = process.env.GSMART_CONFIG_DIR;
   if (!override) {
