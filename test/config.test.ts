@@ -62,6 +62,11 @@ test("returns null for valid OpenAI key", () => {
   assert.equal(result, null);
 });
 
+test("returns null for valid key with leading/trailing whitespace", () => {
+  const result = validateApiKey("openai", "  sk-1234567890abcdef  ");
+  assert.equal(result, null);
+});
+
 test("returns null for valid Anthropic key", () => {
   const result = validateApiKey("anthropic", "sk-ant-1234567890abcdef");
   assert.equal(result, null);
