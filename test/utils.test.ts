@@ -380,7 +380,6 @@ test("retrieveFilesToCommit formats choices and stops spinner for prompts", asyn
     "new.txt",
     "removed.txt",
     "renamed.txt",
-    "original.txt",
   ]);
 });
 

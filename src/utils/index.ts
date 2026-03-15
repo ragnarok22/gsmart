@@ -46,13 +46,7 @@ const formatChoiceTitle = (file: GitStatus): string => {
 };
 
 const collectPathsToStage = (files: GitStatus[]): string[] => {
-  const paths = files.flatMap((file) => {
-    const selections = [file.file_path];
-    if (file.original_path) {
-      selections.push(file.original_path);
-    }
-    return selections;
-  });
+  const paths = files.map((file) => file.file_path);
 
   return Array.from(new Set(paths));
 };
