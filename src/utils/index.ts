@@ -138,7 +138,14 @@ export const retrieveFilesToCommit = async (
     const staged = await stageFile(pathsToStage);
     if (staged) {
       changes = await getGitChanges();
-      await unstageFiles(pathsToStage);
+      const unstaged = await unstageFiles(pathsToStage);
+      if (!unstaged) {
+        spinner.warn(
+          chalk.yellow(
+            "Warning: failed to unstage files after dry-run. Files may remain staged.",
+          ),
+        );
+      }
     } else {
       spinner.fail(chalk.red("Failed to stage files"));
       return null;
