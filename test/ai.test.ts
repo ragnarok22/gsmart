@@ -666,7 +666,7 @@ test("returns malformed response error for NoContentGeneratedError", async () =>
   assert.ok(error.includes("Unexpected response"));
 });
 
-test("returns network error for TypeError from fetch", async () => {
+test("returns network error for TypeError with fetch failed message", async () => {
   const { AIBuilder } = await buildMockedAIWithError(
     () => new TypeError("fetch failed"),
   );
@@ -678,6 +678,35 @@ test("returns network error for TypeError from fetch", async () => {
   const error = (result as { error: string }).error;
   assert.ok(error.includes("Could not reach"));
   assert.ok(error.includes("internet connection"));
+});
+
+test("returns original message for non-network TypeError", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("Cannot read properties of undefined (reading 'foo')"),
+  );
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Cannot read properties of undefined"));
+  assert.ok(!error.includes("Could not reach"));
+});
+
+test("returns original message for TypeError from invalid SDK response", async () => {
+  const { AIBuilder } = await buildMockedAIWithError(
+    () => new TypeError("Expected string but received object"),
+  );
+
+  const builder = new AIBuilder("anthropic", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(typeof result, "object");
+  const error = (result as { error: string }).error;
+  assert.ok(error.includes("Expected string but received object"));
+  assert.ok(error.startsWith("anthropic"));
+  assert.ok(!error.includes("internet connection"));
 });
 
 test("returns network error for ECONNREFUSED", async () => {

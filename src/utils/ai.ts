@@ -124,10 +124,6 @@ function classifyError(
     return `${provider} - Unexpected response from ${provider}. Please try again.`;
   }
 
-  if (error instanceof TypeError) {
-    return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
-  }
-
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     if (
