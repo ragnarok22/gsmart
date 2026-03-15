@@ -70,7 +70,6 @@ test("generateCommitMessage respects GSMART_TIMEOUT env var", async () => {
   }
 });
 
-
 test("generateCommitMessage falls back to default timeout for invalid GSMART_TIMEOUT", async () => {
   const originalTimeout = process.env.GSMART_TIMEOUT;
   process.env.GSMART_TIMEOUT = "not-a-number";
