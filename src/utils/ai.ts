@@ -197,6 +197,16 @@ export type RetryOptions = {
 const defaultDelay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+const resolveTimeoutMs = (value: string | undefined): number => {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_TIMEOUT_MS;
+  }
+
+  return parsed;
+};
+
 export class AIBuilder {
   provider: Provider;
   prompt: string;
@@ -304,7 +314,7 @@ Additional instructions:
 ${this.prompt}`
       : initialPrompt;
 
-    const timeoutMs = Number(process.env.GSMART_TIMEOUT) || DEFAULT_TIMEOUT_MS;
+    const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
     const delayFn = options?.delayFn ?? defaultDelay;
     debugLog("ai", `timeout: ${timeoutMs}ms`);
