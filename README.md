@@ -256,16 +256,28 @@ pnpm run format
 
 ```
 src/
-├── commands/          # CLI command implementations (generate, login, reset, config, completions)
-├── utils/
-│   ├── ai.ts         # AI provider integrations, retry handling, and timeout
-│   ├── constants.ts  # Shared constants (defaults, timeouts)
-│   ├── config.ts     # Configuration and API key management
-│   ├── debug.ts      # Debug logging utilities
-│   ├── git.ts        # Git operations
-│   └── prompt-config.ts # Custom prompt persistence
-├── gsmart.ts         # Command registration
-└── index.ts          # CLI entry point
+├── index.ts            # CLI entry point
+├── gsmart.ts           # Command registration
+├── definitions.ts      # Shared types and interfaces
+├── build-info.ts       # Generated build metadata
+├── commands/           # CLI command implementations
+│   ├── main.ts         # Default command for commit message generation
+│   ├── login.ts        # API key configuration
+│   ├── reset.ts        # Configuration reset
+│   ├── config.ts       # Custom prompt configuration (set, get, clear)
+│   ├── completions.ts  # Shell completion script generator (bash, zsh, fish)
+│   └── index.ts        # Command barrel export
+└── utils/              # Reusable helpers
+    ├── ai.ts           # AI provider integrations, retry handling, and timeout
+    ├── config.ts       # Configuration and API key management
+    ├── constants.ts    # Shared constants (defaults, timeouts)
+    ├── debug.ts        # Debug logging utilities
+    ├── git.ts          # Git operations
+    ├── holiday.ts      # Seasonal greeting messages
+    ├── index.ts        # File staging, clipboard, and retrieval logic
+    ├── prompt-config.ts # Custom prompt persistence
+    ├── providers.ts    # AI provider definitions and active-provider filter
+    └── version-check.ts # Update notification via update-notifier
 ```
 
 ## 🤝 Contributing
