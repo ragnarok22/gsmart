@@ -101,13 +101,8 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
 };
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {
-  try {
-    const status = runGit(["status", "--porcelain", "-z"], { trim: false });
-    return parseGitStatusEntries(status);
-  } catch (error) {
-    debugLog("git", `Error getting Git status: ${error}`);
-    return [];
-  }
+  const status = runGit(["status", "--porcelain", "-z"], { trim: false });
+  return parseGitStatusEntries(status);
 };
 
 export const stageFile = async (file: string | string[]): Promise<boolean> => {

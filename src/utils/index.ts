@@ -78,7 +78,17 @@ export const retrieveFilesToCommit = async (
     return changes;
   }
 
-  const status = await getGitStatus();
+  let status: GitStatus[];
+  try {
+    status = await getGitStatus();
+  } catch (error) {
+    spinner.fail(
+      chalk.red(
+        `Failed to read git status: ${error instanceof Error ? error.message : error}`,
+      ),
+    );
+    return null;
+  }
 
   if (status.length === 0) {
     spinner.fail(
