@@ -74,6 +74,7 @@ async function buildMainCommand(overrides: {
           getAllKeys: () => allKeys,
           getKey: (provider: string) =>
             allKeys[provider as keyof typeof allKeys] ?? "",
+          getPrompt: () => "",
         },
       },
       "../src/utils/ai.ts": {
