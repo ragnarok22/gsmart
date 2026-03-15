@@ -14,7 +14,12 @@ import {
 } from "ai";
 import config, { validateApiKey } from "./config";
 import { Provider } from "../definitions";
-import { DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS } from "./constants";
+import {
+  DEFAULT_PROVIDER,
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_MAX_RETRIES,
+  INITIAL_RETRY_DELAY_MS,
+} from "./constants";
 
 export { providers, getActiveProviders } from "./providers";
 
@@ -144,6 +149,53 @@ function classifyError(
   return `${provider} - ${message}`;
 }
 
+function hasNetworkKeyword(msg: string): boolean {
+  const lower = msg.toLowerCase();
+  return (
+    lower.includes("fetch failed") ||
+    lower.includes("econnrefused") ||
+    lower.includes("enotfound") ||
+    lower.includes("network") ||
+    lower.includes("dns")
+  );
+}
+
+export function isRetryableError(error: unknown): boolean {
+  if (error instanceof Error && error.name === "AbortError") return true;
+
+  if (APICallError.isInstance(error)) {
+    const status = error.statusCode;
+    if (status === 429) return true;
+    if (status != null && status >= 500) return true;
+    if (status == null && hasNetworkKeyword(error.message)) return true;
+    return false;
+  }
+
+  if (NoSuchModelError.isInstance(error)) return false;
+
+  if (
+    EmptyResponseBodyError.isInstance(error) ||
+    InvalidResponseDataError.isInstance(error) ||
+    JSONParseError.isInstance(error) ||
+    NoContentGeneratedError.isInstance(error)
+  ) {
+    return false;
+  }
+
+  if (error instanceof Error && hasNetworkKeyword(error.message)) return true;
+
+  return false;
+}
+
+export type RetryOptions = {
+  maxRetries?: number;
+  onRetry?: (attempt: number, maxRetries: number) => void;
+  delayFn?: (ms: number) => Promise<void>;
+};
+
+const defaultDelay = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 export class AIBuilder {
   provider: Provider;
   prompt: string;
@@ -163,7 +215,11 @@ export class AIBuilder {
    * @param changes - The changes in the current branch
    * @returns - The generated commit message
    **/
-  generateCommitMessage(branch_name: string, changes: string) {
+  generateCommitMessage(
+    branch_name: string,
+    changes: string,
+    options?: RetryOptions,
+  ) {
     const apiKey = config.getKey(this.provider);
     const validationError = validateApiKey(this.provider, apiKey);
     if (validationError) {
@@ -171,7 +227,7 @@ export class AIBuilder {
     }
 
     const model = this.__generateModel();
-    return this.__generateText(model, branch_name, changes);
+    return this.__generateText(model, branch_name, changes, options);
   }
 
   private __generateModel(): LanguageModel {
@@ -233,6 +289,7 @@ export class AIBuilder {
     model: LanguageModel,
     branch_name: string,
     changes: string,
+    options?: RetryOptions,
   ): Promise<string | { error: string }> {
     const [system, initialPrompt] = buildPrompt(branch_name, changes);
     const prompt = this.prompt
@@ -243,18 +300,35 @@ ${this.prompt}`
       : initialPrompt;
 
     const timeoutMs = Number(process.env.GSMART_TIMEOUT) || DEFAULT_TIMEOUT_MS;
+    const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
+    const delayFn = options?.delayFn ?? defaultDelay;
 
-    try {
-      const { text } = await generateText({
-        model,
-        system,
-        prompt,
-        timeout: { totalMs: timeoutMs },
-      });
+    let lastError: unknown;
 
-      return text;
-    } catch (error) {
-      return { error: classifyError(error, this.provider, timeoutMs) };
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { text } = await generateText({
+          model,
+          system,
+          prompt,
+          timeout: { totalMs: timeoutMs },
+        });
+
+        return text;
+      } catch (error) {
+        lastError = error;
+
+        if (!isRetryableError(error) || attempt === maxRetries) {
+          return { error: classifyError(error, this.provider, timeoutMs) };
+        }
+
+        options?.onRetry?.(attempt, maxRetries);
+
+        const delayMs = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
+        await delayFn(delayMs);
+      }
     }
+
+    return { error: classifyError(lastError, this.provider, timeoutMs) };
   }
 }

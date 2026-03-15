@@ -3,7 +3,10 @@ import "../test-support/setup-env";
 import test from "node:test";
 import assert from "node:assert/strict";
 import esmock from "esmock";
-import { DEFAULT_TIMEOUT_MS } from "../src/utils/constants.ts";
+import {
+  DEFAULT_TIMEOUT_MS,
+  DEFAULT_MAX_RETRIES,
+} from "../src/utils/constants.ts";
 import type { Provider } from "../src/definitions.ts";
 
 // ---------------------------------------------------------------------------
@@ -99,7 +102,9 @@ test("generateCommitMessage returns {error} on timeout", async () => {
   });
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   assert.ok((result as { error: string }).error.includes("Request timed out"));
@@ -562,7 +567,9 @@ test("returns rate limit error for APICallError with status 429", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -672,7 +679,9 @@ test("returns network error for TypeError with fetch failed message", async () =
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -686,7 +695,9 @@ test("returns original message for non-network TypeError", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -700,7 +711,9 @@ test("returns original message for TypeError from invalid SDK response", async (
   );
 
   const builder = new AIBuilder("anthropic", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -715,7 +728,9 @@ test("returns network error for ECONNREFUSED", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -735,7 +750,9 @@ test("returns network error for APICallError without status code wrapping fetch 
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -756,7 +773,9 @@ test("returns network error for APICallError without status code wrapping ECONNR
   );
 
   const builder = new AIBuilder("google", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -777,7 +796,9 @@ test("returns network error for APICallError without status code wrapping ENOTFO
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -798,7 +819,9 @@ test("returns network error for APICallError without status code wrapping DNS fa
   );
 
   const builder = new AIBuilder("mistral", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -819,7 +842,9 @@ test("returns network error for APICallError without status code wrapping networ
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -861,7 +886,9 @@ test("returns generic HTTP error for other status codes", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -875,7 +902,9 @@ test("returns network error for ENOTFOUND plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -889,7 +918,9 @@ test("returns network error for DNS failure plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -902,7 +933,9 @@ test("returns network error for generic network keyword in Error", async () => {
   );
 
   const builder = new AIBuilder("anthropic", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -916,7 +949,9 @@ test("returns network error for fetch failed plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -935,4 +970,628 @@ test("returns generic error for non-network plain Error", async () => {
   const error = (result as { error: string }).error;
   assert.ok(error.includes("some random failure"));
   assert.ok(!error.includes("Could not reach"));
+});
+
+// ===========================================================================
+// Retryable error detection
+// ===========================================================================
+
+async function getIsRetryableError() {
+  const mod = await esmock("../src/utils/ai.ts", {
+    "../src/utils/config.ts": {
+      default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
+    },
+  });
+  return mod.isRetryableError as (error: unknown) => boolean;
+}
+
+test("isRetryableError returns true for AbortError", async () => {
+  const isRetryableError = await getIsRetryableError();
+  const err = new Error("The operation was aborted.");
+  err.name = "AbortError";
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError with status 429", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Too Many Requests",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 429,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError with status 500", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Internal Server Error",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 500,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError with status 502", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Bad Gateway",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 502,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError with status 503", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Service Unavailable",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 503,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError without status and fetch failed", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "fetch failed",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: undefined as unknown as number,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for APICallError without status and ECONNREFUSED", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "connect ECONNREFUSED 127.0.0.1:443",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: undefined as unknown as number,
+  });
+  assert.equal(isRetryableError(err), true);
+});
+
+test("isRetryableError returns true for TypeError with network keyword", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new TypeError("fetch failed")), true);
+});
+
+test("isRetryableError returns false for non-network TypeError", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(
+    isRetryableError(new TypeError("Expected string but received object")),
+    false,
+  );
+  assert.equal(
+    isRetryableError(
+      new TypeError("Cannot read properties of undefined (reading 'foo')"),
+    ),
+    false,
+  );
+});
+
+test("isRetryableError returns false for TypeError with empty message", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new TypeError("")), false);
+  assert.equal(isRetryableError(new TypeError()), false);
+});
+
+test("isRetryableError returns true for plain Error with network keyword", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(
+    isRetryableError(new Error("connect ECONNREFUSED 127.0.0.1:443")),
+    true,
+  );
+  assert.equal(
+    isRetryableError(new Error("getaddrinfo ENOTFOUND api.openai.com")),
+    true,
+  );
+  assert.equal(isRetryableError(new Error("fetch failed")), true);
+});
+
+test("isRetryableError returns false for APICallError with status 401", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Unauthorized",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 401,
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for APICallError with status 403", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Forbidden",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 403,
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for APICallError with status 400", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Bad Request",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 400,
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for APICallError with status 404", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "Not Found",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: 404,
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for NoSuchModelError", async () => {
+  const { NoSuchModelError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new NoSuchModelError({
+    modelId: "gpt-99",
+    modelType: "languageModel",
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for EmptyResponseBodyError", async () => {
+  const { EmptyResponseBodyError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new EmptyResponseBodyError()), false);
+});
+
+test("isRetryableError returns false for InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new InvalidResponseDataError({
+    data: {},
+    message: "invalid data",
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new JSONParseError({ text: "{bad", message: "parse error" });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for NoContentGeneratedError", async () => {
+  const { NoContentGeneratedError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new NoContentGeneratedError()), false);
+});
+
+test("isRetryableError returns false for APICallError without status and non-network message", async () => {
+  const { APICallError } = await import("ai");
+  const isRetryableError = await getIsRetryableError();
+  const err = new APICallError({
+    message: "unexpected internal error",
+    url: "https://api.openai.com/v1/chat/completions",
+    requestBodyValues: {},
+    statusCode: undefined as unknown as number,
+  });
+  assert.equal(isRetryableError(err), false);
+});
+
+test("isRetryableError returns false for generic Error", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError(new Error("some random failure")), false);
+});
+
+test("isRetryableError returns false for non-Error values", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(isRetryableError("string error"), false);
+  assert.equal(isRetryableError(42), false);
+  assert.equal(isRetryableError(null), false);
+});
+
+// ===========================================================================
+// Retry behavior
+// ===========================================================================
+
+const noDelay = async () => {};
+
+async function buildRetryAI(
+  generateTextFake: (
+    opts: Record<string, unknown>,
+  ) => Promise<{ text: string }>,
+) {
+  let callCount = 0;
+
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      generateText: async (opts: Record<string, unknown>) => {
+        callCount++;
+        return generateTextFake(opts);
+      },
+    },
+    "../src/utils/config.ts": {
+      default: { getKey: () => "fake-key" },
+      validateApiKey: () => null,
+    },
+  });
+
+  return { AIBuilder, getCallCount: () => callCount };
+}
+
+test("retries and succeeds after transient 500 errors", async () => {
+  const { APICallError } = await import("ai");
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount <= 2) {
+      throw new APICallError({
+        message: "Internal Server Error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      });
+    }
+    return { text: "feat: recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: recovered");
+  assert.equal(getCallCount(), 3);
+});
+
+test("calls onRetry callback on each retry with correct args", async () => {
+  const { APICallError } = await import("ai");
+  let callCount = 0;
+  const retryCalls: [number, number][] = [];
+
+  const { AIBuilder } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount <= 2) {
+      throw new APICallError({
+        message: "Internal Server Error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      });
+    }
+    return { text: "feat: recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+    onRetry: (attempt: number, maxRetries: number) => {
+      retryCalls.push([attempt, maxRetries]);
+    },
+  });
+
+  assert.equal(retryCalls.length, 2);
+  assert.deepStrictEqual(retryCalls[0], [1, DEFAULT_MAX_RETRIES]);
+  assert.deepStrictEqual(retryCalls[1], [2, DEFAULT_MAX_RETRIES]);
+});
+
+test("does not retry non-retryable errors", async () => {
+  const { APICallError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new APICallError({
+      message: "Unauthorized",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 401,
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok((result as { error: string }).error.includes("Invalid API key"));
+  assert.equal(getCallCount(), 1);
+});
+
+test("exhausts all retries and returns error", async () => {
+  const { APICallError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new APICallError({
+      message: "Internal Server Error",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 500,
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok((result as { error: string }).error.includes("HTTP 500"));
+  assert.equal(getCallCount(), DEFAULT_MAX_RETRIES);
+});
+
+test("retries AbortError then succeeds", async () => {
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount === 1) {
+      const err = new Error("The operation was aborted.");
+      err.name = "AbortError";
+      throw err;
+    }
+    return { text: "feat: timeout recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: timeout recovered");
+  assert.equal(getCallCount(), 2);
+});
+
+test("retries network error then succeeds", async () => {
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount === 1) {
+      throw new Error("connect ECONNREFUSED 127.0.0.1:443");
+    }
+    return { text: "feat: network recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: network recovered");
+  assert.equal(getCallCount(), 2);
+});
+
+test("retries 429 rate limit then succeeds", async () => {
+  const { APICallError } = await import("ai");
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount === 1) {
+      throw new APICallError({
+        message: "Too Many Requests",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 429,
+      });
+    }
+    return { text: "feat: rate limit recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: rate limit recovered");
+  assert.equal(getCallCount(), 2);
+});
+
+test("does not retry NoSuchModelError", async () => {
+  const { NoSuchModelError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new NoSuchModelError({
+      modelId: "gpt-99",
+      modelType: "languageModel",
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok((result as { error: string }).error.includes("not available"));
+  assert.equal(getCallCount(), 1);
+});
+
+test("calls delayFn with correct exponential backoff values", async () => {
+  const { APICallError } = await import("ai");
+  let callCount = 0;
+  const delays: number[] = [];
+
+  const { AIBuilder } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount <= 2) {
+      throw new APICallError({
+        message: "Internal Server Error",
+        url: "https://api.openai.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 500,
+      });
+    }
+    return { text: "feat: recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff", {
+    delayFn: async (ms: number) => {
+      delays.push(ms);
+    },
+  });
+
+  assert.deepStrictEqual(delays, [1000, 2000]);
+});
+
+test("default maxRetries is DEFAULT_MAX_RETRIES", async () => {
+  const { APICallError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new APICallError({
+      message: "Internal Server Error",
+      url: "https://api.openai.com/v1/chat/completions",
+      requestBodyValues: {},
+      statusCode: 500,
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(getCallCount(), DEFAULT_MAX_RETRIES);
+});
+
+test("does not retry non-network TypeError", async () => {
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new TypeError("Expected string but received object");
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes(
+      "Expected string but received object",
+    ),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("retries network TypeError then succeeds", async () => {
+  let callCount = 0;
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    callCount++;
+    if (callCount === 1) {
+      throw new TypeError("fetch failed");
+    }
+    return { text: "feat: fetch recovered" };
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(result, "feat: fetch recovered");
+  assert.equal(getCallCount(), 2);
+});
+
+test("does not retry EmptyResponseBodyError", async () => {
+  const { EmptyResponseBodyError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new EmptyResponseBodyError();
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry InvalidResponseDataError", async () => {
+  const { InvalidResponseDataError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new InvalidResponseDataError({
+      data: {},
+      message: "invalid data",
+    });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry JSONParseError", async () => {
+  const { JSONParseError } = await import("ai");
+
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new JSONParseError({ text: "{bad", message: "parse error" });
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("Unexpected response"),
+  );
+  assert.equal(getCallCount(), 1);
+});
+
+test("does not retry non-network plain Error", async () => {
+  const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
+    throw new Error("some random failure");
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    delayFn: noDelay,
+  });
+
+  assert.equal(typeof result, "object");
+  assert.ok(
+    (result as { error: string }).error.includes("some random failure"),
+  );
+  assert.equal(getCallCount(), 1);
 });

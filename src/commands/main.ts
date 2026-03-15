@@ -96,7 +96,13 @@ const mainAction = async (options: MainCommandOptions = {}) => {
 
   const prompt = options.prompt || config.getPrompt() || "";
   const ai = new AIBuilder(selectedProvider.value, prompt);
-  const message = await ai.generateCommitMessage(branch, changes);
+  const message = await ai.generateCommitMessage(branch, changes, {
+    onRetry: (attempt, maxRetries) => {
+      spinner.text = chalk.yellow(
+        `Retrying... (attempt ${attempt + 1}/${maxRetries})`,
+      );
+    },
+  });
   if (typeof message === "object") {
     spinner.fail(chalk.red(message.error));
     return;
