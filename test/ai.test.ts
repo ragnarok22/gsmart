@@ -110,7 +110,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
       generateText: async () => {
-        throw new Error("API rate limit exceeded");
+        throw new Error("Something went wrong");
       },
     },
     "../src/utils/config.ts": {
@@ -124,7 +124,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
 
   assert.equal(typeof result, "object");
   assert.ok(
-    (result as { error: string }).error.includes("API rate limit exceeded"),
+    (result as { error: string }).error.includes("Something went wrong"),
   );
 });
 
