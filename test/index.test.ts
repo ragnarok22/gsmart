@@ -11,11 +11,12 @@ import { getGitChanges } from "../src/utils/git";
 import ora from "ora";
 
 describe("index utils", () => {
-  it("copyToClipboard handles success", async () => {
-    await copyToClipboard("test text");
+  it("copyToClipboard returns true on success", async () => {
+    const result = await copyToClipboard("test text");
+    assert.strictEqual(result, true);
   });
 
-  it("copyToClipboard handles errors gracefully", async () => {
+  it("copyToClipboard returns false on error", async () => {
     const clipboard = await import("clipboardy");
     const originalWrite = clipboard.default.write;
 
@@ -23,7 +24,8 @@ describe("index utils", () => {
       throw new Error("Clipboard error");
     };
 
-    await assert.doesNotReject(() => copyToClipboard("test"));
+    const result = await copyToClipboard("test");
+    assert.strictEqual(result, false);
 
     clipboard.default.write = originalWrite;
   });
