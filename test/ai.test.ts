@@ -406,9 +406,13 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
 // ===========================================================================
 
 test("generateCommitMessage returns error when API key is missing", async () => {
+  let generateTextCalled = false;
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
-      generateText: async () => ({ text: "feat: test" }),
+      generateText: async () => {
+        generateTextCalled = true;
+        return { text: "feat: test" };
+      },
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "" },
@@ -423,12 +427,21 @@ test("generateCommitMessage returns error when API key is missing", async () => 
   const error = (result as { error: string }).error;
   assert.ok(error.includes("No API key found"));
   assert.ok(error.includes("gsmart login"));
+  assert.equal(
+    generateTextCalled,
+    false,
+    "generateText should not be called when API key is missing",
+  );
 });
 
 test("generateCommitMessage returns error when API key has wrong prefix", async () => {
+  let generateTextCalled = false;
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
-      generateText: async () => ({ text: "feat: test" }),
+      generateText: async () => {
+        generateTextCalled = true;
+        return { text: "feat: test" };
+      },
     },
     "../src/utils/config.ts": {
       default: { getKey: () => "wrong-prefix-key-1234567890" },
@@ -443,6 +456,11 @@ test("generateCommitMessage returns error when API key has wrong prefix", async 
   const error = (result as { error: string }).error;
   assert.ok(error.includes("unexpected format"));
   assert.ok(error.includes("gsmart login"));
+  assert.equal(
+    generateTextCalled,
+    false,
+    "generateText should not be called when API key has wrong prefix",
+  );
 });
 
 test("generateCommitMessage proceeds when API key is valid", async () => {
