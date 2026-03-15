@@ -70,6 +70,47 @@ test("generateCommitMessage respects GSMART_TIMEOUT env var", async () => {
   }
 });
 
+
+test("generateCommitMessage falls back to default timeout for invalid GSMART_TIMEOUT", async () => {
+  const originalTimeout = process.env.GSMART_TIMEOUT;
+  process.env.GSMART_TIMEOUT = "not-a-number";
+
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff content");
+
+  assert.deepStrictEqual(capturedOptions().timeout, {
+    totalMs: DEFAULT_TIMEOUT_MS,
+  });
+
+  if (originalTimeout === undefined) {
+    delete process.env.GSMART_TIMEOUT;
+  } else {
+    process.env.GSMART_TIMEOUT = originalTimeout;
+  }
+});
+
+test("generateCommitMessage falls back to default timeout for zero GSMART_TIMEOUT", async () => {
+  const originalTimeout = process.env.GSMART_TIMEOUT;
+  process.env.GSMART_TIMEOUT = "0";
+
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff content");
+
+  assert.deepStrictEqual(capturedOptions().timeout, {
+    totalMs: DEFAULT_TIMEOUT_MS,
+  });
+
+  if (originalTimeout === undefined) {
+    delete process.env.GSMART_TIMEOUT;
+  } else {
+    process.env.GSMART_TIMEOUT = originalTimeout;
+  }
+});
+
 // ===========================================================================
 // Return type contract: string | {error: string}
 // ===========================================================================
