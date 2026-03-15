@@ -156,6 +156,16 @@ export const getStagedFileNames = async (): Promise<string[]> => {
   }
 };
 
+export const parseDiffFileNames = (diff: string): string[] => {
+  const regex = /^diff --git a\/.+ b\/(.+)$/gm;
+  const names: string[] = [];
+  let match;
+  while ((match = regex.exec(diff)) !== null) {
+    names.push(match[1]);
+  }
+  return [...new Set(names)];
+};
+
 export const getGitInfo = async (): Promise<[string, string]> => {
   const branch = await getGitBranch();
   const changes = await getGitChanges();

@@ -2,7 +2,7 @@ import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
 import { ICommand, IProvider } from "../definitions";
-import { commitChanges, getGitBranch, getStagedFileNames } from "../utils/git";
+import { commitChanges, getGitBranch, parseDiffFileNames } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder } from "../utils/ai";
 import { getActiveProviders } from "../utils/providers";
@@ -103,10 +103,10 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   spinner.succeed(chalk.green(message));
 
   if (options.dryRun) {
-    const stagedFiles = await getStagedFileNames();
-    if (stagedFiles.length > 0) {
+    const fileNames = parseDiffFileNames(changes);
+    if (fileNames.length > 0) {
       console.log(chalk.cyan("\nStaged files:"));
-      for (const file of stagedFiles) {
+      for (const file of fileNames) {
         console.log(chalk.grey(`  ${file}`));
       }
     }
