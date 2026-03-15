@@ -182,8 +182,6 @@ export function isRetryableError(error: unknown): boolean {
     return false;
   }
 
-  if (error instanceof TypeError) return true;
-
   if (error instanceof Error && hasNetworkKeyword(error.message)) return true;
 
   return false;

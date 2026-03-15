@@ -1065,9 +1065,23 @@ test("isRetryableError returns true for APICallError without status and ECONNREF
   assert.equal(isRetryableError(err), true);
 });
 
-test("isRetryableError returns true for TypeError", async () => {
+test("isRetryableError returns true for TypeError with network keyword", async () => {
   const isRetryableError = await getIsRetryableError();
   assert.equal(isRetryableError(new TypeError("fetch failed")), true);
+});
+
+test("isRetryableError returns false for non-network TypeError", async () => {
+  const isRetryableError = await getIsRetryableError();
+  assert.equal(
+    isRetryableError(new TypeError("Expected string but received object")),
+    false,
+  );
+  assert.equal(
+    isRetryableError(
+      new TypeError("Cannot read properties of undefined (reading 'foo')"),
+    ),
+    false,
+  );
 });
 
 test("isRetryableError returns true for plain Error with network keyword", async () => {
