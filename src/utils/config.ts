@@ -26,8 +26,9 @@ export function validateApiKey(provider: Provider, key: string): string | null {
     return `API key for ${provider} appears too short. Run \`gsmart login\` to reconfigure your API key.`;
   }
 
+  const trimmedKey = key.trim();
   const prefixes = providerKeyPrefixes[provider];
-  if (prefixes && !prefixes.some((prefix) => key.startsWith(prefix))) {
+  if (prefixes && !prefixes.some((prefix) => trimmedKey.startsWith(prefix))) {
     return `API key for ${provider} has an unexpected format (expected prefix: ${prefixes.join(" or ")}). Run \`gsmart login\` to reconfigure your API key.`;
   }
 
