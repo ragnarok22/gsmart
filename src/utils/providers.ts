@@ -26,14 +26,14 @@ export const providers: IProvider[] = [
     title: "Mistral",
     value: "mistral",
     description:
-      "Mistral is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
+      "Mistral is a French AI company creating open and portable AI models for developers and enterprises.",
     active: true,
   },
   {
     title: "Fireworks AI",
     value: "fireworks",
     description:
-      "Fireworks AI is a research lab building large-scale AI systems that are steerable, aligned, and safe.",
+      "Fireworks AI is a generative AI inference platform for running and customizing models with speed and efficiency.",
     active: true,
   },
   {
