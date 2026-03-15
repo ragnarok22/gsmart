@@ -3,6 +3,7 @@ import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
 import { providers } from "./providers";
+import { debugLog } from "./debug";
 
 const MIN_KEY_LENGTH = 10;
 
@@ -108,12 +109,15 @@ class Config {
   }
 
   private __get(key: string): string {
+    debugLog("config", `read ${key}`);
     return conf.get<string>(key, "") as string;
   }
   private __set(key: string, value: unknown): void {
+    debugLog("config", `write ${key}`);
     conf.set(key, value);
   }
   private __delete(key: string): void {
+    debugLog("config", `delete ${key}`);
     return conf.delete(key);
   }
   public clear(): void {

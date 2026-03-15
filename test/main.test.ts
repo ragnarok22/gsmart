@@ -29,6 +29,9 @@ const oraStub = () => {
     info() {
       return spinner;
     },
+    warn() {
+      return spinner;
+    },
   };
   return spinner;
 };
@@ -97,6 +100,7 @@ async function buildMainCommand(overrides: {
         retrieveFilesToCommit: async () => changes,
         copyToClipboard: async (text: string) => {
           clipboardText = text;
+          return true;
         },
       },
     })

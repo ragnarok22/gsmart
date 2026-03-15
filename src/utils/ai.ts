@@ -20,6 +20,7 @@ import {
   DEFAULT_MAX_RETRIES,
   INITIAL_RETRY_DELAY_MS,
 } from "./constants";
+import { debugLog, debugTime } from "./debug";
 
 export { providers, getActiveProviders } from "./providers";
 
@@ -220,9 +221,12 @@ export class AIBuilder {
     changes: string,
     options?: RetryOptions,
   ) {
+    debugLog("ai", `provider: ${this.provider}`);
+    debugLog("ai", `prompt length: ${this.prompt.length} chars`);
     const apiKey = config.getKey(this.provider);
     const validationError = validateApiKey(this.provider, apiKey);
     if (validationError) {
+      debugLog("ai", `API key validation failed for ${this.provider}`);
       return Promise.resolve({ error: validationError });
     }
 
@@ -232,6 +236,7 @@ export class AIBuilder {
 
   private __generateModel(): LanguageModel {
     const apiKey = config.getKey(this.provider);
+    debugLog("ai", `selecting model for provider: ${this.provider}`);
     switch (this.provider) {
       case "openai": {
         const openai = createOpenAI({
@@ -302,8 +307,10 @@ ${this.prompt}`
     const timeoutMs = Number(process.env.GSMART_TIMEOUT) || DEFAULT_TIMEOUT_MS;
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
     const delayFn = options?.delayFn ?? defaultDelay;
+    debugLog("ai", `timeout: ${timeoutMs}ms`);
 
     let lastError: unknown;
+    const stopTimer = debugTime("ai");
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -314,12 +321,17 @@ ${this.prompt}`
           timeout: { totalMs: timeoutMs },
         });
 
+        stopTimer();
+        debugLog("ai", "generation succeeded");
         return text;
       } catch (error) {
         lastError = error;
 
         if (!isRetryableError(error) || attempt === maxRetries) {
-          return { error: classifyError(error, this.provider, timeoutMs) };
+          stopTimer();
+          const classified = classifyError(error, this.provider, timeoutMs);
+          debugLog("ai", `generation failed: ${classified}`);
+          return { error: classified };
         }
 
         options?.onRetry?.(attempt, maxRetries);
@@ -329,6 +341,7 @@ ${this.prompt}`
       }
     }
 
+    stopTimer();
     return { error: classifyError(lastError, this.provider, timeoutMs) };
   }
 }

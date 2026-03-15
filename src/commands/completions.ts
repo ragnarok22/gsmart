@@ -81,12 +81,12 @@ _gsmart_completions() {
 
     case "$prev" in
         gsmart)
-            COMPREPLY=($(compgen -W "$commands -V --version -h --help" -- "$cur"))
+            COMPREPLY=($(compgen -W "$commands -V --version -D --debug -h --help" -- "$cur"))
             ;;
 ${commandCases}
 ${valueCases}
         *)
-            COMPREPLY=($(compgen -W "$commands -V --version -h --help" -- "$cur"))
+            COMPREPLY=($(compgen -W "$commands -V --version -D --debug -h --help" -- "$cur"))
             ;;
     esac
 }
@@ -165,6 +165,8 @@ ${commandList}
     _arguments -C \\
         '-V[display version]' \\
         '--version[display version]' \\
+        '-D[Enable debug logging]' \\
+        '--debug[Enable debug logging]' \\
         '-h[display help]' \\
         '--help[display help]' \\
         '1:command:->command' \\
@@ -207,6 +209,7 @@ export function generateFishCompletion(
 
   lines.push("", "# Global flags");
   lines.push("complete -c gsmart -s V -l version -d 'Display version'");
+  lines.push("complete -c gsmart -s D -l debug -d 'Enable debug logging'");
   lines.push("complete -c gsmart -s h -l help -d 'Display help'");
 
   for (const cmd of commands) {

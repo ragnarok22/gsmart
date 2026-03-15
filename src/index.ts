@@ -12,6 +12,7 @@ import commands from "./gsmart";
 import info from "./build-info";
 import { checkForUpdates } from "./utils/version-check";
 import { showHolidayMessage } from "./utils/holiday";
+import { enableDebug, debugLog } from "./utils/debug";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0);
@@ -27,6 +28,16 @@ async function main() {
   const program = new Command();
 
   program.name(info.name).version(info.version).description(info.description);
+  program.option("-D, --debug", "Enable debug logging", false);
+
+  program.hook("preAction", (thisCommand) => {
+    const opts = thisCommand.optsWithGlobals();
+    if (opts.debug) {
+      enableDebug();
+      debugLog("cli", `version: ${info.version}`);
+      debugLog("cli", `command: ${process.argv.slice(2).join(" ")}`);
+    }
+  });
 
   for (const command of commands) {
     const cmd = program

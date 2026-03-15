@@ -4,6 +4,7 @@ import prompts from "prompts";
 import { getGitChanges, getGitStatus, stageFile, unstageFiles } from "./git";
 import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
+import { debugLog } from "./debug";
 
 export { checkForUpdates } from "./version-check";
 
@@ -56,11 +57,13 @@ const collectPathsToStage = (files: GitStatus[]): string[] => {
   return Array.from(new Set(paths));
 };
 
-export const copyToClipboard = async (text: string): Promise<void> => {
+export const copyToClipboard = async (text: string): Promise<boolean> => {
   try {
     await clipboard.write(text);
+    return true;
   } catch {
-    console.error("An error occurred while copying the text to the clipboard");
+    debugLog("clipboard", "Failed to copy text to clipboard");
+    return false;
   }
 };
 
@@ -75,7 +78,17 @@ export const retrieveFilesToCommit = async (
     return changes;
   }
 
-  const status = await getGitStatus();
+  let status: GitStatus[];
+  try {
+    status = await getGitStatus();
+  } catch (error) {
+    spinner.fail(
+      chalk.red(
+        `Failed to read git status: ${error instanceof Error ? error.message : error}`,
+      ),
+    );
+    return null;
+  }
 
   if (status.length === 0) {
     spinner.fail(

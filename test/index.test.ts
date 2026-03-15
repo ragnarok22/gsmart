@@ -11,13 +11,19 @@ import { getGitChanges } from "../src/utils/git";
 import ora from "ora";
 
 describe("index utils", () => {
-  it("copyToClipboard handles success", async () => {
-    await copyToClipboard("test text");
+  it("copyToClipboard returns true on success", async () => {
+    const clipboard = await import("clipboardy");
+    const originalWrite = clipboard.default.write;
+
+    clipboard.default.write = async () => {};
+
+    const result = await copyToClipboard("test text");
+    assert.strictEqual(result, true);
+
+    clipboard.default.write = originalWrite;
   });
 
-  it("copyToClipboard handles errors gracefully", async () => {
-    const consoleErrorMock = mock.method(console, "error", () => {});
-
+  it("copyToClipboard returns false on error", async () => {
     const clipboard = await import("clipboardy");
     const originalWrite = clipboard.default.write;
 
@@ -25,12 +31,10 @@ describe("index utils", () => {
       throw new Error("Clipboard error");
     };
 
-    await copyToClipboard("test");
+    const result = await copyToClipboard("test");
+    assert.strictEqual(result, false);
 
     clipboard.default.write = originalWrite;
-    consoleErrorMock.mock.restore();
-
-    assert.strictEqual(consoleErrorMock.mock.calls.length, 1);
   });
 
   it("retrieveFilesToCommit returns null when no changes and no status", async () => {

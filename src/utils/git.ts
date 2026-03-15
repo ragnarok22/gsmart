@@ -1,15 +1,21 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import path from "node:path";
 import type { GitStatus } from "../definitions";
+import { debugLog, debugTime } from "./debug";
 
 type RunGitOptions = SpawnSyncOptions & { trim?: boolean };
 
 const runGit = (args: string[], options: RunGitOptions = {}): string => {
   const { trim = true, ...spawnOptions } = options;
+  debugLog("git", `git ${args.join(" ")}`);
+  const stopTimer = debugTime("git");
+
   const result = spawnSync("git", args, {
     encoding: "utf8",
     ...spawnOptions,
   });
+
+  stopTimer();
 
   if (result.error) {
     throw result.error;
@@ -95,13 +101,8 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
 };
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {
-  try {
-    const status = runGit(["status", "--porcelain", "-z"], { trim: false });
-    return parseGitStatusEntries(status);
-  } catch (error) {
-    console.error("Error getting Git status:", error);
-    return [];
-  }
+  const status = runGit(["status", "--porcelain", "-z"], { trim: false });
+  return parseGitStatusEntries(status);
 };
 
 export const stageFile = async (file: string | string[]): Promise<boolean> => {
