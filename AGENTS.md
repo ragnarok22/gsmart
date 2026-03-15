@@ -14,15 +14,23 @@ src/
 ├── gsmart.ts         # Command registration and wiring
 ├── definitions.ts    # Shared types and interfaces
 ├── commands/         # CLI command implementations (one file per command)
-│   ├── generate.ts   # Default command for commit message generation
+│   ├── main.ts       # Default command for commit message generation
 │   ├── login.ts      # API key configuration
 │   ├── reset.ts      # Configuration reset
-│   └── completions.ts # Shell completion script generator (bash, zsh, fish)
+│   ├── config.ts     # Custom prompt configuration (set, get, clear)
+│   ├── completions.ts # Shell completion script generator (bash, zsh, fish)
+│   └── index.ts      # Command barrel export
 └── utils/            # Reusable helpers (side-effect free)
     ├── ai.ts         # AI provider abstraction, prompt building, and timeout handling
     ├── config.ts     # Persistent API key storage using conf package
     ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS)
-    └── git.ts        # Git command wrappers for status, diff, commits
+    ├── debug.ts      # Debug logging controlled by --debug flag
+    ├── git.ts        # Git command wrappers for status, diff, commits
+    ├── holiday.ts    # Seasonal greeting messages for CLI output
+    ├── index.ts      # Shared helpers: file staging, clipboard, and retrieval logic
+    ├── prompt-config.ts # Custom prompt persistence
+    ├── providers.ts  # AI provider definitions and active-provider filter
+    └── version-check.ts # Update notification via update-notifier
 
 test/                 # Tests mirror source with .test.ts suffix
 dist/                 # Compiled output (read-only, gitignored)
@@ -79,7 +87,7 @@ The CLI follows a command pattern:
 
 - Strong TypeScript typing with interfaces for commands (options and arguments), providers, and git status
 - Provider types constrained to specific string literals
-- Git status enum for file change types (Modified, Deleted, Untracked)
+- `GitStatus.status` is a string matching `git status --porcelain` codes (e.g., "M", "??", "D")
 
 ### Error Handling
 
