@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-03-15
+
+### Added
+
+- Debug logging mode with `--debug` CLI flag and timing for commit generation
+- Retry handling for AI text generation with user feedback on retries
+- Detailed error classification for provider errors (network, auth, rate-limit)
+- Dry-run option (`--dry-run`) to preview staged files without committing
+- API key validation before generating commits
+- Interactive config command for custom prompt management (set, get, clear)
+- Shell completion entries for the new debug flag
+- Integration tests for MainCommand, LoginCommand, and ResetCommand
+- Expanded test coverage for AIBuilder, retry logic, error handling, clipboard, and dry-run workflows
+
+### Fixed
+
+- Trim API keys before validating prefix to handle whitespace
+- Handle clipboard write failures gracefully instead of crashing
+- Handle provider network errors that lack an HTTP status code
+- Return original error message for non-network TypeError
+- Warn when dry-run file unstage fails
+- Derive file names from diff output in dry-run mode
+- Require network keyword for type error retries to avoid false positives
+
+### Changed
+
+- Shifted git status error handling to the caller for cleaner separation
+- Replaced spread with `Array.from` when deduplicating file names
+- Refreshed provider and agent descriptions in documentation
+- Added format check to CI test workflow
+- Formatted command imports and exports for readability
+- Updated ESLint JSON and typescript-eslint packages
+
 ## [0.12.0] - 2026-03-09
 
 ### Added
@@ -335,7 +368,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/ragnarok22/gsmart/compare/v0.11.3...v0.12.0
 [0.11.3]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...v0.11.3
 [0.11.2]: https://github.com/ragnarok22/gsmart/compare/v0.11.1...v0.11.2
