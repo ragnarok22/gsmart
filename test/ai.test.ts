@@ -102,7 +102,9 @@ test("generateCommitMessage returns {error} on timeout", async () => {
   });
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   assert.ok((result as { error: string }).error.includes("Request timed out"));
@@ -565,7 +567,9 @@ test("returns rate limit error for APICallError with status 429", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -675,7 +679,9 @@ test("returns network error for TypeError with fetch failed message", async () =
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -689,7 +695,9 @@ test("returns original message for non-network TypeError", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -703,7 +711,9 @@ test("returns original message for TypeError from invalid SDK response", async (
   );
 
   const builder = new AIBuilder("anthropic", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -718,7 +728,9 @@ test("returns network error for ECONNREFUSED", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -738,7 +750,9 @@ test("returns network error for APICallError without status code wrapping fetch 
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -759,7 +773,9 @@ test("returns network error for APICallError without status code wrapping ECONNR
   );
 
   const builder = new AIBuilder("google", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -780,7 +796,9 @@ test("returns network error for APICallError without status code wrapping ENOTFO
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -801,7 +819,9 @@ test("returns network error for APICallError without status code wrapping DNS fa
   );
 
   const builder = new AIBuilder("mistral", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -822,7 +842,9 @@ test("returns network error for APICallError without status code wrapping networ
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -864,7 +886,9 @@ test("returns generic HTTP error for other status codes", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -878,7 +902,9 @@ test("returns network error for ENOTFOUND plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -892,7 +918,9 @@ test("returns network error for DNS failure plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -905,7 +933,9 @@ test("returns network error for generic network keyword in Error", async () => {
   );
 
   const builder = new AIBuilder("anthropic", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
@@ -919,7 +949,9 @@ test("returns network error for fetch failed plain Error", async () => {
   );
 
   const builder = new AIBuilder("openai", "");
-  const result = await builder.generateCommitMessage("main", "diff");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 1,
+  });
 
   assert.equal(typeof result, "object");
   const error = (result as { error: string }).error;
