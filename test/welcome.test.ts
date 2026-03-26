@@ -102,3 +102,64 @@ test("shows all instructions when shell is unknown", async () => {
   assert.match(output, /zshrc/);
   assert.match(output, /fish/);
 });
+
+test("shows all instructions when shell is undefined", async () => {
+  const ctx = buildWelcome({ welcomeShown: false });
+  const showWelcomeOnce = await ctx.load();
+
+  ctx.captureLogs(() => showWelcomeOnce(undefined));
+
+  const output = ctx.logs.join("\n");
+  assert.match(output, /GSmart installed successfully/);
+  assert.match(output, /bashrc/);
+  assert.match(output, /zshrc/);
+  assert.match(output, /fish/);
+});
+
+test("shows all instructions when shell is empty string", async () => {
+  const ctx = buildWelcome({ welcomeShown: false });
+  const showWelcomeOnce = await ctx.load();
+
+  ctx.captureLogs(() => showWelcomeOnce(""));
+
+  const output = ctx.logs.join("\n");
+  assert.match(output, /GSmart installed successfully/);
+  assert.match(output, /bashrc/);
+  assert.match(output, /zshrc/);
+  assert.match(output, /fish/);
+});
+
+test("does not mark welcome as shown when already shown", async () => {
+  const ctx = buildWelcome({ welcomeShown: true });
+  const showWelcomeOnce = await ctx.load();
+
+  ctx.captureLogs(() => showWelcomeOnce("/bin/zsh"));
+
+  assert.equal(ctx.getStored(), true);
+  assert.equal(ctx.logs.length, 0);
+});
+
+test("shows zsh-specific instruction without other shell paths", async () => {
+  const ctx = buildWelcome({ welcomeShown: false });
+  const showWelcomeOnce = await ctx.load();
+
+  ctx.captureLogs(() => showWelcomeOnce("/bin/zsh"));
+
+  const output = ctx.logs.join("\n");
+  assert.match(output, /Enable zsh completions/);
+  assert.doesNotMatch(output, /bashrc/);
+  assert.doesNotMatch(output, /fish/);
+});
+
+test("called without arguments shows all instructions", async () => {
+  const ctx = buildWelcome({ welcomeShown: false });
+  const showWelcomeOnce = await ctx.load();
+
+  ctx.captureLogs(() => showWelcomeOnce());
+
+  const output = ctx.logs.join("\n");
+  assert.match(output, /GSmart installed successfully/);
+  assert.match(output, /bashrc/);
+  assert.match(output, /zshrc/);
+  assert.match(output, /fish/);
+});
