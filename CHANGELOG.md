@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-03-26
+
+### Fixed
+
+- Show shell completion instructions on first run instead of postinstall
+- Fallback to default timeout when `GSMART_TIMEOUT` env var contains an invalid value
+- Stop staging original file paths for renamed files
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.58→3.0.63, @ai-sdk/google 3.0.43→3.0.52, @ai-sdk/mistral 3.0.24→3.0.27)
+- Updated AI SDK dependencies and adjusted tsconfig paths
+- Updated development tooling (@eslint/json 1.1.0→1.2.0)
+- Bumped picomatch and flatted in the npm_and_yarn group
+- Refreshed project structure overview in README
+- Added test coverage for auto-staging unstaged renames
+
 ## [0.13.0] - 2026-03-15
 
 ### Added
@@ -368,7 +385,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/ragnarok22/gsmart/compare/v0.11.3...v0.12.0
 [0.11.3]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...v0.11.3
