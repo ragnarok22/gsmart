@@ -109,6 +109,14 @@ class Config {
     return this.__delete("defaultPrompt");
   }
 
+  getWelcomeShown(): boolean {
+    return (conf.get("welcomeShown", false) as boolean) ?? false;
+  }
+
+  setWelcomeShown(val: boolean): void {
+    this.__set("welcomeShown", val);
+  }
+
   private __get(key: string): string {
     debugLog("config", `read ${key}`);
     return conf.get<string>(key, "") as string;

@@ -13,6 +13,7 @@ import info from "./build-info";
 import { checkForUpdates } from "./utils/version-check";
 import { showHolidayMessage } from "./utils/holiday";
 import { enableDebug, debugLog } from "./utils/debug";
+import { showWelcomeOnce } from "./utils/welcome";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = () => process.exit(0);
@@ -75,6 +76,7 @@ async function main() {
     });
   }
 
+  showWelcomeOnce(process.env.SHELL);
   program.parse(process.argv);
 }
 
