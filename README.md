@@ -151,27 +151,28 @@ CLI to generate smart commit messages using AI. generate command is the default 
 
 Options:
   -V, --version                    Output the version number
+  -D, --debug                      Enable debug logging and timing
   -h, --help                       Display help for command
 
 Commands:
   generate [options]               Generate a commit message based on staged changes (default)
-    --provider <provider>          Use a specific AI provider
-    --prompt <prompt>              Custom prompt for the AI model
-    --yes                         Run non-interactively (auto stage + commit)
-    --dry-run                     Preview staged files without committing
-    --debug                       Enable debug logging and timing
+    -P, --provider <provider>      Use a specific AI provider
+    -p, --prompt <prompt>          Custom prompt for the AI model
+    -y, --yes                      Run non-interactively (auto stage + commit)
+    -d, --dry-run                  Preview staged files without committing
 
-  login                           Configure AI provider and API key
-  reset                           Reset all API keys and configuration
+  login                            Configure AI provider and API key
+  reset [options]                  Reset all API keys and configuration
+    -f, --force                    Force reset without confirmation prompt
 
-  config [options]                Manage gsmart configuration (default prompt, commit style)
-    -s, --show                    Show current configuration
-    --add-custom-prompt <prompt>  Set the default prompt non-interactively
-    --clear-custom-prompt         Clear the default prompt non-interactively
+  config [options]                 Manage gsmart configuration (default prompt, commit style)
+    -s, --show                     Show current configuration
+    --add-custom-prompt <prompt>   Set the default prompt non-interactively
+    --clear-custom-prompt          Clear the default prompt non-interactively
 
-  completions <shell>             Output shell completion script (bash, zsh, or fish)
+  completions <shell>              Output shell completion script (bash, zsh, or fish)
 
-  help [command]                  Display help for command
+  help [command]                   Display help for command
 ```
 
 ## 🐚 Shell Completions
@@ -256,10 +257,12 @@ pnpm run format
 
 ```
 src/
-├── index.ts            # CLI entry point
-├── gsmart.ts           # Command registration
+├── index.ts            # CLI entry point with Commander.js and signal handling
+├── gsmart.ts           # Command registration and wiring
 ├── definitions.ts      # Shared types and interfaces
 ├── build-info.ts       # Generated build metadata
+├── types/
+│   └── conf.d.ts       # Module type declaration for conf
 ├── commands/           # CLI command implementations
 │   ├── main.ts         # Default command for commit message generation
 │   ├── login.ts        # API key configuration
@@ -270,14 +273,15 @@ src/
 └── utils/              # Reusable helpers
     ├── ai.ts           # AI provider integrations, retry handling, and timeout
     ├── config.ts       # Configuration and API key management
-    ├── constants.ts    # Shared constants (defaults, timeouts)
+    ├── constants.ts    # Shared constants (defaults, timeouts, retries)
     ├── debug.ts        # Debug logging utilities
     ├── git.ts          # Git operations
     ├── holiday.ts      # Seasonal greeting messages
     ├── index.ts        # File staging, clipboard, and retrieval logic
     ├── prompt-config.ts # Custom prompt persistence
     ├── providers.ts    # AI provider definitions and active-provider filter
-    └── version-check.ts # Update notification via update-notifier
+    ├── version-check.ts # Update notification via update-notifier
+    └── welcome.ts      # First-run welcome with shell completion instructions
 ```
 
 ## 🤝 Contributing

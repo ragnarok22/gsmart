@@ -13,6 +13,9 @@ src/
 ├── index.ts          # CLI bootstrap with Commander.js and signal handling
 ├── gsmart.ts         # Command registration and wiring
 ├── definitions.ts    # Shared types and interfaces
+├── build-info.ts     # Generated build metadata (name, version, description)
+├── types/
+│   └── conf.d.ts     # Module type declaration for conf
 ├── commands/         # CLI command implementations (one file per command)
 │   ├── main.ts       # Default command for commit message generation
 │   ├── login.ts      # API key configuration
@@ -21,16 +24,17 @@ src/
 │   ├── completions.ts # Shell completion script generator (bash, zsh, fish)
 │   └── index.ts      # Command barrel export
 └── utils/            # Reusable helpers (side-effect free)
-    ├── ai.ts         # AI provider abstraction, prompt building, and timeout handling
-    ├── config.ts     # Persistent API key storage using conf package
-    ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS)
+    ├── ai.ts         # AI provider abstraction, prompt building, retry, and timeout handling
+    ├── config.ts     # Persistent API key storage and validation using conf package
+    ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS, DEFAULT_MAX_RETRIES, INITIAL_RETRY_DELAY_MS)
     ├── debug.ts      # Debug logging controlled by --debug flag
-    ├── git.ts        # Git command wrappers for status, diff, commits
+    ├── git.ts        # Git command wrappers for status, diff, commits, staging
     ├── holiday.ts    # Seasonal greeting messages for CLI output
     ├── index.ts      # Shared helpers: file staging, clipboard, and retrieval logic
     ├── prompt-config.ts # Custom prompt persistence
     ├── providers.ts  # AI provider definitions and active-provider filter
-    └── version-check.ts # Update notification via update-notifier
+    ├── version-check.ts # Update notification via update-notifier
+    └── welcome.ts    # First-run welcome message with shell completion instructions
 
 test/                 # Tests mirror source with .test.ts suffix
 dist/                 # Compiled output (read-only, gitignored)
@@ -72,13 +76,17 @@ The CLI follows a command pattern:
 - Multiple providers supported through unified `AIBuilder` class
 - Supported providers: OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA
 - Models: gpt-5-codex, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance
-- API keys stored securely using the conf package
+- Fireworks and PlataformIA use OpenAI-compatible endpoints with custom base URLs
+- API keys stored securely using the conf package with format validation per provider
 - Requests have a 30s default timeout (configurable via `GSMART_TIMEOUT` env var)
+- Automatic retries with exponential backoff for transient errors (default 3 retries)
+- Error classification: network, auth, rate-limit, timeout, and generic errors
 
 ### Git Integration
 
-- Uses `spawnSync` for git commands (status, diff, commit)
-- Parses `git status --porcelain` for file change detection
+- Uses `spawnSync` for git commands (status, diff, commit, staging)
+- Parses `git status -z` (null-separated) for file change detection
+- Supports renames, copies, and deletions with original path tracking
 - Requires staged changes to generate commit messages
 
 ## Key Design Patterns
@@ -92,8 +100,14 @@ The CLI follows a command pattern:
 ### Error Handling
 
 - AI generation returns union types `string | {error: string}` for graceful error handling
+- Detailed error classification for provider errors (network, auth, rate-limit, timeout)
 - Git operations wrapped in try-catch with boolean success indicators
 - CLI provides user-friendly error messages with ora spinner feedback
+
+### Debug Mode
+
+- Global `--debug` / `-D` flag enables verbose logging across all commands
+- Timing information for AI generation and other operations via `debugTime`/`debugLog`
 
 ### User Experience
 
