@@ -43,6 +43,7 @@ async function buildMainCommand(overrides: {
   aiResult?: string | { error: string };
   promptsResponses?: Record<string, unknown>;
   commitResult?: boolean;
+  copyResult?: boolean;
   stagedFileNames?: string[];
 }) {
   const {
@@ -52,6 +53,7 @@ async function buildMainCommand(overrides: {
     aiResult = "feat: test commit",
     promptsResponses = {},
     commitResult = true,
+    copyResult = true,
     stagedFileNames = ["file1.txt", "file2.txt"],
   } = overrides;
 
@@ -100,7 +102,7 @@ async function buildMainCommand(overrides: {
         retrieveFilesToCommit: async () => changes,
         copyToClipboard: async (text: string) => {
           clipboardText = text;
-          return true;
+          return copyResult;
         },
       },
     })
@@ -347,4 +349,103 @@ test("main --dry-run still fails when AI returns error", async () => {
   await MainCommand.action({ dryRun: true, yes: true });
 
   assert.equal(getCommittedMessage(), "");
+});
+
+// ===========================================================================
+// MainCommand: clipboard failure paths
+// ===========================================================================
+
+test("main logs message when commit and clipboard both fail", async () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+  try {
+    const { MainCommand } = await buildMainCommand({
+      commitResult: false,
+      copyResult: false,
+      promptsResponses: { value: "openai", action: "commit" },
+    });
+
+    await MainCommand.action({});
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.ok(logs.some((l) => l.includes("feat: test commit")));
+});
+
+test("main logs message when clipboard copy fails in copy action", async () => {
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+  try {
+    const { MainCommand } = await buildMainCommand({
+      copyResult: false,
+      promptsResponses: { value: "openai", action: "copy" },
+    });
+
+    await MainCommand.action({});
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.ok(logs.some((l) => l.includes("feat: test commit")));
+});
+
+// ===========================================================================
+// MainCommand: provider selection
+// ===========================================================================
+
+test("main prompts for provider when multiple are configured", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    allKeys: { openai: "sk-key", anthropic: "ak-key" },
+    promptsResponses: { value: "anthropic", action: "commit" },
+  });
+
+  await MainCommand.action({});
+
+  assert.equal(getCommittedMessage(), "feat: test commit");
+});
+
+test("main fails when provider prompt is dismissed", async () => {
+  const { MainCommand, getCommittedMessage } = await buildMainCommand({
+    allKeys: { openai: "sk-key", anthropic: "ak-key" },
+    promptsResponses: {},
+  });
+
+  await MainCommand.action({});
+
+  assert.equal(getCommittedMessage(), "");
+});
+
+// ===========================================================================
+// MainCommand: dry-run staged file listing
+// ===========================================================================
+
+test("main --dry-run lists staged file names from diff headers", async () => {
+  const diffWithHeaders = [
+    "diff --git a/src/foo.ts b/src/foo.ts",
+    "+const x = 1;",
+    "diff --git a/src/bar.ts b/src/bar.ts",
+    "+const y = 2;",
+  ].join("\n");
+
+  const logs: string[] = [];
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => logs.push(args.map(String).join(" "));
+
+  try {
+    const { MainCommand } = await buildMainCommand({
+      changes: diffWithHeaders,
+    });
+
+    await MainCommand.action({ dryRun: true, yes: true });
+  } finally {
+    console.log = originalLog;
+  }
+
+  assert.ok(logs.some((l) => l.includes("src/foo.ts")));
+  assert.ok(logs.some((l) => l.includes("src/bar.ts")));
 });
