@@ -24,6 +24,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run format:check
+        if: github.actor != 'dependabot[bot]'
       - run: pnpm run prebuild
       - run: pnpm run typecheck
       - run: mkdir -p coverage
