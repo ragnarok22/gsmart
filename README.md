@@ -308,13 +308,17 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=ragnarok22%2Fgsmart&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&legend=top-left" />
- </picture>
-</a>
+<p align="center">
+  <a href="https://www.star-history.com/ragnarok22/gsmart">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&theme=dark&legend=top-left" />
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&legend=top-left" />
+      <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&legend=top-left" />
+    </picture>
+  </a>
+</p>
+
+[View star history on Star History](https://www.star-history.com/ragnarok22/gsmart)
 
 ---
 
