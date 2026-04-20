@@ -300,6 +300,16 @@ See [CHANGELOG.md](CHANGELOG.md) for details about releases and changes.
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
+## Contributors
+
+<a href="https://github.com/ragnarok22/gsmart/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=ragnarok22/gsmart" alt="Contributors" />
+</a>
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/chart?repos=ragnarok22/gsmart&type=date&legend=top-left)](https://www.star-history.com/?repos=ragnarok22%2Fgsmart&type=date&legend=top-left)
+
 ---
 
 <p align="center">
