@@ -18,7 +18,7 @@ const readPromptInput = (
     if (!supportsRawMode) {
       console.log(
         chalk.yellow(
-          "Interactive prompt input is unavailable in this environment. Use --add-custom-prompt \"...\" to set a default prompt non-interactively.",
+          'Interactive prompt input is unavailable in this environment. Use --add-custom-prompt "..." to set a default prompt non-interactively.',
         ),
       );
       resolve(initial.trim() || null);
