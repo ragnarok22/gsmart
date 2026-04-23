@@ -12,6 +12,19 @@ const readPromptInput = (
   initial: string = "",
 ): Promise<string | null> => {
   return new Promise((resolve) => {
+    const supportsRawMode =
+      process.stdin.isTTY && typeof process.stdin.setRawMode === "function";
+
+    if (!supportsRawMode) {
+      console.log(
+        chalk.yellow(
+          "Interactive prompt input is unavailable in this environment. Use --add-custom-prompt \"...\" to set a default prompt non-interactively.",
+        ),
+      );
+      resolve(initial.trim() || null);
+      return;
+    }
+
     let buffer = initial;
     let isPasted = !!initial;
     let inBracketedPaste = false;
