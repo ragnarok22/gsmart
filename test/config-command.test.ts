@@ -125,48 +125,55 @@ test("config set does not crash in non-tty environments", serial, async () => {
   assert.match(logs.join("\n"), /non-interactively/i);
 });
 
-test("config set accepts bracketed multi-line pasted prompts", serial, async () => {
-  const tty = mockTtyInput();
-  const writes: string[] = [];
-  const successes: string[] = [];
-  let savedPrompt = "";
-  tty.setWriteSpy(writes);
+test(
+  "config set accepts bracketed multi-line pasted prompts",
+  serial,
+  async () => {
+    const tty = mockTtyInput();
+    const writes: string[] = [];
+    const successes: string[] = [];
+    let savedPrompt = "";
+    tty.setWriteSpy(writes);
 
-  try {
-    const ConfigCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async () => ({ action: "set" }),
-        ora: () => ({
-          fail: () => undefined,
-          succeed: (message: string) => successes.push(message),
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "",
-          setPrompt: (prompt: string) => {
-            savedPrompt = prompt;
+    try {
+      const ConfigCommand = (
+        await esmock("../src/commands/config.ts", {
+          prompts: async () => ({ action: "set" }),
+          ora: () => ({
+            fail: () => undefined,
+            succeed: (message: string) => successes.push(message),
+            warn: () => undefined,
+          }),
+          "../src/utils/prompt-config.ts": {
+            getPrompt: () => "",
+            setPrompt: (prompt: string) => {
+              savedPrompt = prompt;
+            },
+            clearPrompt: () => ({ cleared: false }),
           },
-          clearPrompt: () => ({ cleared: false }),
-        },
-      })
-    ).default;
+        })
+      ).default;
 
-    const actionPromise = ConfigCommand.action({});
-    await new Promise((resolve) => setImmediate(resolve));
-    process.stdin.emit(
-      "data",
-      "\x1b[200~feat(parser): normalize lines\r\n\r\nkeep body as pasted\x1b[201~",
+      const actionPromise = ConfigCommand.action({});
+      await new Promise((resolve) => setImmediate(resolve));
+      process.stdin.emit(
+        "data",
+        "\x1b[200~feat(parser): normalize lines\r\n\r\nkeep body as pasted\x1b[201~",
+      );
+      process.stdin.emit("data", "\r");
+      await actionPromise;
+    } finally {
+      tty.restore();
+    }
+
+    assert.equal(
+      savedPrompt,
+      "feat(parser): normalize lines\n\nkeep body as pasted",
     );
-    process.stdin.emit("data", "\r");
-    await actionPromise;
-  } finally {
-    tty.restore();
-  }
-
-  assert.equal(savedPrompt, "feat(parser): normalize lines\n\nkeep body as pasted");
-  assert.deepEqual(successes, ["Default prompt saved successfully"]);
-  assert.match(writes.join(""), /Pasted text/);
-});
+    assert.deepEqual(successes, ["Default prompt saved successfully"]);
+    assert.match(writes.join(""), /Pasted text/);
+  },
+);
 
 test("config set handles Ctrl+C dismissal without saving", serial, async () => {
   const tty = mockTtyInput();
@@ -204,42 +211,46 @@ test("config set handles Ctrl+C dismissal without saving", serial, async () => {
   assert.deepEqual(failures, ["No prompt provided"]);
 });
 
-test("config clear cancellation path reports operation cancelled", serial, async () => {
-  const failures: string[] = [];
-  let clearPromptCalls = 0;
-  const promptsCalls: string[] = [];
+test(
+  "config clear cancellation path reports operation cancelled",
+  serial,
+  async () => {
+    const failures: string[] = [];
+    let clearPromptCalls = 0;
+    const promptsCalls: string[] = [];
 
-  const ConfigCommand = (
-    await esmock("../src/commands/config.ts", {
-      prompts: async (question: { name: string }) => {
-        promptsCalls.push(question.name);
-        if (question.name === "action") {
-          return { action: "clear" };
-        }
-        return { confirm: undefined };
-      },
-      ora: () => ({
-        fail: (message: string) => failures.push(message),
-        succeed: () => undefined,
-        warn: () => undefined,
-      }),
-      "../src/utils/prompt-config.ts": {
-        getPrompt: () => "existing prompt",
-        setPrompt: () => undefined,
-        clearPrompt: () => {
-          clearPromptCalls += 1;
-          return { cleared: true };
+    const ConfigCommand = (
+      await esmock("../src/commands/config.ts", {
+        prompts: async (question: { name: string }) => {
+          promptsCalls.push(question.name);
+          if (question.name === "action") {
+            return { action: "clear" };
+          }
+          return { confirm: undefined };
         },
-      },
-    })
-  ).default;
+        ora: () => ({
+          fail: (message: string) => failures.push(message),
+          succeed: () => undefined,
+          warn: () => undefined,
+        }),
+        "../src/utils/prompt-config.ts": {
+          getPrompt: () => "existing prompt",
+          setPrompt: () => undefined,
+          clearPrompt: () => {
+            clearPromptCalls += 1;
+            return { cleared: true };
+          },
+        },
+      })
+    ).default;
 
-  await ConfigCommand.action({});
+    await ConfigCommand.action({});
 
-  assert.deepEqual(promptsCalls, ["action", "confirm"]);
-  assert.equal(clearPromptCalls, 0);
-  assert.deepEqual(failures, ["Operation cancelled"]);
-});
+    assert.deepEqual(promptsCalls, ["action", "confirm"]);
+    assert.equal(clearPromptCalls, 0);
+    assert.deepEqual(failures, ["Operation cancelled"]);
+  },
+);
 
 test("config flags match interactive equivalents", serial, async () => {
   const flagLogs: string[] = [];
