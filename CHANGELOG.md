@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-05-05
+
+### Added
+
+- Added interactive config command coverage for custom prompt flows and cancellation paths
+- Added contributors and star history sections to the README
+
+### Fixed
+
+- Guarded config prompt raw-mode setup so config commands no longer crash in non-TTY environments
+
+### Changed
+
+- Updated AI SDK and runtime dependency ranges (@ai-sdk/anthropic 3.0.66→3.0.74, @ai-sdk/google 3.0.58→3.0.67, @ai-sdk/mistral 3.0.28→3.0.34, @ai-sdk/openai 3.0.50→3.0.60, ai 6.0.146→6.0.175, ora 9.3.0→9.4.0)
+- Updated development tooling (eslint 10.2.0→10.3.0, esmock 2.7.3→2.7.4, globals 17.4.0→17.6.0, prettier 3.8.1→3.8.3, typescript 6.0.2→6.0.3, typescript-eslint 8.58.0→8.59.2)
+- Updated package manager metadata from pnpm 10.33.0 to 10.33.3
+- Refreshed the pnpm lockfile with dependency updates
+
 ## [0.13.2] - 2026-04-13
 
 ### Changed
@@ -395,7 +413,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/ragnarok22/gsmart/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ragnarok22/gsmart/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...v0.13.0
