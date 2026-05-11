@@ -14,6 +14,32 @@ type StdinSnapshot = {
 
 const serial = { concurrency: false };
 
+const stripAnsi = (value: string) => {
+  const escape = String.fromCharCode(27);
+  let result = "";
+
+  for (let index = 0; index < value.length; index += 1) {
+    if (value[index] === escape && value[index + 1] === "[") {
+      index += 2;
+      while (index < value.length) {
+        const code = value.charCodeAt(index);
+        if (code >= 0x40 && code <= 0x7e) {
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+
+    result += value[index];
+  }
+
+  return result;
+};
+
+const normalizeConsoleEntries = (entries: string[]) =>
+  entries.map((entry) => stripAnsi(entry).replace(/^\n/, ""));
+
 const mockTtyInput = () => {
   const stdin = process.stdin as NodeJS.ReadStream;
   const snapshot: StdinSnapshot = {
@@ -93,7 +119,7 @@ test("config set does not crash in non-tty environments", serial, async () => {
       await esmock("../src/commands/config.ts", {
         prompts: async () => ({ action: "set" }),
         ora: () => ({
-          fail: (message: string) => failures.push(message),
+          fail: (message: string) => failures.push(stripAnsi(message)),
           succeed: () => undefined,
           warn: () => undefined,
         }),
@@ -141,7 +167,7 @@ test(
           prompts: async () => ({ action: "set" }),
           ora: () => ({
             fail: () => undefined,
-            succeed: (message: string) => successes.push(message),
+            succeed: (message: string) => successes.push(stripAnsi(message)),
             warn: () => undefined,
           }),
           "../src/utils/prompt-config.ts": {
@@ -185,7 +211,7 @@ test("config set handles Ctrl+C dismissal without saving", serial, async () => {
       await esmock("../src/commands/config.ts", {
         prompts: async () => ({ action: "set" }),
         ora: () => ({
-          fail: (message: string) => failures.push(message),
+          fail: (message: string) => failures.push(stripAnsi(message)),
           succeed: () => undefined,
           warn: () => undefined,
         }),
@@ -229,7 +255,7 @@ test(
           return { confirm: undefined };
         },
         ora: () => ({
-          fail: (message: string) => failures.push(message),
+          fail: (message: string) => failures.push(stripAnsi(message)),
           succeed: () => undefined,
           warn: () => undefined,
         }),
@@ -269,7 +295,7 @@ test("config flags match interactive equivalents", serial, async () => {
         prompts: async () => ({ action: "show" }),
         ora: () => ({
           fail: () => undefined,
-          succeed: (message: string) => flagSuccesses.push(message),
+          succeed: (message: string) => flagSuccesses.push(stripAnsi(message)),
           warn: () => undefined,
         }),
         "../src/utils/prompt-config.ts": {
@@ -301,7 +327,8 @@ test("config flags match interactive equivalents", serial, async () => {
         },
         ora: () => ({
           fail: () => undefined,
-          succeed: (message: string) => interactiveSuccesses.push(message),
+          succeed: (message: string) =>
+            interactiveSuccesses.push(stripAnsi(message)),
           warn: () => undefined,
         }),
         "../src/utils/prompt-config.ts": {
@@ -331,7 +358,7 @@ test("config flags match interactive equivalents", serial, async () => {
   ]);
   assert.deepEqual(interactiveSuccesses, ["Default prompt cleared"]);
   assert.deepEqual(
-    flagLogs,
-    interactiveLogs.map((entry) => entry.replace(/^\n/, "")),
+    normalizeConsoleEntries(flagLogs),
+    normalizeConsoleEntries(interactiveLogs),
   );
 });
