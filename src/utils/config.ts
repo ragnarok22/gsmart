@@ -4,6 +4,7 @@ import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
 import { providers } from "./providers";
 import { debugLog } from "./debug";
+import { OpenAIOAuthTokens } from "./openai-oauth";
 
 const MIN_KEY_LENGTH = 10;
 
@@ -82,6 +83,30 @@ class Config {
    **/
   clearKey(provider: Provider): void {
     return this.__delete(`${provider}.key`);
+  }
+
+  setOpenAIOAuthTokens(tokens: OpenAIOAuthTokens): void {
+    this.__set("openai.oauth", tokens);
+    this.__set("openai.authMode", "oauth");
+  }
+
+  getOpenAIOAuthTokens(): OpenAIOAuthTokens | null {
+    const tokens = conf.get("openai.oauth", null) as OpenAIOAuthTokens | null;
+    return tokens?.accessToken && tokens.refreshToken && tokens.idToken
+      ? tokens
+      : null;
+  }
+
+  clearOpenAIOAuthTokens(): void {
+    this.__delete("openai.oauth");
+  }
+
+  setOpenAIAuthMode(mode: "api-key" | "oauth"): void {
+    this.__set("openai.authMode", mode);
+  }
+
+  getOpenAIAuthMode(): "api-key" | "oauth" {
+    return conf.get("openai.authMode", "api-key") as "api-key" | "oauth";
   }
 
   /**

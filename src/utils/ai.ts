@@ -13,6 +13,10 @@ import {
   NoContentGeneratedError,
 } from "ai";
 import config, { validateApiKey } from "./config";
+import {
+  ensureFreshOpenAIOAuthTokens,
+  OpenAIOAuthTokens,
+} from "./openai-oauth";
 import { Provider } from "../definitions";
 import {
   DEFAULT_PROVIDER,
@@ -194,6 +198,11 @@ export type RetryOptions = {
   delayFn?: (ms: number) => Promise<void>;
 };
 
+type ProviderAuth = {
+  apiKey: string;
+  headers?: Record<string, string>;
+};
+
 const defaultDelay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -226,63 +235,112 @@ export class AIBuilder {
    * @param changes - The changes in the current branch
    * @returns - The generated commit message
    **/
-  generateCommitMessage(
+  async generateCommitMessage(
     branch_name: string,
     changes: string,
     options?: RetryOptions,
   ) {
     debugLog("ai", `provider: ${this.provider}`);
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
-    const apiKey = config.getKey(this.provider);
-    const validationError = validateApiKey(this.provider, apiKey);
-    if (validationError) {
-      debugLog("ai", `API key validation failed for ${this.provider}`);
-      return Promise.resolve({ error: validationError });
+    const auth = await this.__resolveAuth();
+    if ("error" in auth) {
+      debugLog("ai", `auth validation failed for ${this.provider}`);
+      return auth;
     }
 
-    const model = this.__generateModel();
+    const model = this.__generateModel(auth);
     return this.__generateText(model, branch_name, changes, options);
   }
 
-  private __generateModel(): LanguageModel {
+  private async __resolveAuth(): Promise<ProviderAuth | { error: string }> {
+    if (this.provider === "openai") {
+      const oauthTokens = this.__getOpenAIOAuthTokens();
+      const useOAuth =
+        config.getOpenAIAuthMode?.() === "oauth" ||
+        (!!oauthTokens && !config.getKey("openai"));
+
+      if (useOAuth) {
+        if (!oauthTokens) {
+          return {
+            error:
+              "openai - ChatGPT login is not configured. Run `gsmart login` and choose ChatGPT subscription.",
+          };
+        }
+
+        try {
+          const freshTokens = await ensureFreshOpenAIOAuthTokens(
+            oauthTokens,
+            (tokens) => config.setOpenAIOAuthTokens?.(tokens),
+          );
+          return this.__openAIOAuthProviderAuth(freshTokens);
+        } catch {
+          return {
+            error:
+              "openai - ChatGPT login expired. Run `gsmart login` and choose ChatGPT subscription again.",
+          };
+        }
+      }
+    }
+
     const apiKey = config.getKey(this.provider);
+    const validationError = validateApiKey(this.provider, apiKey);
+    if (validationError) return { error: validationError };
+
+    return { apiKey };
+  }
+
+  private __getOpenAIOAuthTokens(): OpenAIOAuthTokens | null {
+    return config.getOpenAIOAuthTokens?.() ?? null;
+  }
+
+  private __openAIOAuthProviderAuth(tokens: OpenAIOAuthTokens): ProviderAuth {
+    return {
+      apiKey: tokens.accessToken,
+      ...(tokens.accountId
+        ? { headers: { "ChatGPT-Account-ID": tokens.accountId } }
+        : {}),
+    };
+  }
+
+  private __generateModel(auth: ProviderAuth): LanguageModel {
     debugLog("ai", `selecting model for provider: ${this.provider}`);
     switch (this.provider) {
       case "openai": {
         const openai = createOpenAI({
-          apiKey,
+          apiKey: auth.apiKey,
+          ...(auth.headers ? { headers: auth.headers } : {}),
         });
         return openai("gpt-5-codex");
       }
       case "anthropic": {
         const anthropic = createAnthropic({
-          apiKey,
+          apiKey: auth.apiKey,
         });
         return anthropic("claude-3-5-haiku-latest");
       }
       case "google": {
         const gemini = createGoogleGenerativeAI({
-          apiKey,
+          apiKey: auth.apiKey,
         });
 
         return gemini("gemini-2.0-flash");
       }
       case "mistral": {
         const mistral = createMistral({
-          apiKey,
+          apiKey: auth.apiKey,
         });
         return mistral("mistral-large-latest");
       }
       case "fireworks": {
         const openai = createOpenAI({
-          apiKey,
+          apiKey: auth.apiKey,
           baseURL: "https://api.fireworks.ai/inference/v1",
         });
         return openai("accounts/fireworks/models/firefunction-v1");
       }
       case "plataformia": {
         const openai = createOpenAI({
-          apiKey,
+          apiKey: auth.apiKey,
           baseURL: "https://apigateway.avangenio.net",
         });
         return openai("radiance");

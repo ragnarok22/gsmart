@@ -12,6 +12,7 @@ test("login stores API key for selected provider", async () => {
     await esmock("../src/commands/login.ts", {
       prompts: async (opts: { name: string }) => {
         if (opts.name === "provider") return { provider: "openai" };
+        if (opts.name === "authMethod") return { authMethod: "api-key" };
         if (opts.name === "key") return { key: "sk-test-123" };
         return {};
       },
@@ -21,6 +22,7 @@ test("login stores API key for selected provider", async () => {
             storedProvider = provider;
             storedKey = key;
           },
+          setOpenAIAuthMode: () => {},
         },
       },
     })
@@ -43,6 +45,7 @@ test("login aborts when no provider selected", async () => {
           setKey: () => {
             setKeyCalled = true;
           },
+          setOpenAIAuthMode: () => {},
         },
       },
     })
@@ -68,6 +71,7 @@ test("login aborts when no API key provided", async () => {
           setKey: () => {
             setKeyCalled = true;
           },
+          setOpenAIAuthMode: () => {},
         },
       },
     })
@@ -83,7 +87,7 @@ test("login command has correct metadata", async () => {
     await esmock("../src/commands/login.ts", {
       prompts: async () => ({}),
       "../src/utils/config.ts": {
-        default: { setKey: () => {} },
+        default: { setKey: () => {}, setOpenAIAuthMode: () => {} },
       },
     })
   ).default;
@@ -91,4 +95,44 @@ test("login command has correct metadata", async () => {
   assert.equal(LoginCommand.name, "login");
   assert.equal(typeof LoginCommand.description, "string");
   assert.equal(typeof LoginCommand.action, "function");
+});
+
+test("login stores ChatGPT OAuth tokens for OpenAI", async () => {
+  let storedTokens: unknown;
+
+  const LoginCommand = (
+    await esmock("../src/commands/login.ts", {
+      prompts: async (opts: { name: string }) => {
+        if (opts.name === "provider") return { provider: "openai" };
+        if (opts.name === "authMethod") return { authMethod: "oauth" };
+        return {};
+      },
+      "../src/utils/openai-oauth.ts": {
+        loginWithOpenAIOAuth: async () => ({
+          idToken: "id-token",
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          accountId: "account-id",
+        }),
+      },
+      "../src/utils/config.ts": {
+        default: {
+          setOpenAIOAuthTokens: (tokens: unknown) => {
+            storedTokens = tokens;
+          },
+          setKey: () => {},
+          setOpenAIAuthMode: () => {},
+        },
+      },
+    })
+  ).default;
+
+  await LoginCommand.action({});
+
+  assert.deepEqual(storedTokens, {
+    idToken: "id-token",
+    accessToken: "access-token",
+    refreshToken: "refresh-token",
+    accountId: "account-id",
+  });
 });

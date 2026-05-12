@@ -4,6 +4,7 @@ import prompts from "prompts";
 import { ICommand } from "../definitions";
 import { providers } from "../utils/providers";
 import config from "../utils/config";
+import { loginWithOpenAIOAuth } from "../utils/openai-oauth";
 
 /**
  * Login command to paste the API key
@@ -30,6 +31,39 @@ const LoginCommand: ICommand = {
       return;
     }
 
+    if (provider === "openai") {
+      const { authMethod } = await prompts({
+        type: "select",
+        name: "authMethod",
+        message: "How would you like to authenticate with OpenAI?",
+        choices: [
+          { title: "ChatGPT subscription", value: "oauth" },
+          { title: "API key", value: "api-key" },
+        ],
+      });
+
+      if (!authMethod) {
+        ora().fail(chalk.red("No authentication method selected"));
+        return;
+      }
+
+      if (authMethod === "oauth") {
+        const spinner = ora("Waiting for ChatGPT authorization").start();
+        try {
+          const tokens = await loginWithOpenAIOAuth();
+          config.setOpenAIOAuthTokens(tokens);
+          spinner.succeed(chalk.green("ChatGPT login saved successfully"));
+        } catch (error) {
+          spinner.fail(
+            chalk.red(
+              error instanceof Error ? error.message : "ChatGPT login failed",
+            ),
+          );
+        }
+        return;
+      }
+    }
+
     const { key } = await prompts({
       type: "password",
       name: "key",
@@ -43,6 +77,9 @@ const LoginCommand: ICommand = {
     }
 
     config.setKey(provider, key);
+    if (provider === "openai") {
+      config.setOpenAIAuthMode("api-key");
+    }
     ora().succeed(chalk.green("API key saved successfully"));
   },
 };

@@ -120,3 +120,35 @@ test("set, get and clear key", async () => {
     }
   }
 });
+
+test("set, get and clear OpenAI OAuth tokens", async () => {
+  const configDir = mkdtempSync(join(tmpdir(), "gsmart-config-"));
+  const previousDir = process.env.GSMART_CONFIG_DIR;
+  process.env.GSMART_CONFIG_DIR = configDir;
+  const config = await importConfig();
+  try {
+    const tokens = {
+      idToken: "id-token",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      accountId: "account-id",
+      expiresAt: Date.now() + 1000,
+    };
+
+    config.setOpenAIOAuthTokens(tokens);
+
+    assert.deepEqual(config.getOpenAIOAuthTokens(), tokens);
+    assert.equal(config.getOpenAIAuthMode(), "oauth");
+
+    config.clearOpenAIOAuthTokens();
+    assert.equal(config.getOpenAIOAuthTokens(), null);
+  } finally {
+    config.clear();
+    rmSync(configDir, { recursive: true, force: true });
+    if (previousDir) {
+      process.env.GSMART_CONFIG_DIR = previousDir;
+    } else {
+      delete process.env.GSMART_CONFIG_DIR;
+    }
+  }
+});

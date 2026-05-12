@@ -354,6 +354,51 @@ test("each provider creates the correct model", async () => {
   }
 });
 
+test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
+  let capturedOptions: Record<string, unknown> = {};
+
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    "@ai-sdk/openai": {
+      createOpenAI: (opts: Record<string, unknown>) => {
+        capturedOptions = opts;
+        return (modelId: string) => ({ modelId });
+      },
+    },
+    ai: {
+      generateText: async () => ({ text: "feat: oauth" }),
+    },
+    "../src/utils/openai-oauth.ts": {
+      ensureFreshOpenAIOAuthTokens: async (tokens: unknown) => tokens,
+    },
+    "../src/utils/config.ts": {
+      default: {
+        getKey: () => "",
+        getOpenAIAuthMode: () => "oauth",
+        getOpenAIOAuthTokens: () => ({
+          idToken: "id-token",
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          accountId: "account-id",
+          expiresAt: Date.now() + 60_000,
+        }),
+        setOpenAIOAuthTokens: () => {},
+      },
+      validateApiKey: () => {
+        throw new Error("API key validation should not run for OAuth");
+      },
+    },
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(result, "feat: oauth");
+  assert.equal(capturedOptions.apiKey, "access-token");
+  assert.deepEqual(capturedOptions.headers, {
+    "ChatGPT-Account-ID": "account-id",
+  });
+});
+
 test("invalid provider throws an error", async () => {
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
@@ -366,7 +411,7 @@ test("invalid provider throws an error", async () => {
   });
 
   const builder = new AIBuilder("invalid-provider" as Provider, "");
-  assert.throws(() => builder.generateCommitMessage("main", "diff"), {
+  await assert.rejects(() => builder.generateCommitMessage("main", "diff"), {
     message: "Invalid provider",
   });
 });

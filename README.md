@@ -50,7 +50,7 @@ yarn global add gsmart
 gsmart login
 ```
 
-You'll be prompted to select a provider and enter your API key:
+You'll be prompted to select a provider. OpenAI supports either ChatGPT subscription login or an API key; other providers ask for an API key:
 
 ```
 ? Select a provider › Use arrow keys to navigate
@@ -61,6 +61,8 @@ You'll be prompted to select a provider and enter your API key:
   Fireworks AI
   PlataformIA
 ```
+
+If you are developing locally, do not run `pnpm login` or `npm login`; those commands authenticate with the npm registry. Use `pnpm exec tsx src/index.ts login` or build first and run `node dist/index.js login`.
 
 2. **Generate commit messages**:
 
@@ -161,7 +163,7 @@ Commands:
     -y, --yes                      Run non-interactively (auto stage + commit)
     -d, --dry-run                  Preview staged files without committing
 
-  login                            Configure AI provider and API key
+  login                            Configure AI provider authentication
   reset [options]                  Reset all API keys and configuration
     -f, --force                    Force reset without confirmation prompt
 
