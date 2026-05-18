@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.2] - 2026-05-18
+
+### Added
+
+- Added ChatGPT OAuth login support for OpenAI accounts
+- Added pnpm-aware update instructions when GSmart is installed with pnpm
+
+### Fixed
+
+- Fixed command prompt handling for typed responses across login, config, reset, and generate flows
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.76→3.0.78, @ai-sdk/google 3.0.71→3.0.75, @ai-sdk/mistral 3.0.36→3.0.37, @ai-sdk/openai 3.0.63→3.0.64, ai 6.0.177→6.0.184)
+- Updated development tooling (eslint 10.3.0→10.4.0, tsx 4.21.0→4.22.1, typescript-eslint 8.59.2→8.59.3)
+- Expanded CI Node.js coverage and test coverage for OpenAI OAuth, completions, config, and version-check flows
+- Upgraded pnpm package manager metadata to 11.1.2 and refreshed the lockfile
+
 ## [0.14.1] - 2026-05-12
 
 ### Changed
@@ -423,7 +441,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...HEAD
+[0.14.2]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/ragnarok22/gsmart/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/ragnarok22/gsmart/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/ragnarok22/gsmart/compare/v0.13.1...v0.13.2
