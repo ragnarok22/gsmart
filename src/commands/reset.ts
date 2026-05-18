@@ -8,8 +8,12 @@ type ResetOptions = {
   force?: boolean;
 };
 
+type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
+  [key: string]: unknown;
+}>;
+
 type ResetCommandDeps = {
-  prompt: typeof prompts;
+  prompt: PromptFn;
   spinner: typeof ora;
   config: Pick<typeof config, "clear">;
 };
@@ -25,11 +29,11 @@ const resetAction = async (
   deps: ResetCommandDeps = defaultDeps,
 ) => {
   if (!options.force) {
-    const { confirm } = await deps.prompt({
+    const { confirm } = (await deps.prompt({
       type: "confirm",
       name: "confirm",
       message: "Are you sure you want to reset the configuration?",
-    });
+    })) as { confirm?: boolean };
 
     if (!confirm) {
       deps.spinner().fail(chalk.red("Operation cancelled"));

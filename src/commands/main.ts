@@ -16,9 +16,13 @@ type MainCommandOptions = {
   dryRun?: boolean;
 };
 
+type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
+  [key: string]: unknown;
+}>;
+
 type MainCommandDeps = {
   spinner: typeof ora;
-  prompt: typeof prompts;
+  prompt: PromptFn;
   config: typeof config;
   AIBuilder: typeof AIBuilder;
   getActiveProviders: typeof getActiveProviders;
@@ -79,12 +83,12 @@ const getProvider = async (
     return activeProviders[0];
   }
 
-  const { value } = await deps.prompt({
+  const { value } = (await deps.prompt({
     type: "select",
     name: "value",
     message: "Select an AI provider",
     choices: activeProviders.map((p) => ({ title: p.title, value: p.value })),
-  });
+  })) as { value?: string };
   const selectedProvider =
     activeProviders.find((p) => p.value === value) || null;
   return selectedProvider;
@@ -167,7 +171,7 @@ const mainAction = async (
   let action = "commit";
 
   if (!options.yes) {
-    const response = await deps.prompt({
+    const response = (await deps.prompt({
       type: "select",
       name: "action",
       message: "What would you like to do?",
@@ -177,7 +181,7 @@ const mainAction = async (
         { title: "Regenerate message", value: "regenerate" },
         { title: "Do nothing", value: "nothing" },
       ],
-    });
+    })) as { action?: string };
 
     if (!response.action) {
       deps.spinner().fail(chalk.red("No action selected. Doing nothing."));

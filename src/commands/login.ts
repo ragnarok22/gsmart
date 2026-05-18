@@ -12,8 +12,12 @@ type LoginConfig = {
   setOpenAIOAuthTokens(tokens: OpenAIOAuthTokens): void;
 };
 
+type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
+  [key: string]: unknown;
+}>;
+
 type LoginCommandDeps = {
-  prompt: typeof prompts;
+  prompt: PromptFn;
   spinner: typeof ora;
   providers: IProvider[];
   config: LoginConfig;
@@ -40,7 +44,7 @@ export const createLoginCommand = (
     name: "login",
     description: "Login to a provider to use their AI service",
     action: async () => {
-      const { provider } = await services.prompt({
+      const { provider } = (await services.prompt({
         type: "select",
         name: "provider",
         message: "Select a provider",
@@ -51,7 +55,7 @@ export const createLoginCommand = (
             title: p.title,
             value: p.value,
           })),
-      });
+      })) as { provider?: string };
 
       if (!provider) {
         services.spinner().fail(chalk.red("No provider selected"));
@@ -59,7 +63,7 @@ export const createLoginCommand = (
       }
 
       if (provider === "openai") {
-        const { authMethod } = await services.prompt({
+        const { authMethod } = (await services.prompt({
           type: "select",
           name: "authMethod",
           message: "How would you like to authenticate with OpenAI?",
@@ -67,7 +71,7 @@ export const createLoginCommand = (
             { title: "ChatGPT subscription", value: "oauth" },
             { title: "API key", value: "api-key" },
           ],
-        });
+        })) as { authMethod?: "oauth" | "api-key" };
 
         if (!authMethod) {
           services
@@ -95,12 +99,12 @@ export const createLoginCommand = (
         }
       }
 
-      const { key } = await services.prompt({
+      const { key } = (await services.prompt({
         type: "password",
         name: "key",
         message: "Enter your API key",
         hint: "This will be stored in your local configuration",
-      });
+      })) as { key?: string };
 
       if (!key) {
         services.spinner().fail(chalk.red("No API key provided"));

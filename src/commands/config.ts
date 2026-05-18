@@ -156,8 +156,12 @@ type PromptConfig = {
   clearPrompt(): { cleared: boolean };
 };
 
+type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
+  [key: string]: unknown;
+}>;
+
 type ConfigCommandDeps = {
-  prompt: typeof prompts;
+  prompt: PromptFn;
   spinner: typeof ora;
   promptConfig: PromptConfig;
   readPromptInput: typeof readPromptInput;
@@ -210,7 +214,7 @@ const configAction = async (
     return;
   }
 
-  const { action } = await deps.prompt({
+  const { action } = (await deps.prompt({
     type: "select",
     name: "action",
     message: "What would you like to configure?",
@@ -219,7 +223,7 @@ const configAction = async (
       { title: "Show current configuration", value: "show" },
       { title: "Clear default prompt", value: "clear" },
     ],
-  });
+  })) as { action?: string };
 
   if (!action) {
     deps.spinner().fail(chalk.red("No option selected"));
@@ -254,11 +258,11 @@ const configAction = async (
         return;
       }
 
-      const { confirm } = await deps.prompt({
+      const { confirm } = (await deps.prompt({
         type: "confirm",
         name: "confirm",
         message: "Are you sure you want to clear the default prompt?",
-      });
+      })) as { confirm?: boolean };
 
       if (!confirm) {
         deps.spinner().fail(chalk.red("Operation cancelled"));
