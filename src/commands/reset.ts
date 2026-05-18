@@ -8,32 +8,55 @@ type ResetOptions = {
   force?: boolean;
 };
 
-const resetAction = async (options: ResetOptions = {}) => {
+type ResetCommandDeps = {
+  prompt: typeof prompts;
+  spinner: typeof ora;
+  config: Pick<typeof config, "clear">;
+};
+
+const defaultDeps: ResetCommandDeps = {
+  prompt: prompts,
+  spinner: ora,
+  config,
+};
+
+const resetAction = async (
+  options: ResetOptions = {},
+  deps: ResetCommandDeps = defaultDeps,
+) => {
   if (!options.force) {
-    const { confirm } = await prompts({
+    const { confirm } = await deps.prompt({
       type: "confirm",
       name: "confirm",
       message: "Are you sure you want to reset the configuration?",
     });
 
     if (!confirm) {
-      ora().fail(chalk.red("Operation cancelled"));
+      deps.spinner().fail(chalk.red("Operation cancelled"));
       return;
     }
   }
 
-  config.clear();
-  ora().succeed(chalk.green("Configuration reset successfully"));
+  deps.config.clear();
+  deps.spinner().succeed(chalk.green("Configuration reset successfully"));
 };
 
-const ResetCommand: ICommand = {
-  name: "reset",
-  options: [
-    { flags: "-f, --force", description: "Force reset the configuration" },
-  ],
-  description:
-    "Reset the API key for all providers and remove the configuration file",
-  action: (options) => resetAction(options as ResetOptions),
+export const createResetCommand = (
+  deps: Partial<ResetCommandDeps> = {},
+): ICommand => {
+  const services = { ...defaultDeps, ...deps };
+
+  return {
+    name: "reset",
+    options: [
+      { flags: "-f, --force", description: "Force reset the configuration" },
+    ],
+    description:
+      "Reset the API key for all providers and remove the configuration file",
+    action: (options) => resetAction(options as ResetOptions, services),
+  };
 };
+
+const ResetCommand = createResetCommand();
 
 export default ResetCommand;

@@ -7,7 +7,7 @@ import { setPrompt, getPrompt, clearPrompt } from "../utils/prompt-config";
 const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";
 
-const readPromptInput = (
+export const readPromptInput = (
   message: string,
   initial: string = "",
 ): Promise<string | null> => {
@@ -150,38 +150,67 @@ type ConfigOptions = {
   clearCustomPrompt?: boolean;
 };
 
-const displayPrompt = (savedPrompt: string, prefix: string = "") => {
+type PromptConfig = {
+  setPrompt(prompt: string): void;
+  getPrompt(): string;
+  clearPrompt(): { cleared: boolean };
+};
+
+type ConfigCommandDeps = {
+  prompt: typeof prompts;
+  spinner: typeof ora;
+  promptConfig: PromptConfig;
+  readPromptInput: typeof readPromptInput;
+  log: typeof console.log;
+};
+
+const defaultDeps: ConfigCommandDeps = {
+  prompt: prompts,
+  spinner: ora,
+  promptConfig: { setPrompt, getPrompt, clearPrompt },
+  readPromptInput,
+  log: console.log,
+};
+
+const displayPrompt = (
+  savedPrompt: string,
+  log: typeof console.log,
+  prefix: string = "",
+) => {
   if (savedPrompt) {
-    console.log(chalk.bold(`${prefix}Default prompt:`));
-    console.log(chalk.cyan(savedPrompt));
+    log(chalk.bold(`${prefix}Default prompt:`));
+    log(chalk.cyan(savedPrompt));
   } else {
-    console.log(chalk.yellow(`${prefix}No default prompt configured.`));
+    log(chalk.yellow(`${prefix}No default prompt configured.`));
   }
 };
 
-const configAction = async (options: ConfigOptions = {}) => {
+const configAction = async (
+  options: ConfigOptions = {},
+  deps: ConfigCommandDeps = defaultDeps,
+) => {
   if (options.addCustomPrompt) {
-    setPrompt(options.addCustomPrompt);
-    ora().succeed(chalk.green("Default prompt saved successfully"));
+    deps.promptConfig.setPrompt(options.addCustomPrompt);
+    deps.spinner().succeed(chalk.green("Default prompt saved successfully"));
     return;
   }
 
   if (options.clearCustomPrompt) {
-    const { cleared } = clearPrompt();
+    const { cleared } = deps.promptConfig.clearPrompt();
     if (!cleared) {
-      ora().warn(chalk.yellow("No default prompt to clear"));
+      deps.spinner().warn(chalk.yellow("No default prompt to clear"));
       return;
     }
-    ora().succeed(chalk.green("Default prompt cleared"));
+    deps.spinner().succeed(chalk.green("Default prompt cleared"));
     return;
   }
 
   if (options.show) {
-    displayPrompt(getPrompt());
+    displayPrompt(deps.promptConfig.getPrompt(), deps.log);
     return;
   }
 
-  const { action } = await prompts({
+  const { action } = await deps.prompt({
     type: "select",
     name: "action",
     message: "What would you like to configure?",
@@ -193,74 +222,82 @@ const configAction = async (options: ConfigOptions = {}) => {
   });
 
   if (!action) {
-    ora().fail(chalk.red("No option selected"));
+    deps.spinner().fail(chalk.red("No option selected"));
     return;
   }
 
   switch (action) {
     case "set": {
-      const savedPrompt = getPrompt();
-      const prompt = await readPromptInput(
+      const savedPrompt = deps.promptConfig.getPrompt();
+      const prompt = await deps.readPromptInput(
         "Enter your default commit style prompt",
         savedPrompt,
       );
 
       if (!prompt) {
-        ora().fail(chalk.red("No prompt provided"));
+        deps.spinner().fail(chalk.red("No prompt provided"));
         return;
       }
 
-      setPrompt(prompt);
-      ora().succeed(chalk.green("Default prompt saved successfully"));
+      deps.promptConfig.setPrompt(prompt);
+      deps.spinner().succeed(chalk.green("Default prompt saved successfully"));
       break;
     }
     case "show": {
-      displayPrompt(getPrompt(), "\n");
+      displayPrompt(deps.promptConfig.getPrompt(), deps.log, "\n");
       break;
     }
     case "clear": {
-      const savedPrompt = getPrompt();
+      const savedPrompt = deps.promptConfig.getPrompt();
       if (!savedPrompt) {
-        ora().warn(chalk.yellow("No default prompt to clear"));
+        deps.spinner().warn(chalk.yellow("No default prompt to clear"));
         return;
       }
 
-      const { confirm } = await prompts({
+      const { confirm } = await deps.prompt({
         type: "confirm",
         name: "confirm",
         message: "Are you sure you want to clear the default prompt?",
       });
 
       if (!confirm) {
-        ora().fail(chalk.red("Operation cancelled"));
+        deps.spinner().fail(chalk.red("Operation cancelled"));
         return;
       }
 
-      clearPrompt();
-      ora().succeed(chalk.green("Default prompt cleared"));
+      deps.promptConfig.clearPrompt();
+      deps.spinner().succeed(chalk.green("Default prompt cleared"));
       break;
     }
   }
 };
 
-const ConfigCommand: ICommand = {
-  name: "config",
-  description: "Manage gsmart configuration (default prompt, commit style)",
-  options: [
-    {
-      flags: "-s, --show",
-      description: "Show current configuration",
-    },
-    {
-      flags: "--add-custom-prompt <prompt>",
-      description: "Set the default prompt non-interactively",
-    },
-    {
-      flags: "--clear-custom-prompt",
-      description: "Clear the default prompt non-interactively",
-    },
-  ],
-  action: (options) => configAction(options as ConfigOptions),
+export const createConfigCommand = (
+  deps: Partial<ConfigCommandDeps> = {},
+): ICommand => {
+  const services = { ...defaultDeps, ...deps };
+
+  return {
+    name: "config",
+    description: "Manage gsmart configuration (default prompt, commit style)",
+    options: [
+      {
+        flags: "-s, --show",
+        description: "Show current configuration",
+      },
+      {
+        flags: "--add-custom-prompt <prompt>",
+        description: "Set the default prompt non-interactively",
+      },
+      {
+        flags: "--clear-custom-prompt",
+        description: "Clear the default prompt non-interactively",
+      },
+    ],
+    action: (options) => configAction(options as ConfigOptions, services),
+  };
 };
+
+const ConfigCommand = createConfigCommand();
 
 export default ConfigCommand;

@@ -9,8 +9,6 @@ import { getActiveProviders } from "../utils/providers";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 import { debugLog, debugTime } from "../utils/debug";
 
-const providers = getActiveProviders();
-
 type MainCommandOptions = {
   prompt?: string;
   provider?: string;
@@ -18,12 +16,47 @@ type MainCommandOptions = {
   dryRun?: boolean;
 };
 
+type MainCommandDeps = {
+  spinner: typeof ora;
+  prompt: typeof prompts;
+  config: typeof config;
+  AIBuilder: typeof AIBuilder;
+  getActiveProviders: typeof getActiveProviders;
+  retrieveFilesToCommit: typeof retrieveFilesToCommit;
+  getGitBranch: typeof getGitBranch;
+  commitChanges: typeof commitChanges;
+  copyToClipboard: typeof copyToClipboard;
+  parseDiffFileNames: typeof parseDiffFileNames;
+  debugLog: typeof debugLog;
+  debugTime: typeof debugTime;
+  log: typeof console.log;
+};
+
+const defaultDeps: MainCommandDeps = {
+  spinner: ora,
+  prompt: prompts,
+  config,
+  AIBuilder,
+  getActiveProviders,
+  retrieveFilesToCommit,
+  getGitBranch,
+  commitChanges,
+  copyToClipboard,
+  parseDiffFileNames,
+  debugLog,
+  debugTime,
+  log: console.log,
+};
+
 const getProvider = async (
   provider: string,
   skipPrompt = false,
+  deps: MainCommandDeps = defaultDeps,
 ): Promise<IProvider | null> => {
-  const allKeys = config.getAllKeys();
-  const activeProviders = providers.filter((p) => allKeys[p.value]);
+  const allKeys = deps.config.getAllKeys();
+  const activeProviders = deps
+    .getActiveProviders()
+    .filter((p) => allKeys[p.value]);
 
   if (provider) {
     const selectedProvider = activeProviders.find((p) => p.value === provider);
@@ -46,7 +79,7 @@ const getProvider = async (
     return activeProviders[0];
   }
 
-  const { value } = await prompts({
+  const { value } = await deps.prompt({
     type: "select",
     name: "value",
     message: "Select an AI provider",
@@ -57,13 +90,17 @@ const getProvider = async (
   return selectedProvider;
 };
 
-const mainAction = async (options: MainCommandOptions = {}) => {
-  const spinner = ora("").start();
-  const changes = await retrieveFilesToCommit(spinner, {
+const mainAction = async (
+  options: MainCommandOptions = {},
+  deps: MainCommandDeps = defaultDeps,
+  command?: ICommand,
+) => {
+  const spinner = deps.spinner("").start();
+  const changes = await deps.retrieveFilesToCommit(spinner, {
     autoStage: Boolean(options.yes),
     dryRun: Boolean(options.dryRun),
   });
-  const branch = await getGitBranch();
+  const branch = await deps.getGitBranch();
 
   if (!changes) {
     spinner.stop();
@@ -73,6 +110,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   const selectedProvider = await getProvider(
     options.provider ?? "",
     Boolean(options.yes),
+    deps,
   );
 
   if (!selectedProvider && !options.provider) {
@@ -89,8 +127,8 @@ const mainAction = async (options: MainCommandOptions = {}) => {
     return;
   }
 
-  debugLog("generate", `provider: ${selectedProvider.title}`);
-  debugLog("generate", `branch: ${branch}`);
+  deps.debugLog("generate", `provider: ${selectedProvider.title}`);
+  deps.debugLog("generate", `branch: ${branch}`);
 
   if (options.provider) {
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
@@ -98,9 +136,9 @@ const mainAction = async (options: MainCommandOptions = {}) => {
 
   if (!spinner.isSpinning) spinner.start();
 
-  const prompt = options.prompt || config.getPrompt() || "";
-  const ai = new AIBuilder(selectedProvider.value, prompt);
-  const stopTimer = debugTime("generate");
+  const prompt = options.prompt || deps.config.getPrompt() || "";
+  const ai = new deps.AIBuilder(selectedProvider.value, prompt);
+  const stopTimer = deps.debugTime("generate");
   const message = await ai.generateCommitMessage(branch, changes, {
     onRetry: (attempt, maxRetries) => {
       spinner.text = chalk.yellow(
@@ -116,11 +154,11 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   spinner.succeed(chalk.green(message));
 
   if (options.dryRun) {
-    const fileNames = parseDiffFileNames(changes);
+    const fileNames = deps.parseDiffFileNames(changes);
     if (fileNames.length > 0) {
-      console.log(chalk.cyan("\nStaged files:"));
+      deps.log(chalk.cyan("\nStaged files:"));
       for (const file of fileNames) {
-        console.log(chalk.grey(`  ${file}`));
+        deps.log(chalk.grey(`  ${file}`));
       }
     }
     return;
@@ -129,7 +167,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
   let action = "commit";
 
   if (!options.yes) {
-    const response = await prompts({
+    const response = await deps.prompt({
       type: "select",
       name: "action",
       message: "What would you like to do?",
@@ -142,7 +180,7 @@ const mainAction = async (options: MainCommandOptions = {}) => {
     });
 
     if (!response.action) {
-      ora().fail(chalk.red("No action selected. Doing nothing."));
+      deps.spinner().fail(chalk.red("No action selected. Doing nothing."));
       return;
     }
 
@@ -151,74 +189,88 @@ const mainAction = async (options: MainCommandOptions = {}) => {
 
   switch (action) {
     case "commit": {
-      const result = await commitChanges(message);
+      const result = await deps.commitChanges(message);
       if (result) {
-        ora().succeed(chalk.green("Changes committed successfully"));
+        deps.spinner().succeed(chalk.green("Changes committed successfully"));
       } else {
-        ora().fail(chalk.red("Failed to commit changes."));
-        const fallback = await copyToClipboard(message);
+        deps.spinner().fail(chalk.red("Failed to commit changes."));
+        const fallback = await deps.copyToClipboard(message);
         if (fallback) {
-          ora().succeed(chalk.green("Message copied to clipboard"));
+          deps.spinner().succeed(chalk.green("Message copied to clipboard"));
         } else {
-          ora().warn(chalk.yellow("Could not copy message to clipboard"));
-          console.log(message);
+          deps
+            .spinner()
+            .warn(chalk.yellow("Could not copy message to clipboard"));
+          deps.log(message);
         }
       }
       break;
     }
     case "copy":
       {
-        const copied = await copyToClipboard(message);
+        const copied = await deps.copyToClipboard(message);
         if (copied) {
-          ora().succeed(chalk.green("Message copied to clipboard"));
+          deps.spinner().succeed(chalk.green("Message copied to clipboard"));
         } else {
-          ora().warn(chalk.yellow("Could not copy message to clipboard"));
-          console.log(message);
+          deps
+            .spinner()
+            .warn(chalk.yellow("Could not copy message to clipboard"));
+          deps.log(message);
         }
       }
       break;
     case "regenerate":
       spinner.stop();
-      await MainCommand.action(options);
+      await (command ?? MainCommand).action(options);
       return;
     case "nothing":
-      ora().succeed(chalk.yellow("No action taken"));
+      deps.spinner().succeed(chalk.yellow("No action taken"));
       break;
   }
 
   spinner.stop();
 };
 
-const MainCommand: ICommand = {
-  name: "generate",
-  default: true,
-  description:
-    "Generate a commit message based on the changes in the staging area",
-  options: [
-    {
-      flags: "-p, --prompt <prompt>",
-      default: "",
-      description: "The prompt to use for generating the commit message",
-    },
-    {
-      flags: "-P, --provider <provider>",
-      default: "",
-      description: "The AI provider to use for generating the commit message",
-    },
-    {
-      flags: "-y, --yes",
-      default: false,
-      description:
-        "Automatically commit without prompting (useful for automation)",
-    },
-    {
-      flags: "-d, --dry-run",
-      default: false,
-      description:
-        "Show the generated commit message and staged files without committing",
-    },
-  ],
-  action: (options) => mainAction(options as MainCommandOptions),
+export const createMainCommand = (
+  deps: Partial<MainCommandDeps> = {},
+): ICommand => {
+  const services = { ...defaultDeps, ...deps };
+  const command: ICommand = {
+    name: "generate",
+    default: true,
+    description:
+      "Generate a commit message based on the changes in the staging area",
+    options: [
+      {
+        flags: "-p, --prompt <prompt>",
+        default: "",
+        description: "The prompt to use for generating the commit message",
+      },
+      {
+        flags: "-P, --provider <provider>",
+        default: "",
+        description: "The AI provider to use for generating the commit message",
+      },
+      {
+        flags: "-y, --yes",
+        default: false,
+        description:
+          "Automatically commit without prompting (useful for automation)",
+      },
+      {
+        flags: "-d, --dry-run",
+        default: false,
+        description:
+          "Show the generated commit message and staged files without committing",
+      },
+    ],
+    action: (options) =>
+      mainAction(options as MainCommandOptions, services, command),
+  };
+
+  return command;
 };
+
+const MainCommand = createMainCommand();
 
 export default MainCommand;
