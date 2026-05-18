@@ -2,16 +2,17 @@ import "../test-support/setup-env";
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { stripVTControlCharacters } from "node:util";
 import { createResetCommand } from "../src/commands/reset.ts";
 
 const createSpinner = (messages: string[]) => {
   const spinner = {
     fail: (message: string) => {
-      messages.push(message);
+      messages.push(stripVTControlCharacters(message));
       return spinner;
     },
     succeed: (message: string) => {
-      messages.push(message);
+      messages.push(stripVTControlCharacters(message));
       return spinner;
     },
   };
