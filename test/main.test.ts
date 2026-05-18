@@ -2,8 +2,12 @@ import "../test-support/setup-env";
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { stripVTControlCharacters } from "node:util";
 import { createMainCommand } from "../src/commands/main.ts";
 import { parseDiffFileNames } from "../src/utils/git.ts";
+
+const normalizeMessage = (message?: string) =>
+  message === undefined ? undefined : stripVTControlCharacters(message);
 
 const activeProviders = [
   { title: "OpenAI", value: "openai", description: "OpenAI", active: true },
@@ -32,20 +36,20 @@ const createSpinnerFactory = () => {
     },
     fail(message?: string) {
       spinner.isSpinning = false;
-      events.push({ type: "fail", message });
+      events.push({ type: "fail", message: normalizeMessage(message) });
       return spinner;
     },
     succeed(message?: string) {
       spinner.isSpinning = false;
-      events.push({ type: "succeed", message });
+      events.push({ type: "succeed", message: normalizeMessage(message) });
       return spinner;
     },
     info(message?: string) {
-      events.push({ type: "info", message });
+      events.push({ type: "info", message: normalizeMessage(message) });
       return spinner;
     },
     warn(message?: string) {
-      events.push({ type: "warn", message });
+      events.push({ type: "warn", message: normalizeMessage(message) });
       return spinner;
     },
   };
@@ -133,7 +137,8 @@ function buildMainCommand(
     parseDiffFileNames,
     debugLog: () => undefined,
     debugTime: () => () => undefined,
-    log: (...args: unknown[]) => logs.push(args.map(String).join(" ")),
+    log: (...args: unknown[]) =>
+      logs.push(stripVTControlCharacters(args.map(String).join(" "))),
   });
 
   return {
