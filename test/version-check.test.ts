@@ -120,7 +120,13 @@ test("checkForUpdates prints formatted update notice with package name", async (
   });
 
   const logs = captureConsoleLogs(() => {
-    checkForUpdates({ name: "@scope/gsmart", version: "0.9.0" });
+    checkForUpdates(
+      { name: "@scope/gsmart", version: "0.9.0" },
+      {
+        env: {},
+        moduleUrl: "file:///usr/local/lib/node_modules/gsmart/dist/index.js",
+      },
+    );
   });
 
   assert.equal(logs.length, 5);
@@ -144,7 +150,7 @@ test("checkForUpdates prints formatted update notice with package name", async (
     "expected changelog link",
   );
   assert(
-    logs[3].includes("npm install -g @scope/gsmart"),
+    logs[3].includes("npm install -g @scope/gsmart@latest"),
     "expected install command with package name",
   );
   assert.equal(
@@ -170,7 +176,13 @@ test("checkForUpdates pads update message rows with spaces", async () => {
   });
 
   const logs = captureConsoleLogs(() => {
-    checkForUpdates({ name: "gsmart", version: "1.0.0" });
+    checkForUpdates(
+      { name: "gsmart", version: "1.0.0" },
+      {
+        env: {},
+        moduleUrl: "file:///usr/local/lib/node_modules/gsmart/dist/index.js",
+      },
+    );
   });
 
   assert(logs[1].includes("  Update available: "));
@@ -200,4 +212,86 @@ test("checkForUpdates does not log when no update is available", async () => {
   });
 
   assert.equal(logs.length, 0);
+});
+
+test("getUpdateCommand uses npm by default", async () => {
+  const { getUpdateCommand } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
+  });
+
+  assert.equal(
+    getUpdateCommand("gsmart", {
+      env: {},
+      moduleUrl: "file:///usr/local/lib/node_modules/gsmart/dist/index.js",
+    }),
+    "npm install -g gsmart@latest",
+  );
+});
+
+test("getUpdateCommand uses pnpm when installed in a pnpm global path", async () => {
+  const { getUpdateCommand } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
+  });
+
+  assert.equal(
+    getUpdateCommand("gsmart", {
+      env: {},
+      moduleUrl:
+        "file:///Users/test/Library/pnpm/global/5/node_modules/gsmart/dist/index.js",
+    }),
+    "pnpm add -g gsmart@latest",
+  );
+});
+
+test("getUpdateCommand uses pnpm when npm user agent is pnpm", async () => {
+  const { getUpdateCommand } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
+  });
+
+  assert.equal(
+    getUpdateCommand("gsmart", {
+      env: { npm_config_user_agent: "pnpm/11.1.2 npm/? node/v24.0.0" },
+      moduleUrl: "file:///usr/local/lib/node_modules/gsmart/dist/index.js",
+    }),
+    "pnpm add -g gsmart@latest",
+  );
+});
+
+test("checkForUpdates suggests pnpm update command for pnpm installs", async () => {
+  const chalkMock = createChalkMock();
+  const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({
+        update: {
+          current: "0.9.0",
+          latest: "1.0.0",
+        },
+      }),
+    },
+    chalk: {
+      default: chalkMock,
+    },
+  });
+
+  const logs = captureConsoleLogs(() => {
+    checkForUpdates(
+      { name: "gsmart", version: "0.9.0" },
+      {
+        env: {},
+        moduleUrl:
+          "file:///Users/test/Library/pnpm/global/5/node_modules/gsmart/dist/index.js",
+      },
+    );
+  });
+
+  assert(
+    logs[3].includes("pnpm add -g gsmart@latest"),
+    "expected pnpm update command",
+  );
 });
