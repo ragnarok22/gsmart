@@ -39,10 +39,11 @@ test("login stores API key for selected provider", async () => {
   const LoginCommand = createLoginCommand({
     providers: [...activeProviders],
     spinner: () => createSpinner(messages) as never,
-    prompt: async (opts: { name: string }) => {
-      if (opts.name === "provider") return { provider: "openai" };
-      if (opts.name === "authMethod") return { authMethod: "api-key" };
-      if (opts.name === "key") return { key: "sk-test-123" };
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "openai" };
+      if (name === "authMethod") return { authMethod: "api-key" };
+      if (name === "key") return { key: "sk-test-123" };
       return {};
     },
     config: {
@@ -95,9 +96,10 @@ test("login aborts when no API key provided", async () => {
   const LoginCommand = createLoginCommand({
     providers: [...activeProviders],
     spinner: () => createSpinner(messages) as never,
-    prompt: async (opts: { name: string }) => {
-      if (opts.name === "provider") return { provider: "anthropic" };
-      if (opts.name === "key") return { key: undefined };
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "anthropic" };
+      if (name === "key") return { key: undefined };
       return {};
     },
     config: {
@@ -130,9 +132,10 @@ test("login stores ChatGPT OAuth tokens for OpenAI", async () => {
   const LoginCommand = createLoginCommand({
     providers: [...activeProviders],
     spinner: () => createSpinner(messages) as never,
-    prompt: async (opts: { name: string }) => {
-      if (opts.name === "provider") return { provider: "openai" };
-      if (opts.name === "authMethod") return { authMethod: "oauth" };
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "openai" };
+      if (name === "authMethod") return { authMethod: "oauth" };
       return {};
     },
     loginWithOpenAIOAuth: async () => ({
