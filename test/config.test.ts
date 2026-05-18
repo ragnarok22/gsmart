@@ -152,3 +152,74 @@ test("set, get and clear OpenAI OAuth tokens", async () => {
     }
   }
 });
+
+test("OpenAI OAuth tokens return null when stored tokens are incomplete", async () => {
+  const configDir = mkdtempSync(join(tmpdir(), "gsmart-config-"));
+  const previousDir = process.env.GSMART_CONFIG_DIR;
+  process.env.GSMART_CONFIG_DIR = configDir;
+  const config = await importConfig();
+  try {
+    config.setOpenAIOAuthTokens({
+      idToken: "id-token",
+      accessToken: "access-token",
+    } as never);
+
+    assert.equal(config.getOpenAIOAuthTokens(), null);
+  } finally {
+    config.clear();
+    rmSync(configDir, { recursive: true, force: true });
+    if (previousDir) {
+      process.env.GSMART_CONFIG_DIR = previousDir;
+    } else {
+      delete process.env.GSMART_CONFIG_DIR;
+    }
+  }
+});
+
+test("setOpenAIAuthMode stores explicit auth mode", async () => {
+  const configDir = mkdtempSync(join(tmpdir(), "gsmart-config-"));
+  const previousDir = process.env.GSMART_CONFIG_DIR;
+  process.env.GSMART_CONFIG_DIR = configDir;
+  const config = await importConfig();
+  try {
+    assert.equal(config.getOpenAIAuthMode(), "api-key");
+
+    config.setOpenAIAuthMode("oauth");
+    assert.equal(config.getOpenAIAuthMode(), "oauth");
+
+    config.setOpenAIAuthMode("api-key");
+    assert.equal(config.getOpenAIAuthMode(), "api-key");
+  } finally {
+    config.clear();
+    rmSync(configDir, { recursive: true, force: true });
+    if (previousDir) {
+      process.env.GSMART_CONFIG_DIR = previousDir;
+    } else {
+      delete process.env.GSMART_CONFIG_DIR;
+    }
+  }
+});
+
+test("welcome shown defaults to false and can be toggled", async () => {
+  const configDir = mkdtempSync(join(tmpdir(), "gsmart-config-"));
+  const previousDir = process.env.GSMART_CONFIG_DIR;
+  process.env.GSMART_CONFIG_DIR = configDir;
+  const config = await importConfig();
+  try {
+    assert.equal(config.getWelcomeShown(), false);
+
+    config.setWelcomeShown(true);
+    assert.equal(config.getWelcomeShown(), true);
+
+    config.setWelcomeShown(false);
+    assert.equal(config.getWelcomeShown(), false);
+  } finally {
+    config.clear();
+    rmSync(configDir, { recursive: true, force: true });
+    if (previousDir) {
+      process.env.GSMART_CONFIG_DIR = previousDir;
+    } else {
+      delete process.env.GSMART_CONFIG_DIR;
+    }
+  }
+});

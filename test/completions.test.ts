@@ -278,4 +278,50 @@ describe("generators handle edge-case commands", () => {
     const zsh = generateZshCompletion(cmds, {});
     assert.ok(zsh.includes(":output:"));
   });
+
+  it("generates zsh choices for argument-only commands", () => {
+    const cmds = [
+      {
+        name: "choose",
+        description: "Choose a value",
+        arguments: [
+          {
+            name: "mode",
+            description: "Mode",
+            required: true,
+            choices: ["fast", "safe"],
+          },
+        ],
+        action: () => {},
+      },
+    ];
+
+    const zsh = generateZshCompletion(cmds, {});
+
+    assert.ok(zsh.includes("choose)"));
+    assert.ok(zsh.includes("_arguments '1:mode:(fast safe)'"));
+  });
+
+  it("uses fallback value label for short-only value flags in zsh", () => {
+    const cmds = [
+      {
+        name: "short-value",
+        description: "Short value",
+        options: [{ flags: "-o <path>", description: "Output" }],
+        action: () => {},
+      },
+    ];
+
+    const zsh = generateZshCompletion(cmds, {});
+
+    assert.ok(zsh.includes("'-o[Output]:value:'"));
+  });
+
+  it("generates bash value completions for unmatched flagValues keys", () => {
+    const cmds = [{ name: "test", description: "Test", action: () => {} }];
+    const bash = generateBashCompletion(cmds, { unknown: ["one", "two"] });
+
+    assert.ok(bash.includes("--unknown)"));
+    assert.ok(bash.includes('compgen -W "one two"'));
+  });
 });
