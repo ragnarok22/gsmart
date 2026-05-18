@@ -56,6 +56,51 @@ export function getUpdateCommand(
   return `npm install -g ${packageName}@latest`;
 }
 
+export function printUpdateNotice(
+  pkg: PackageInfo,
+  current: string,
+  latest: string,
+  options?: PackageManagerDetectionOptions,
+): void {
+  const updateCommand = getUpdateCommand(pkg.name, options);
+  const updateCommandPadding = Math.max(0, 44 - updateCommand.length);
+
+  console.log(
+    chalk.yellow(
+      "\n┌────────────────────────────────────────────────────────────┐",
+    ),
+  );
+  console.log(
+    chalk.yellow("│") +
+      chalk.bold("  Update available: ") +
+      chalk.dim(current) +
+      chalk.reset(" → ") +
+      chalk.green.bold(latest) +
+      " ".repeat(Math.max(0, 40 - current.length - latest.length - 3)) +
+      chalk.yellow("│"),
+  );
+  console.log(
+    chalk.yellow("│") +
+      chalk.dim(`  Changelog: https://github.com/ragnarok22/gsmart/releases`) +
+      " ".repeat(Math.max(0, 2)) +
+      chalk.yellow("│"),
+  );
+
+  console.log(
+    chalk.yellow("│") +
+      chalk.cyan(`  Run `) +
+      chalk.bold.cyan(updateCommand) +
+      chalk.cyan(` to update`) +
+      " ".repeat(updateCommandPadding) +
+      chalk.yellow("│"),
+  );
+  console.log(
+    chalk.yellow(
+      "└────────────────────────────────────────────────────────────┘\n",
+    ),
+  );
+}
+
 /**
  * Checks for available updates and displays a warning if a new version exists
  * @param pkg - Package information containing name and version
@@ -71,44 +116,6 @@ export function checkForUpdates(
 
   if (notifier.update) {
     const { current, latest } = notifier.update;
-    const updateCommand = getUpdateCommand(pkg.name, options);
-    const updateCommandPadding = Math.max(0, 44 - updateCommand.length);
-
-    console.log(
-      chalk.yellow(
-        "\n┌────────────────────────────────────────────────────────────┐",
-      ),
-    );
-    console.log(
-      chalk.yellow("│") +
-        chalk.bold("  Update available: ") +
-        chalk.dim(current) +
-        chalk.reset(" → ") +
-        chalk.green.bold(latest) +
-        " ".repeat(Math.max(0, 40 - current.length - latest.length - 3)) +
-        chalk.yellow("│"),
-    );
-    console.log(
-      chalk.yellow("│") +
-        chalk.dim(
-          `  Changelog: https://github.com/ragnarok22/gsmart/releases`,
-        ) +
-        " ".repeat(Math.max(0, 2)) +
-        chalk.yellow("│"),
-    );
-
-    console.log(
-      chalk.yellow("│") +
-        chalk.cyan(`  Run `) +
-        chalk.bold.cyan(updateCommand) +
-        chalk.cyan(` to update`) +
-        " ".repeat(updateCommandPadding) +
-        chalk.yellow("│"),
-    );
-    console.log(
-      chalk.yellow(
-        "└────────────────────────────────────────────────────────────┘\n",
-      ),
-    );
+    printUpdateNotice(pkg, current, latest, options);
   }
 }
