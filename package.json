@@ -57,7 +57,7 @@
     "clean": "rimraf dist",
     "start": "node dist/index.js",
     "test": "node --import ./test-support/register-esmock.mjs --import tsx --test --test-reporter=dot test/*.test.ts",
-    "test:coverage": "pnpm test && node --import tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/completions.test.ts test/config-command.test.ts test/config.test.ts test/debug.test.ts test/git.test.ts test/holiday.test.ts test/index.test.ts test/login.test.ts test/openai-oauth.test.ts test/prompt-config.test.ts test/providers.test.ts test/reset.test.ts test/setup-env.test.ts",
+    "test:coverage": "node --import ./test-support/register-esmock.mjs --import tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/*.test.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepublishOnly": "pnpm run build",

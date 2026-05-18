@@ -263,6 +263,102 @@ test("getUpdateCommand uses pnpm when npm user agent is pnpm", async () => {
   );
 });
 
+test("getUpdateCommand uses pnpm when npm execpath is pnpm", async () => {
+  const { getUpdateCommand } = await esmock("../src/utils/version-check.ts", {
+    "update-notifier": {
+      default: () => ({ update: null }),
+    },
+  });
+
+  assert.equal(
+    getUpdateCommand("gsmart", {
+      env: { npm_execpath: "/Users/test/.local/share/pnpm/pnpm.cjs" },
+      moduleUrl: "file:///usr/local/lib/node_modules/gsmart/dist/index.js",
+    }),
+    "pnpm add -g gsmart@latest",
+  );
+});
+
+test("detectPackageManager detects pnpm from virtual store paths", async () => {
+  const { detectPackageManager } = await esmock(
+    "../src/utils/version-check.ts",
+    {
+      "update-notifier": {
+        default: () => ({ update: null }),
+      },
+    },
+  );
+
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "file:///Users/test/project/node_modules/.pnpm/gsmart@1.0.0/node_modules/gsmart/dist/index.js",
+    }),
+    "pnpm",
+  );
+});
+
+test("detectPackageManager detects pnpm from share paths", async () => {
+  const { detectPackageManager } = await esmock(
+    "../src/utils/version-check.ts",
+    {
+      "update-notifier": {
+        default: () => ({ update: null }),
+      },
+    },
+  );
+
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "file:///Users/test/.local/share/pnpm/global/gsmart/dist/index.js",
+    }),
+    "pnpm",
+  );
+});
+
+test("detectPackageManager handles non-file module urls", async () => {
+  const { detectPackageManager } = await esmock(
+    "../src/utils/version-check.ts",
+    {
+      "update-notifier": {
+        default: () => ({ update: null }),
+      },
+    },
+  );
+
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "not-a-file-url:/pnpm/global/node_modules/gsmart/dist/index.js",
+    }),
+    "pnpm",
+  );
+});
+
+test("detectPackageManager normalizes Windows-style paths", async () => {
+  const { detectPackageManager } = await esmock(
+    "../src/utils/version-check.ts",
+    {
+      "update-notifier": {
+        default: () => ({ update: null }),
+      },
+    },
+  );
+
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "C:\\Users\\test\\AppData\\Local\\pnpm\\global\\5\\node_modules\\gsmart\\dist\\index.js",
+    }),
+    "pnpm",
+  );
+});
+
 test("checkForUpdates suggests pnpm update command for pnpm installs", async () => {
   const chalkMock = createChalkMock();
   const { checkForUpdates } = await esmock("../src/utils/version-check.ts", {
