@@ -20,11 +20,22 @@ type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
   [key: string]: unknown;
 }>;
 
+type AIBuilderConstructor = new (
+  provider: IProvider["value"],
+  prompt: string,
+) => {
+  generateCommitMessage(
+    branchName: string,
+    changes: string,
+    options?: Parameters<AIBuilder["generateCommitMessage"]>[2],
+  ): ReturnType<AIBuilder["generateCommitMessage"]>;
+};
+
 type MainCommandDeps = {
   spinner: typeof ora;
   prompt: PromptFn;
   config: typeof config;
-  AIBuilder: typeof AIBuilder;
+  AIBuilder: AIBuilderConstructor;
   getActiveProviders: typeof getActiveProviders;
   retrieveFilesToCommit: typeof retrieveFilesToCommit;
   getGitBranch: typeof getGitBranch;

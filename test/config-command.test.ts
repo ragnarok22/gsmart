@@ -2,14 +2,14 @@ import "../test-support/setup-env";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import esmock from "esmock";
+import { createConfigCommand } from "../src/commands/config.ts";
 
 type StdinSnapshot = {
   isTTY: boolean | undefined;
   setRawMode: ((mode: boolean) => void) | undefined;
-  resume: () => void;
-  pause: () => void;
-  setEncoding: (encoding: BufferEncoding) => void;
+  resume: () => NodeJS.ReadStream;
+  pause: () => NodeJS.ReadStream;
+  setEncoding: (encoding?: BufferEncoding) => NodeJS.ReadStream;
 };
 
 const serial = { concurrency: false };
@@ -23,9 +23,7 @@ const stripAnsi = (value: string) => {
       index += 2;
       while (index < value.length) {
         const code = value.charCodeAt(index);
-        if (code >= 0x40 && code <= 0x7e) {
-          break;
-        }
+        if (code >= 0x40 && code <= 0x7e) break;
         index += 1;
       }
       continue;
@@ -39,6 +37,24 @@ const stripAnsi = (value: string) => {
 
 const normalizeConsoleEntries = (entries: string[]) =>
   entries.map((entry) => stripAnsi(entry).replace(/^\n/, ""));
+
+const createSpinner = (events: { type: string; message?: string }[]) => {
+  const spinner = {
+    fail: (message?: string) => {
+      events.push({ type: "fail", message: stripAnsi(message ?? "") });
+      return spinner;
+    },
+    succeed: (message?: string) => {
+      events.push({ type: "succeed", message: stripAnsi(message ?? "") });
+      return spinner;
+    },
+    warn: (message?: string) => {
+      events.push({ type: "warn", message: stripAnsi(message ?? "") });
+      return spinner;
+    },
+  };
+  return spinner;
+};
 
 const mockTtyInput = () => {
   const stdin = process.stdin as NodeJS.ReadStream;
@@ -99,7 +115,7 @@ test("config set does not crash in non-tty environments", serial, async () => {
   const originalIsTTY = process.stdin.isTTY;
   const originalSetRawMode = process.stdin.setRawMode;
   const logs: string[] = [];
-  const failures: string[] = [];
+  const events: { type: string; message?: string }[] = [];
   let setPromptCalled = false;
 
   Object.defineProperty(process.stdin, "isTTY", {
@@ -115,23 +131,17 @@ test("config set does not crash in non-tty environments", serial, async () => {
   console.log = (...args: unknown[]) => logs.push(args.join(" "));
 
   try {
-    const ConfigCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async () => ({ action: "set" }),
-        ora: () => ({
-          fail: (message: string) => failures.push(stripAnsi(message)),
-          succeed: () => undefined,
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "",
-          setPrompt: () => {
-            setPromptCalled = true;
-          },
-          clearPrompt: () => ({ cleared: false }),
+    const ConfigCommand = createConfigCommand({
+      prompt: async () => ({ action: "set" }),
+      spinner: () => createSpinner(events) as never,
+      promptConfig: {
+        getPrompt: () => "",
+        setPrompt: () => {
+          setPromptCalled = true;
         },
-      })
-    ).default;
+        clearPrompt: () => ({ cleared: false }),
+      },
+    });
 
     await ConfigCommand.action({});
   } finally {
@@ -147,7 +157,7 @@ test("config set does not crash in non-tty environments", serial, async () => {
   }
 
   assert.equal(setPromptCalled, false);
-  assert.deepEqual(failures, ["No prompt provided"]);
+  assert.deepEqual(events, [{ type: "fail", message: "No prompt provided" }]);
   assert.match(logs.join("\n"), /non-interactively/i);
 });
 
@@ -157,28 +167,22 @@ test(
   async () => {
     const tty = mockTtyInput();
     const writes: string[] = [];
-    const successes: string[] = [];
+    const events: { type: string; message?: string }[] = [];
     let savedPrompt = "";
     tty.setWriteSpy(writes);
 
     try {
-      const ConfigCommand = (
-        await esmock("../src/commands/config.ts", {
-          prompts: async () => ({ action: "set" }),
-          ora: () => ({
-            fail: () => undefined,
-            succeed: (message: string) => successes.push(stripAnsi(message)),
-            warn: () => undefined,
-          }),
-          "../src/utils/prompt-config.ts": {
-            getPrompt: () => "",
-            setPrompt: (prompt: string) => {
-              savedPrompt = prompt;
-            },
-            clearPrompt: () => ({ cleared: false }),
+      const ConfigCommand = createConfigCommand({
+        prompt: async () => ({ action: "set" }),
+        spinner: () => createSpinner(events) as never,
+        promptConfig: {
+          getPrompt: () => "",
+          setPrompt: (prompt: string) => {
+            savedPrompt = prompt;
           },
-        })
-      ).default;
+          clearPrompt: () => ({ cleared: false }),
+        },
+      });
 
       const actionPromise = ConfigCommand.action({});
       await new Promise((resolve) => setImmediate(resolve));
@@ -196,7 +200,9 @@ test(
       savedPrompt,
       "feat(parser): normalize lines\n\nkeep body as pasted",
     );
-    assert.deepEqual(successes, ["Default prompt saved successfully"]);
+    assert.deepEqual(events, [
+      { type: "succeed", message: "Default prompt saved successfully" },
+    ]);
     assert.match(writes.join(""), /Pasted text/);
   },
 );
@@ -204,26 +210,20 @@ test(
 test("config set handles Ctrl+C dismissal without saving", serial, async () => {
   const tty = mockTtyInput();
   let setPromptCalls = 0;
-  const failures: string[] = [];
+  const events: { type: string; message?: string }[] = [];
 
   try {
-    const ConfigCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async () => ({ action: "set" }),
-        ora: () => ({
-          fail: (message: string) => failures.push(stripAnsi(message)),
-          succeed: () => undefined,
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "",
-          setPrompt: () => {
-            setPromptCalls += 1;
-          },
-          clearPrompt: () => ({ cleared: false }),
+    const ConfigCommand = createConfigCommand({
+      prompt: async () => ({ action: "set" }),
+      spinner: () => createSpinner(events) as never,
+      promptConfig: {
+        getPrompt: () => "",
+        setPrompt: () => {
+          setPromptCalls += 1;
         },
-      })
-    ).default;
+        clearPrompt: () => ({ cleared: false }),
+      },
+    });
 
     const actionPromise = ConfigCommand.action({});
     await new Promise((resolve) => setImmediate(resolve));
@@ -234,129 +234,109 @@ test("config set handles Ctrl+C dismissal without saving", serial, async () => {
   }
 
   assert.equal(setPromptCalls, 0);
-  assert.deepEqual(failures, ["No prompt provided"]);
+  assert.deepEqual(events, [{ type: "fail", message: "No prompt provided" }]);
 });
 
 test(
   "config clear cancellation path reports operation cancelled",
   serial,
   async () => {
-    const failures: string[] = [];
+    const events: { type: string; message?: string }[] = [];
     let clearPromptCalls = 0;
     const promptsCalls: string[] = [];
 
-    const ConfigCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async (question: { name: string }) => {
-          promptsCalls.push(question.name);
-          if (question.name === "action") {
-            return { action: "clear" };
-          }
-          return { confirm: undefined };
+    const ConfigCommand = createConfigCommand({
+      prompt: async (question: unknown) => {
+        const name = (question as { name: string }).name;
+        promptsCalls.push(name);
+        if (name === "action") return { action: "clear" };
+        return { confirm: undefined };
+      },
+      spinner: () => createSpinner(events) as never,
+      promptConfig: {
+        getPrompt: () => "existing prompt",
+        setPrompt: () => undefined,
+        clearPrompt: () => {
+          clearPromptCalls += 1;
+          return { cleared: true };
         },
-        ora: () => ({
-          fail: (message: string) => failures.push(stripAnsi(message)),
-          succeed: () => undefined,
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "existing prompt",
-          setPrompt: () => undefined,
-          clearPrompt: () => {
-            clearPromptCalls += 1;
-            return { cleared: true };
-          },
-        },
-      })
-    ).default;
+      },
+    });
 
     await ConfigCommand.action({});
 
     assert.deepEqual(promptsCalls, ["action", "confirm"]);
     assert.equal(clearPromptCalls, 0);
-    assert.deepEqual(failures, ["Operation cancelled"]);
+    assert.deepEqual(events, [
+      { type: "fail", message: "Operation cancelled" },
+    ]);
   },
 );
 
 test("config flags match interactive equivalents", serial, async () => {
   const flagLogs: string[] = [];
   const interactiveLogs: string[] = [];
-  const flagSuccesses: string[] = [];
-  const interactiveSuccesses: string[] = [];
+  const flagEvents: { type: string; message?: string }[] = [];
+  const interactiveEvents: { type: string; message?: string }[] = [];
   const savedPrompts: string[] = [];
   let clearViaFlag = 0;
   let clearViaInteractive = 0;
   let interactiveActionCalls = 0;
 
-  const originalConsoleLog = console.log;
-  try {
-    const flagCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async () => ({ action: "show" }),
-        ora: () => ({
-          fail: () => undefined,
-          succeed: (message: string) => flagSuccesses.push(stripAnsi(message)),
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "style: concise",
-          setPrompt: (prompt: string) => {
-            savedPrompts.push(prompt);
-          },
-          clearPrompt: () => {
-            clearViaFlag += 1;
-            return { cleared: true };
-          },
-        },
-      })
-    ).default;
+  const flagCommand = createConfigCommand({
+    prompt: async () => ({ action: "show" }),
+    spinner: () => createSpinner(flagEvents) as never,
+    log: (...args: unknown[]) => flagLogs.push(args.join(" ")),
+    promptConfig: {
+      getPrompt: () => "style: concise",
+      setPrompt: (prompt: string) => {
+        savedPrompts.push(prompt);
+      },
+      clearPrompt: () => {
+        clearViaFlag += 1;
+        return { cleared: true };
+      },
+    },
+  });
 
-    console.log = (...args: unknown[]) => flagLogs.push(args.join(" "));
-    await flagCommand.action({ addCustomPrompt: "style: concise" });
-    await flagCommand.action({ show: true });
-    await flagCommand.action({ clearCustomPrompt: true });
+  await flagCommand.action({ addCustomPrompt: "style: concise" });
+  await flagCommand.action({ show: true });
+  await flagCommand.action({ clearCustomPrompt: true });
 
-    const interactiveCommand = (
-      await esmock("../src/commands/config.ts", {
-        prompts: async (question: { name: string }) => {
-          if (question.name === "action") {
-            interactiveActionCalls += 1;
-            return { action: interactiveActionCalls === 1 ? "show" : "clear" };
-          }
-          return { confirm: true };
-        },
-        ora: () => ({
-          fail: () => undefined,
-          succeed: (message: string) =>
-            interactiveSuccesses.push(stripAnsi(message)),
-          warn: () => undefined,
-        }),
-        "../src/utils/prompt-config.ts": {
-          getPrompt: () => "style: concise",
-          setPrompt: () => undefined,
-          clearPrompt: () => {
-            clearViaInteractive += 1;
-            return { cleared: true };
-          },
-        },
-      })
-    ).default;
+  const interactiveCommand = createConfigCommand({
+    prompt: async (question: unknown) => {
+      const name = (question as { name: string }).name;
+      if (name === "action") {
+        interactiveActionCalls += 1;
+        return { action: interactiveActionCalls === 1 ? "show" : "clear" };
+      }
+      return { confirm: true };
+    },
+    spinner: () => createSpinner(interactiveEvents) as never,
+    log: (...args: unknown[]) => interactiveLogs.push(args.join(" ")),
+    promptConfig: {
+      getPrompt: () => "style: concise",
+      setPrompt: () => undefined,
+      clearPrompt: () => {
+        clearViaInteractive += 1;
+        return { cleared: true };
+      },
+    },
+  });
 
-    console.log = (...args: unknown[]) => interactiveLogs.push(args.join(" "));
-    await interactiveCommand.action({});
-    await interactiveCommand.action({});
-  } finally {
-    console.log = originalConsoleLog;
-  }
+  await interactiveCommand.action({});
+  await interactiveCommand.action({});
 
   assert.deepEqual(savedPrompts, ["style: concise"]);
   assert.equal(clearViaFlag, 1);
   assert.equal(clearViaInteractive, 1);
-  assert.deepEqual(flagSuccesses, [
-    "Default prompt saved successfully",
-    "Default prompt cleared",
+  assert.deepEqual(flagEvents, [
+    { type: "succeed", message: "Default prompt saved successfully" },
+    { type: "succeed", message: "Default prompt cleared" },
   ]);
-  assert.deepEqual(interactiveSuccesses, ["Default prompt cleared"]);
+  assert.deepEqual(interactiveEvents, [
+    { type: "succeed", message: "Default prompt cleared" },
+  ]);
   assert.deepEqual(
     normalizeConsoleEntries(flagLogs),
     normalizeConsoleEntries(interactiveLogs),
