@@ -48,6 +48,9 @@ test("shows welcome message on first run", async () => {
 
   const output = ctx.logs.join("\n");
   assert.match(output, /GSmart installed successfully/);
+  assert.match(output, /gsmart login/);
+  assert.match(output, /git add <files>/);
+  assert.match(output, /Generate a commit message: gsmart/);
   assert.match(output, /completions zsh/);
 });
 

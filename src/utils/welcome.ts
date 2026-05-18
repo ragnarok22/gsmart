@@ -22,6 +22,12 @@ export function showWelcomeOnce(shell?: string): void {
     console.log(`
   GSmart installed successfully!
 
+  Quick start:
+
+    Connect your AI provider: gsmart login
+    Stage your changes:       git add <files>
+    Generate a commit message: gsmart
+
   Enable ${shellName} completions for tab autocompletion:
 
     ${command}
@@ -29,6 +35,12 @@ export function showWelcomeOnce(shell?: string): void {
   } else {
     console.log(`
   GSmart installed successfully!
+
+  Quick start:
+
+    Connect your AI provider: gsmart login
+    Stage your changes:       git add <files>
+    Generate a commit message: gsmart
 
   Enable shell completions for tab autocompletion:
 

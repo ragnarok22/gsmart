@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated development tooling (eslint 10.3.0→10.4.0, tsx 4.21.0→4.22.1, typescript-eslint 8.59.2→8.59.3)
 - Expanded CI Node.js coverage and test coverage for OpenAI OAuth, completions, config, and version-check flows
 - Upgraded pnpm package manager metadata to 11.1.2 and refreshed the lockfile
+- Improved the first-run welcome message with quick-start steps for configuring an AI provider, staging files, and generating a commit message
 
 ## [0.14.1] - 2026-05-12
 
