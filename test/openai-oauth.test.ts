@@ -1,11 +1,13 @@
 import "../test-support/setup-env";
 
+import { request } from "node:http";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildOpenAIAuthorizeUrl,
   ensureFreshOpenAIOAuthTokens,
   exchangeOpenAICodeForTokens,
+  loginWithOpenAIOAuth,
   refreshOpenAIOAuthTokens,
   isOpenAIOAuthExpired,
 } from "../src/utils/openai-oauth.ts";
@@ -16,6 +18,32 @@ const jwt = (claims: Record<string, unknown>) => {
     Buffer.from(JSON.stringify(value)).toString("base64url");
 
   return `${encode({ alg: "none" })}.${encode(claims)}.sig`;
+};
+
+const requestUrl = (url: URL): Promise<{ body: string; statusCode?: number }> =>
+  new Promise((resolve, reject) => {
+    const req = request(url, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve({
+          body: Buffer.concat(chunks).toString("utf8"),
+          statusCode: res.statusCode,
+        });
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+
+const waitForValue = async <T>(read: () => T | undefined): Promise<T> => {
+  for (let i = 0; i < 50; i += 1) {
+    const value = read();
+    if (value !== undefined) return value;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error("Timed out waiting for value");
 };
 
 test("buildOpenAIAuthorizeUrl uses Codex-compatible OAuth parameters", () => {
@@ -315,6 +343,67 @@ test("ensureFreshOpenAIOAuthTokens refreshes expired tokens", async () => {
     assert.equal(savedTokens?.refreshToken, "new-refresh-token");
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("loginWithOpenAIOAuth resolves tokens from local callback", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLog = console.log;
+  let authorizeUrl: string | undefined;
+  const idToken = jwt({});
+  const accessToken = jwt({ exp: 4_102_444_800 });
+
+  console.log = (message?: unknown) => {
+    const [, url] = String(message).split("\n");
+    authorizeUrl = url;
+  };
+  globalThis.fetch = (async (_input, init) => {
+    assert.equal(init?.method, "POST");
+    assert.ok(init?.body instanceof URLSearchParams);
+    assert.equal(init.body.get("grant_type"), "authorization_code");
+    assert.equal(init.body.get("code"), "callback-code");
+
+    return new Response(
+      JSON.stringify({
+        id_token: idToken,
+        access_token: accessToken,
+        refresh_token: "refresh-token",
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  }) as typeof fetch;
+
+  const login = loginWithOpenAIOAuth({
+    issuer: "https://auth.example.test",
+    clientId: "client-id",
+    openBrowser: false,
+    ports: [0],
+    timeoutMs: 1000,
+  });
+
+  try {
+    const url = new URL(await waitForValue(() => authorizeUrl));
+    const redirectUri = url.searchParams.get("redirect_uri");
+    const state = url.searchParams.get("state");
+    assert.ok(redirectUri);
+    assert.ok(state);
+
+    const callbackUrl = new URL(redirectUri);
+    callbackUrl.searchParams.set("state", state);
+    callbackUrl.searchParams.set("code", "callback-code");
+
+    const callbackResponse = await requestUrl(callbackUrl);
+    assert.equal(callbackResponse.statusCode, 200);
+    assert.ok(callbackResponse.body.includes("gsmart is connected"));
+
+    const tokens = await login;
+    assert.equal(tokens.idToken, idToken);
+    assert.equal(tokens.accessToken, accessToken);
+    assert.equal(tokens.refreshToken, "refresh-token");
+  } finally {
+    console.log = originalLog;
+    globalThis.fetch = originalFetch;
+    await login.catch(() => undefined);
   }
 });
 
