@@ -71,7 +71,13 @@ const getProvider = async (
   const allKeys = deps.config.getAllKeys();
   const activeProviders = deps
     .getActiveProviders()
-    .filter((p) => allKeys[p.value]);
+    .filter(
+      (p) =>
+        allKeys[p.value] ||
+        (p.value === "openai" &&
+          deps.config.getOpenAIAuthMode() === "oauth" &&
+          Boolean(deps.config.getOpenAIOAuthTokens())),
+    );
 
   if (provider) {
     const selectedProvider = activeProviders.find((p) => p.value === provider);

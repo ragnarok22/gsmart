@@ -65,6 +65,8 @@ function buildMainCommand(
     changes?: string | null;
     branch?: string;
     allKeys?: Record<string, string>;
+    openAIAuthMode?: "api-key" | "oauth";
+    hasOpenAIOAuthTokens?: boolean;
     configuredPrompt?: string;
     aiResult?: string | { error: string };
     promptsResponses?: Record<string, unknown>;
@@ -78,6 +80,8 @@ function buildMainCommand(
     changes = "diff content",
     branch = "main",
     allKeys = { openai: "sk-key" },
+    openAIAuthMode = "api-key",
+    hasOpenAIOAuthTokens = false,
     configuredPrompt = "",
     aiResult = "feat: test commit",
     promptsResponses = {},
@@ -120,6 +124,15 @@ function buildMainCommand(
     config: {
       getAllKeys: () => allKeys,
       getKey: (provider: string) => allKeys[provider] ?? "",
+      getOpenAIAuthMode: () => openAIAuthMode,
+      getOpenAIOAuthTokens: () =>
+        hasOpenAIOAuthTokens
+          ? {
+              idToken: "id-token",
+              accessToken: "access-token",
+              refreshToken: "refresh-token",
+            }
+          : null,
       getPrompt: () => configuredPrompt,
     } as never,
     AIBuilder: FakeAIBuilder as never,
@@ -193,6 +206,21 @@ test("main fails when no API keys are configured", async () => {
 
   assert.equal(getCommittedMessage(), "");
   assert(events.some((event) => event.message?.includes("No API keys found")));
+});
+
+test("main uses OpenAI when ChatGPT OAuth is configured without an API key", async () => {
+  const { MainCommand, getCommittedMessage, aiCalls } = buildMainCommand({
+    allKeys: {},
+    openAIAuthMode: "oauth",
+    hasOpenAIOAuthTokens: true,
+  });
+
+  await MainCommand.action({ yes: true });
+
+  assert.equal(getCommittedMessage(), "feat: test commit");
+  assert.deepEqual(aiCalls, [
+    { provider: "openai", prompt: "", branch: "main" },
+  ]);
 });
 
 test("main uses explicit provider when specified", async () => {
