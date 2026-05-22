@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.3] - 2026-05-22
+
+### Fixed
+
+- Fixed OpenAI ChatGPT OAuth logins being treated as unconfigured when generating commit messages without an API key
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/google 3.0.75→3.0.78, ai 6.0.184→6.0.189)
+- Updated development tooling (tsx 4.22.1→4.22.3, typescript-eslint 8.59.3→8.59.4)
+- Upgraded pnpm package manager metadata to 11.2.2 and refreshed the lockfile
+
 ## [0.14.2] - 2026-05-18
 
 ### Added
@@ -442,7 +454,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.3...HEAD
+[0.14.3]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/ragnarok22/gsmart/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/ragnarok22/gsmart/compare/v0.13.2...v0.14.0
