@@ -68,11 +68,11 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.78",
-    "@ai-sdk/google": "^3.0.78",
+    "@ai-sdk/anthropic": "^3.0.79",
+    "@ai-sdk/google": "^3.0.79",
     "@ai-sdk/mistral": "^3.0.37",
-    "@ai-sdk/openai": "^3.0.64",
-    "ai": "^6.0.189",
+    "@ai-sdk/openai": "^3.0.65",
+    "ai": "^6.0.191",
     "chalk": "5.6.2",
     "clipboardy": "^5.3.1",
     "commander": "^14.0.3",
@@ -97,5 +97,5 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.59.4"
   },
-  "packageManager": "pnpm@11.2.2+sha512.36e6621fad506178936455e70247b8808ef4ec25797a9f437a93281a020484e2607f6a469a22e982987c3dbb8866e3071514ab10a4a1749e06edcd1ec118436f"
+  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215"
 }
