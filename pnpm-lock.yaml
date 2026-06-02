@@ -65,7 +65,7 @@ importers:
         version: 10.1.8(eslint@10.4.0)
       esmock:
         specifier: ^2.7.5
-        version: 2.7.5
+        version: 2.7.6
       globals:
         specifier: ^17.6.0
         version: 17.6.0
@@ -1019,8 +1019,8 @@ packages:
       jiti:
         optional: true
 
-  esmock@2.7.5:
-    resolution: {integrity: sha512-jKwL7yYpVOERalCllSnPur59s9M0gV5BKijtmOKclqDMuhqdS7DT/a7cODjz6w1XusE0wAaHBTrK+zgab/ENgw==}
+  esmock@2.7.6:
+    resolution: {integrity: sha512-Moibxg8tl+wUeuDZZxHC9yVFi+rYITrPsu8/JDmO9AWVaXiWrFyvklruDv7pP7h3t0UqqPpZiCaZ51lzwVRK8A==}
     engines: {node: '>=14.16.0'}
 
   espree@11.2.0:
@@ -2547,7 +2547,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  esmock@2.7.5: {}
+  esmock@2.7.6: {}
 
   espree@11.2.0:
     dependencies:
