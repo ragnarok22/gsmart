@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.4] - 2026-06-02
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.78→3.0.81, @ai-sdk/google 3.0.78→3.0.80, @ai-sdk/openai 3.0.64→3.0.67, ai 6.0.189→6.0.193)
+- Updated development tooling (eslint 10.4.0→10.4.1, esmock 2.7.5→2.7.6, tsx 4.22.3→4.22.4, typescript-eslint 8.59.4→8.60.0)
+- Upgraded pnpm package manager metadata to 11.5.1 and refreshed the lockfile
+
 ## [0.14.3] - 2026-05-22
 
 ### Fixed
@@ -454,7 +462,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.3...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.4...HEAD
+[0.14.4]: https://github.com/ragnarok22/gsmart/compare/v0.14.3...v0.14.4
 [0.14.3]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/ragnarok22/gsmart/compare/v0.14.0...v0.14.1
