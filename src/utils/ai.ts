@@ -165,7 +165,7 @@ function hasNetworkKeyword(msg: string): boolean {
   );
 }
 
-export function isRetryableError(error: unknown): boolean {
+function isRetryableError(error: unknown): boolean {
   if (error instanceof Error && error.name === "AbortError") return true;
 
   if (APICallError.isInstance(error)) {

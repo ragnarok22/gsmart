@@ -168,7 +168,5 @@ export const parseDiffFileNames = (diff: string): string[] => {
 };
 
 export const getGitInfo = async (): Promise<[string, string]> => {
-  const branch = await getGitBranch();
-  const changes = await getGitChanges();
-  return [branch, changes];
+  return Promise.all([getGitBranch(), getGitChanges()]);
 };

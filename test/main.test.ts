@@ -175,6 +175,56 @@ test("main --yes commits automatically without prompting", async () => {
   ]);
 });
 
+test("main starts file retrieval and branch lookup concurrently", async () => {
+  let resolveChanges!: (changes: string) => void;
+  const changesPromise = new Promise<string>((resolve) => {
+    resolveChanges = resolve;
+  });
+  let branchRequested = false;
+  const spinnerFactory = createSpinnerFactory();
+
+  class FakeAIBuilder {
+    generateCommitMessage() {
+      return Promise.resolve("feat: test commit");
+    }
+  }
+
+  const MainCommand = createMainCommand({
+    spinner: spinnerFactory.spinner as never,
+    prompt: async () => ({}),
+    config: {
+      getAllKeys: () => ({ openai: "sk-key" }),
+      getKey: () => "sk-key",
+      getOpenAIAuthMode: () => "api-key",
+      getOpenAIOAuthTokens: () => null,
+      getPrompt: () => "",
+    } as never,
+    AIBuilder: FakeAIBuilder as never,
+    getActiveProviders: () => [activeProviders[0]] as never,
+    retrieveFilesToCommit: async () => changesPromise,
+    getGitBranch: async () => {
+      branchRequested = true;
+      return "main";
+    },
+    commitChanges: async () => true,
+    copyToClipboard: async () => true,
+    parseDiffFileNames,
+    debugLog: () => undefined,
+    debugTime: () => () => undefined,
+    log: () => undefined,
+  });
+
+  const actionPromise = MainCommand.action({ yes: true });
+  await Promise.resolve();
+
+  try {
+    assert.equal(branchRequested, true);
+  } finally {
+    resolveChanges("diff content");
+    await actionPromise;
+  }
+});
+
 test("main --yes uses first configured provider when multiple exist", async () => {
   const { MainCommand, getCommittedMessage, aiCalls } = buildMainCommand({
     allKeys: { openai: "sk-key", anthropic: "ak-key" },

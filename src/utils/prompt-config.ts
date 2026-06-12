@@ -14,7 +14,3 @@ export const clearPrompt = (): { cleared: boolean } => {
   config.clearPrompt();
   return { cleared: true };
 };
-
-export const hasPrompt = (): boolean => {
-  return !!config.getPrompt();
-};

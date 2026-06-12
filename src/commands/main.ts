@@ -117,11 +117,13 @@ const mainAction = async (
   command?: ICommand,
 ) => {
   const spinner = deps.spinner("").start();
-  const changes = await deps.retrieveFilesToCommit(spinner, {
-    autoStage: Boolean(options.yes),
-    dryRun: Boolean(options.dryRun),
-  });
-  const branch = await deps.getGitBranch();
+  const [changes, branch] = await Promise.all([
+    deps.retrieveFilesToCommit(spinner, {
+      autoStage: Boolean(options.yes),
+      dryRun: Boolean(options.dryRun),
+    }),
+    deps.getGitBranch(),
+  ]);
 
   if (!changes) {
     spinner.stop();
