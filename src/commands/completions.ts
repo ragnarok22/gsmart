@@ -102,57 +102,59 @@ export function generateZshCompletion(
     .map((c) => `        '${c.name}:${c.description}'`)
     .join("\n");
 
-  const argCases = commands
-    .filter(
-      (cmd) =>
-        (cmd.options && cmd.options.length > 0) ||
-        (cmd.arguments && cmd.arguments.length > 0),
-    )
-    .map((cmd) => {
-      const flags = (cmd.options || []).map(parseFlag);
+  const argCases: string[] = [];
 
-      if (flags.length === 0 && cmd.arguments) {
-        const argLines = cmd.arguments
-          .filter((a) => a.choices)
-          .map(
-            (a) =>
-              `                    _arguments '1:${a.name}:(${a.choices!.join(" ")})'`,
-          );
-        return `                ${cmd.name})\n${argLines.join("\n")}
-                    ;;`;
+  for (const cmd of commands) {
+    if (
+      (!cmd.options || cmd.options.length === 0) &&
+      (!cmd.arguments || cmd.arguments.length === 0)
+    ) {
+      continue;
+    }
+
+    const flags = (cmd.options || []).map(parseFlag);
+
+    if (flags.length === 0 && cmd.arguments) {
+      const argLines: string[] = [];
+      for (const argument of cmd.arguments) {
+        if (!argument.choices) continue;
+        argLines.push(
+          `                    _arguments '1:${argument.name}:(${argument.choices.join(" ")})'`,
+        );
       }
+      argCases.push(`                ${cmd.name})\n${argLines.join("\n")}
+                    ;;`);
+      continue;
+    }
 
-      const flagLines = flags.flatMap((f) => {
-        const lines: string[] = [];
-        const valueCompletion =
-          f.long && flagValues[f.long]
-            ? `(${flagValues[f.long].join(" ")})`
-            : "";
-        const valueSpec = f.takesValue
-          ? `:${f.long || "value"}:${valueCompletion}`
-          : "";
-        if (f.short) {
-          lines.push(`'-${f.short}[${f.description}]${valueSpec}'`);
-        }
-        if (f.long) {
-          lines.push(`'--${f.long}[${f.description}]${valueSpec}'`);
-        }
-        return lines;
-      });
+    const flagLines = flags.flatMap((f) => {
+      const lines: string[] = [];
+      const valueCompletion =
+        f.long && flagValues[f.long] ? `(${flagValues[f.long].join(" ")})` : "";
+      const valueSpec = f.takesValue
+        ? `:${f.long || "value"}:${valueCompletion}`
+        : "";
+      if (f.short) {
+        lines.push(`'-${f.short}[${f.description}]${valueSpec}'`);
+      }
+      if (f.long) {
+        lines.push(`'--${f.long}[${f.description}]${valueSpec}'`);
+      }
+      return lines;
+    });
 
-      flagLines.push(`'-h[display help]'`);
-      flagLines.push(`'--help[display help]'`);
+    flagLines.push(`'-h[display help]'`);
+    flagLines.push(`'--help[display help]'`);
 
-      const indented = flagLines
-        .map((l) => `                        ${l}`)
-        .join(" \\\n");
+    const indented = flagLines
+      .map((l) => `                        ${l}`)
+      .join(" \\\n");
 
-      return `                ${cmd.name})
+    argCases.push(`                ${cmd.name})
                     _arguments \\
 ${indented}
-                    ;;`;
-    })
-    .join("\n");
+                    ;;`);
+  }
 
   return `#compdef gsmart
 
@@ -178,7 +180,7 @@ ${commandList}
             ;;
         args)
             case $line[1] in
-${argCases}
+${argCases.join("\n")}
             esac
             ;;
     esac

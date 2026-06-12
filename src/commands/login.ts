@@ -44,17 +44,21 @@ export const createLoginCommand = (
     name: "login",
     description: "Login to a provider to use their AI service",
     action: async () => {
+      const providerChoices: { title: string; value: string }[] = [];
+      for (const provider of services.providers) {
+        if (!provider.active) continue;
+        providerChoices.push({
+          title: provider.title,
+          value: provider.value,
+        });
+      }
+
       const { provider } = (await services.prompt({
         type: "select",
         name: "provider",
         message: "Select a provider",
         hint: "Use arrow keys to navigate",
-        choices: services.providers
-          .filter((p) => p.active)
-          .map((p) => ({
-            title: p.title,
-            value: p.value,
-          })),
+        choices: providerChoices,
       })) as { provider?: string };
 
       if (!provider) {

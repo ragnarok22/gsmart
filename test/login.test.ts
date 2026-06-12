@@ -66,6 +66,43 @@ test("login stores API key for selected provider", async () => {
   assert.deepEqual(messages, ["API key saved successfully"]);
 });
 
+test("login offers only active providers", async () => {
+  let providerChoices: unknown;
+  const messages: string[] = [];
+
+  const LoginCommand = createLoginCommand({
+    providers: [
+      ...activeProviders,
+      {
+        title: "Inactive",
+        value: "google",
+        description: "Inactive",
+        active: false,
+      },
+    ],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async (opts: unknown) => {
+      const question = opts as { name: string; choices?: unknown };
+      if (question.name === "provider") {
+        providerChoices = question.choices;
+      }
+      return { provider: undefined };
+    },
+    config: {
+      setKey: () => undefined,
+      setOpenAIAuthMode: () => undefined,
+      setOpenAIOAuthTokens: () => undefined,
+    },
+  });
+
+  await LoginCommand.action({});
+
+  assert.deepEqual(providerChoices, [
+    { title: "OpenAI", value: "openai" },
+    { title: "Anthropic", value: "anthropic" },
+  ]);
+});
+
 test("login aborts when no provider selected", async () => {
   let setKeyCalled = false;
   const messages: string[] = [];
