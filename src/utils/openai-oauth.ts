@@ -31,6 +31,11 @@ type LoginOptions = {
   timeoutMs?: number;
 };
 
+type ListeningServer = {
+  server: Server;
+  port: number;
+};
+
 const DEFAULT_ISSUER = "https://auth.openai.com";
 const DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const DEFAULT_PORTS = [1455, 1457];
@@ -257,6 +262,41 @@ const listen = (server: Server, port: number): Promise<number> =>
     server.listen(port, "127.0.0.1");
   });
 
+const listenOnPort = async (port: number): Promise<ListeningServer> => {
+  const server = createServer();
+  const actualPort = await listen(server, port);
+  return { server, port: actualPort };
+};
+
+const closeServer = (server: Server): void => {
+  server.close(() => undefined);
+};
+
+const startCallbackServer = async (
+  ports: readonly number[],
+): Promise<ListeningServer> => {
+  const attempts = await Promise.allSettled(
+    ports.map((port) => listenOnPort(port)),
+  );
+
+  let selected: ListeningServer | undefined;
+  for (const attempt of attempts) {
+    if (attempt.status !== "fulfilled") continue;
+    if (!selected) {
+      selected = attempt.value;
+      continue;
+    }
+
+    closeServer(attempt.value.server);
+  }
+
+  if (!selected) {
+    throw new Error("Unable to start local OpenAI OAuth callback server");
+  }
+
+  return selected;
+};
+
 export async function loginWithOpenAIOAuth(
   options: LoginOptions = {},
 ): Promise<OpenAIOAuthTokens> {
@@ -264,22 +304,10 @@ export async function loginWithOpenAIOAuth(
   const clientId = resolveClientId(options.clientId);
   const pkce = generatePkce();
   const state = generateState();
-  const server = createServer();
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  let actualPort: number | undefined;
-
-  for (const port of options.ports ?? DEFAULT_PORTS) {
-    try {
-      actualPort = await listen(server, port);
-      break;
-    } catch {
-      continue;
-    }
-  }
-
-  if (!actualPort) {
-    throw new Error("Unable to start local OpenAI OAuth callback server");
-  }
+  const { server, port: actualPort } = await startCallbackServer(
+    options.ports ?? DEFAULT_PORTS,
+  );
 
   const redirectUri = `http://localhost:${actualPort}/auth/callback`;
   const authUrl = buildOpenAIAuthorizeUrl({

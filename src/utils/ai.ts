@@ -377,10 +377,11 @@ ${this.prompt}`
     const delayFn = options?.delayFn ?? defaultDelay;
     debugLog("ai", `timeout: ${timeoutMs}ms`);
 
-    let lastError: unknown;
     const stopTimer = debugTime("ai");
 
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const runAttempt = async (
+      attempt: number,
+    ): Promise<string | { error: string }> => {
       try {
         const { text } = await generateText({
           model,
@@ -393,8 +394,6 @@ ${this.prompt}`
         debugLog("ai", "generation succeeded");
         return text;
       } catch (error) {
-        lastError = error;
-
         if (!isRetryableError(error) || attempt === maxRetries) {
           stopTimer();
           const classified = classifyError(error, this.provider, timeoutMs);
@@ -406,10 +405,10 @@ ${this.prompt}`
 
         const delayMs = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt - 1);
         await delayFn(delayMs);
+        return runAttempt(attempt + 1);
       }
-    }
+    };
 
-    stopTimer();
-    return { error: classifyError(lastError, this.provider, timeoutMs) };
+    return runAttempt(1);
   }
 }
