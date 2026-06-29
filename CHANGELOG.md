@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.6] - 2026-06-29
+
+### Changed
+
+- Updated AI SDK packages to the latest v4 provider generation and `ai` v7
+- Raised the runtime requirement to Node.js 22 for compatibility with the updated AI SDK packages
+- Updated runtime and development dependencies and refreshed the pnpm lockfile
+
 ## [0.14.5] - 2026-06-12
 
 ### Fixed
