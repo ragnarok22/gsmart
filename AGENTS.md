@@ -75,7 +75,7 @@ The CLI follows a command pattern:
 
 - Multiple providers supported through unified `AIBuilder` class
 - Supported providers: OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA
-- Models: gpt-5-codex, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance
+- Models: gpt-5.6-luna, claude-3-5-haiku-latest, gemini-2.0-flash, mistral-large-latest, firefunction-v1, radiance
 - Fireworks and PlataformIA use OpenAI-compatible endpoints with custom base URLs
 - API keys stored securely using the conf package with format validation per provider
 - Requests have a 30s default timeout (configurable via `GSMART_TIMEOUT` env var)

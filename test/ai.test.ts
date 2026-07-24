@@ -293,7 +293,7 @@ test("handles Error with empty message", async () => {
 
 test("each provider creates the correct model", async () => {
   const providerModels: Record<string, { model: string; baseURL?: string }> = {
-    openai: { model: "gpt-5-codex" },
+    openai: { model: "gpt-5.6-luna" },
     anthropic: { model: "claude-3-5-haiku-latest" },
     google: { model: "gemini-2.0-flash" },
     mistral: { model: "mistral-large-latest" },
@@ -356,12 +356,16 @@ test("each provider creates the correct model", async () => {
 
 test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
   let capturedOptions: Record<string, unknown> = {};
+  let capturedModelId = "";
 
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     "@ai-sdk/openai": {
       createOpenAI: (opts: Record<string, unknown>) => {
         capturedOptions = opts;
-        return (modelId: string) => ({ modelId });
+        return (modelId: string) => {
+          capturedModelId = modelId;
+          return { modelId };
+        };
       },
     },
     ai: {
@@ -394,9 +398,15 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
 
   assert.equal(result, "feat: oauth");
   assert.equal(capturedOptions.apiKey, "access-token");
+  assert.equal(
+    capturedOptions.baseURL,
+    "https://chatgpt.com/backend-api/codex",
+  );
   assert.deepEqual(capturedOptions.headers, {
     "ChatGPT-Account-ID": "account-id",
+    originator: "gsmart_cli",
   });
+  assert.equal(capturedModelId, "gpt-5.6-luna");
 });
 
 test("invalid provider throws an error", async () => {
@@ -519,7 +529,7 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
 
   const builder = new AIBuilder("openai", "");
   await builder.generateCommitMessage("main", "diff");
-  assert.equal(capturedModelId, "gpt-5-codex");
+  assert.equal(capturedModelId, "gpt-5.6-luna");
 
   builder.changeProvider("google");
   await builder.generateCommitMessage("main", "diff");

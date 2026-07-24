@@ -200,6 +200,7 @@ export type RetryOptions = {
 
 type ProviderAuth = {
   apiKey: string;
+  baseURL?: string;
   headers?: Record<string, string>;
 };
 
@@ -296,9 +297,11 @@ export class AIBuilder {
   private __openAIOAuthProviderAuth(tokens: OpenAIOAuthTokens): ProviderAuth {
     return {
       apiKey: tokens.accessToken,
-      ...(tokens.accountId
-        ? { headers: { "ChatGPT-Account-ID": tokens.accountId } }
-        : {}),
+      baseURL: "https://chatgpt.com/backend-api/codex",
+      headers: {
+        ...(tokens.accountId ? { "ChatGPT-Account-ID": tokens.accountId } : {}),
+        originator: "gsmart_cli",
+      },
     };
   }
 
@@ -308,9 +311,10 @@ export class AIBuilder {
       case "openai": {
         const openai = createOpenAI({
           apiKey: auth.apiKey,
+          ...(auth.baseURL ? { baseURL: auth.baseURL } : {}),
           ...(auth.headers ? { headers: auth.headers } : {}),
         });
-        return openai("gpt-5-codex");
+        return openai("gpt-5.6-luna");
       }
       case "anthropic": {
         const anthropic = createAnthropic({
