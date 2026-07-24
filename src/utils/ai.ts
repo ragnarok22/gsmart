@@ -320,14 +320,14 @@ export class AIBuilder {
         const anthropic = createAnthropic({
           apiKey: auth.apiKey,
         });
-        return anthropic("claude-3-5-haiku-latest");
+        return anthropic("claude-haiku-4-5-20251001");
       }
       case "google": {
         const gemini = createGoogleGenerativeAI({
           apiKey: auth.apiKey,
         });
 
-        return gemini("gemini-2.0-flash");
+        return gemini("gemini-3.5-flash-lite");
       }
       case "mistral": {
         const mistral = createMistral({
@@ -340,7 +340,7 @@ export class AIBuilder {
           apiKey: auth.apiKey,
           baseURL: "https://api.fireworks.ai/inference/v1",
         });
-        return openai("accounts/fireworks/models/firefunction-v1");
+        return openai("accounts/fireworks/models/deepseek-v4-flash");
       }
       case "plataformia": {
         const openai = createOpenAI({

@@ -205,14 +205,14 @@ gsmart completions fish > ~/.config/fish/completions/gsmart.fish
 
 ## 🤖 Supported AI Providers
 
-| Provider         | Model                                                                             | Get API Key                                                  |
-| ---------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| **OpenAI**       | [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)        | [Get Key](https://platform.openai.com/api-keys)              |
-| **Anthropic**    | [Claude](https://www.anthropic.com/claude)                                        | [Get Key](https://console.anthropic.com/settings/keys)       |
-| **Google**       | [Gemini 2.0 Flash](https://ai.google.dev/gemini-api/docs/models#gemini-2.0-flash) | [Get Key](https://console.cloud.google.com/apis/credentials) |
-| **Mistral**      | [Mistral Large](https://mistral.ai/technology/#models)                            | [Get Key](https://console.mistral.ai/api-keys/)              |
-| **Fireworks AI** | [FireFunction V1](https://fireworks.ai/models/fireworks/firefunction-v1)          | [Get Key](https://fireworks.ai/api-keys)                     |
-| **PlataformIA**  | [Radiance](https://docs.plataformia.com/llm-chat-api)                             | [Get Key](https://console.plataformia.com/api-keys)          |
+| Provider         | Model                                                                                       | Get API Key                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **OpenAI**       | [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)                  | [Get Key](https://platform.openai.com/api-keys)              |
+| **Anthropic**    | [Claude Haiku 4.5](https://platform.claude.com/docs/en/about-claude/models/overview)        | [Get Key](https://console.anthropic.com/settings/keys)       |
+| **Google**       | [Gemini 3.5 Flash-Lite](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite) | [Get Key](https://console.cloud.google.com/apis/credentials) |
+| **Mistral**      | [Mistral Large](https://mistral.ai/technology/#models)                                      | [Get Key](https://console.mistral.ai/api-keys/)              |
+| **Fireworks AI** | [DeepSeek V4 Flash](https://fireworks.ai/models/fireworks/deepseek-v4-flash)                | [Get Key](https://fireworks.ai/api-keys)                     |
+| **PlataformIA**  | [Radiance](https://docs.plataformia.com/llm-chat-api)                                       | [Get Key](https://console.plataformia.com/api-keys)          |
 
 ## 🧩 Skill for AI Agents
 

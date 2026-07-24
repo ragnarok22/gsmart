@@ -294,11 +294,11 @@ test("handles Error with empty message", async () => {
 test("each provider creates the correct model", async () => {
   const providerModels: Record<string, { model: string; baseURL?: string }> = {
     openai: { model: "gpt-5.6-luna" },
-    anthropic: { model: "claude-3-5-haiku-latest" },
-    google: { model: "gemini-2.0-flash" },
+    anthropic: { model: "claude-haiku-4-5-20251001" },
+    google: { model: "gemini-3.5-flash-lite" },
     mistral: { model: "mistral-large-latest" },
     fireworks: {
-      model: "accounts/fireworks/models/firefunction-v1",
+      model: "accounts/fireworks/models/deepseek-v4-flash",
       baseURL: "https://api.fireworks.ai/inference/v1",
     },
     plataformia: {
@@ -533,7 +533,7 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
 
   builder.changeProvider("google");
   await builder.generateCommitMessage("main", "diff");
-  assert.equal(capturedModelId, "gemini-2.0-flash");
+  assert.equal(capturedModelId, "gemini-3.5-flash-lite");
 });
 
 // ===========================================================================
