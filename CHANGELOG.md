@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.7] - 2026-07-24
+
+### Fixed
+
+- Fixed OpenAI ChatGPT subscription requests by routing OAuth traffic through the Codex backend and replacing the unavailable GPT-5 Codex model
+
+### Changed
+
+- Updated the default OpenAI, Anthropic, Google, and Fireworks models to active, supported alternatives
+- Updated AI SDK packages, runtime dependencies, development tooling, and the pnpm lockfile
+
 ## [0.14.6] - 2026-06-29
 
 ### Changed
