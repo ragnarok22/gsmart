@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-08-17
+
+### Changed
+
+- Upgraded Chalk to v6 and updated the AI SDK packages for all supported providers
+- Updated development tooling, upgraded pnpm to 11.22.0, and refreshed the lockfile
+
 ## [0.14.7] - 2026-07-24
 
 ### Fixed
@@ -487,7 +494,11 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.14.4...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/ragnarok22/gsmart/compare/v0.14.7...v0.15.0
+[0.14.7]: https://github.com/ragnarok22/gsmart/compare/v0.14.6...v0.14.7
+[0.14.6]: https://github.com/ragnarok22/gsmart/compare/v0.14.5...v0.14.6
+[0.14.5]: https://github.com/ragnarok22/gsmart/compare/v0.14.4...v0.14.5
 [0.14.4]: https://github.com/ragnarok22/gsmart/compare/v0.14.3...v0.14.4
 [0.14.3]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...v0.14.2
