@@ -16,7 +16,7 @@ importers:
         version: 4.0.47(zod@4.4.3)
       '@ai-sdk/mistral':
         specifier: ^4.0.30
-        version: 4.0.30(zod@4.4.3)
+        version: 4.0.31(zod@4.4.3)
       '@ai-sdk/openai':
         specifier: ^4.0.44
         version: 4.0.44(zod@4.4.3)
@@ -108,8 +108,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/mistral@4.0.30':
-    resolution: {integrity: sha512-TOleiDJTzGVwKEyS/cosDoqoT/luPUmSBf4chSatMcX9IjfELDsMIDaaCJ6IT/YYlIO9cg0tAdnlA5mnJSk/+A==}
+  '@ai-sdk/mistral@4.0.31':
+    resolution: {integrity: sha512-T203RydStVxVmAZq3DejqbqpBT4/hah0d+dyJtksu5dHiSGyK1nBcs0wudLBy5kIbSEvnevEz6WiLwiZaREWvw==}
     engines: {node: '>=22'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -1784,7 +1784,7 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
       zod: 4.4.3
 
-  '@ai-sdk/mistral@4.0.30(zod@4.4.3)':
+  '@ai-sdk/mistral@4.0.31(zod@4.4.3)':
     dependencies:
       '@ai-sdk/provider': 4.0.7
       '@ai-sdk/provider-utils': 5.0.28(zod@4.4.3)
