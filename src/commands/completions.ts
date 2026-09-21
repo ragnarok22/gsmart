@@ -240,7 +240,7 @@ export function generateZshCompletion(
   const valueAction = (values: string[]) => {
     const state = `values${states.length}`;
     states.push(
-      `        ${state}) compadd -- ${values.map(quote).join(" ")} ;;`,
+      `        ${state}) compadd -- ${values.map(quote).join(" ")} && ret=0 ;;`,
     );
     return `->${state}`;
   };
@@ -272,7 +272,7 @@ export function generateZshCompletion(
       }
       return `        ${quote(name)})
             _arguments -s -S -C \\
-                ${specs.join(" \\\n                ")}
+                ${specs.join(" \\\n                ")} && ret=0
             ;;`;
     })
     .join("\n");
@@ -286,6 +286,7 @@ export function generateZshCompletion(
 
 _gsmart() {
     local curcontext="$curcontext" state state_descr
+    local -i ret=1 matches_before=\${compstate[nmatches]:-0}
     local -a line commands
     local -A opt_args
     local -a words=("\${words[@]}")
@@ -305,11 +306,15 @@ ${contexts}
     case "$state" in
         command)
             if ((!end_options && positional == 0)); then
-                _describe -t commands 'gsmart commands' commands
+                _describe -t commands 'gsmart commands' commands && ret=0
             fi
             ;;
 ${states.join("\n")}
     esac
+    # A ->state action can fail after _arguments has already added options.
+    # Preserve those matches so matcher-list does not repeat them.
+    (( compstate[nmatches] > matches_before )) && ret=0
+    return ret
 }
 
 compdef _gsmart gsmart
