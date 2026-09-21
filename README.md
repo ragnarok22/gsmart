@@ -411,6 +411,8 @@ Completions work directly with `gsmart`: try `gsmart --<Tab>`, `gsmart --provide
 
 **Updating an existing setup?** For Bash and Zsh, reload the completion definition with the `eval` command below or start a new terminal. For Fish, regenerate the saved completion file and start a new terminal.
 
+If your shell startup caches generated completion scripts, regenerate that cached copy after updating GSmart so new sessions load the current definitions too.
+
 <details>
 <summary><strong>Bash</strong> — add to <code>~/.bashrc</code></summary>
 

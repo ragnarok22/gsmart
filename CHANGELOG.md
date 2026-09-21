@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed update notifications recommending npm instead of pnpm when a global installation resolves to the pnpm store
 - Fixed Bash, Zsh, and Fish completions for `gsmart` without an explicit `generate` subcommand, including provider values, chained options, and `config`
 - Kept welcome and update messages out of generated shell completion scripts, including on first run
+- Fixed duplicated Zsh options and detached descriptions when completing `gsmart -` with multiple matchers, including Oh My Zsh's defaults
 
 ### Changed
 
