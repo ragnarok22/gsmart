@@ -2,7 +2,7 @@
 
 **Your changes. A clear commit message.**
 
-GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Commit](https://www.conventionalcommits.org/). Review the suggestion, regenerate it, copy it, or commit—all from your terminal.
+GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Commit](https://www.conventionalcommits.org/). Review the suggestion, edit it, refine it with feedback, copy it, or commit—all from your terminal.
 
 [![NPM Version](https://img.shields.io/npm/v/gsmart)](https://www.npmjs.com/package/gsmart)
 [![Test](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml/badge.svg)](https://github.com/ragnarok22/gsmart/actions/workflows/test.yml)
@@ -72,27 +72,34 @@ A typical interaction looks like this; the generated message depends on your cha
 
 ```text
 $ gsmart
-✔ feat(auth): add password reset
+✔ Message generated
+
+Candidate #1 (generated):
+feat(auth): add password reset
 ? What would you like to do?
 ❯ Commit
+  Edit message
+  Regenerate with feedback
+  Browse / restore candidates
   Copy message to clipboard
-  Regenerate message
   Do nothing
 ```
 
-| Action                    | What happens                                            |
-| ------------------------- | ------------------------------------------------------- |
-| Commit                    | Creates a local Git commit using the generated message. |
-| Copy message to clipboard | Copies the message so you can use or edit it elsewhere. |
-| Regenerate message        | Requests another suggestion for your changes.           |
-| Do nothing                | Ends the run, leaving your changes available for later. |
+| Action                      | What happens                                                                             |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| Commit                      | Checks staged content, then creates a local Git commit using the selected message.       |
+| Edit message                | Opens the subject and multiline body in your editor, then returns to review.             |
+| Regenerate with feedback    | Uses your feedback and current candidate to request a revised message.                   |
+| Browse / restore candidates | Compares complete messages and restores an earlier candidate without another AI request. |
+| Copy message to clipboard   | Copies the message so you can use or edit it elsewhere.                                  |
+| Do nothing                  | Ends the run, leaving your changes available for later.                                  |
 
 **Nothing staged yet?** Run `gsmart` and use the file picker to choose what to stage. If you have multiple providers configured, you'll also be asked which one to use.
 
 ## How it works
 
 ```text
-Stage or select changes → Generate a message → Review → Commit, copy, or regenerate
+Stage or select changes → Generate a message → Review → Edit, refine, restore, copy, or commit
 ```
 
 1. **Read the changes.** GSmart uses your staged diff—the changes Git is ready to commit. If that diff is empty, it offers to stage files for you.
@@ -117,6 +124,62 @@ Common types include `feat` for new functionality, `fix` for a bug fix, `docs` f
 **For better suggestions:** stage one logical change at a time and use a [custom prompt](#configuration) to explain context the diff cannot show.
 
 ## Everyday workflows
+
+### Edit and refine a message
+
+Choose **Edit message** to change the subject and multiline body in an external editor. The first line is the subject; separate the body with a blank line. Save and close the file to return to review, then select **Commit** when satisfied.
+
+Choose **Regenerate with feedback** for targeted changes such as “shorter”, “mention the migration”, or “this fixes a bug”. Submit blank feedback for another version. Refinement reuses the selected provider, captured branch and diff, custom instructions, and current candidate—including manual edits.
+
+Example review session:
+
+```text
+Candidate #1 (generated):
+feat(db): add accounts migration and initialize account records
+? What would you like to do? › Regenerate with feedback
+? What should change? › shorter; mention the migration
+✔ Message generated
+
+Candidate #2 (refined):
+feat(db): add accounts migration
+? What would you like to do? › Edit message
+
+Candidate #3 (edited):
+feat(db): add accounts migration
+
+Preserve existing account IDs during migration.
+? What would you like to do? › Commit
+✔ Changes committed successfully
+```
+
+**Browse / restore candidates** previews complete messages alongside the current candidate. Confirm **Restore** to select one without another AI request. History includes generated, edited, and refined messages and lasts for the current invocation only. Editing, refining, and restoring always return to review.
+
+Press **Esc** to cancel feedback or candidate browsing. Press **Ctrl+C** during a refinement request to cancel it and return to the current candidate. Errors and canceled operations preserve the current candidate and never create a commit.
+
+**SIGTERM** requests shutdown instead of returning to review. GSmart cancels the active editor or refinement operation, finishes cleanup, and exits.
+
+#### Configure your editor
+
+GSmart uses the first non-empty setting in `$VISUAL`, then `$EDITOR`. If neither is set, it uses `vi` on macOS/Linux or `notepad` on Windows. Editor arguments and quoted executable paths are supported. Configure GUI editors to wait until you close the message file:
+
+```bash
+# VS Code (Bash/Zsh)
+export VISUAL="code --wait"
+
+# Or use a terminal editor
+export EDITOR="nano"
+```
+
+```powershell
+# VS Code (Windows PowerShell)
+$env:VISUAL = "code --wait"
+```
+
+To cancel editing, quit the editor without saving (for example, `:q!` in `vi`); an unchanged file leaves the current candidate selected. If you already saved changes, restore the earlier candidate from history. Empty messages and editor failures keep the current candidate and display an error so you can retry. Temporary editor files are cleaned up afterward.
+
+#### If staged content changes during review
+
+Before committing, GSmart checks the staged content and its Git base again. If they have changed, it marks the candidate as outdated and offers to generate a fresh message using the same provider. Review that message and select **Commit** again. Earlier candidates remain available for comparison or copying; restoring or editing one does not bypass this check. Declining or canceling the refresh keeps the current candidate.
 
 ### Choose a provider for this run
 
@@ -147,6 +210,8 @@ gsmart --yes --provider openai
 ```
 
 Login must already be configured. Specifying a provider makes the choice explicit; otherwise, GSmart uses the first configured provider in the [table's order](#providers).
+
+`--yes` skips message review and editing. If staged content changes before its commit or cannot be verified, it stops with exit status `1` and asks you to rerun GSmart.
 
 | Command                  | If a staged diff exists | If nothing is staged                          | Creates a commit? |
 | ------------------------ | ----------------------- | --------------------------------------------- | ----------------- |
@@ -207,10 +272,12 @@ The selected custom instructions are added to GSmart's built-in Conventional Com
 
 ### Environment variables
 
-| Variable            | Purpose                                    | Default                               |
-| ------------------- | ------------------------------------------ | ------------------------------------- |
-| `GSMART_TIMEOUT`    | Timeout per AI generation attempt, in ms   | `30000` (30 seconds)                  |
-| `GSMART_CONFIG_DIR` | Directory for GSmart's local configuration | Your OS's user configuration location |
+| Variable            | Purpose                                        | Default                                   |
+| ------------------- | ---------------------------------------------- | ----------------------------------------- |
+| `GSMART_TIMEOUT`    | Timeout per AI generation attempt, in ms       | `30000` (30 seconds)                      |
+| `GSMART_CONFIG_DIR` | Directory for GSmart's local configuration     | Your OS's user configuration location     |
+| `VISUAL`            | Preferred editor command for message editing   | Unset                                     |
+| `EDITOR`            | Editor command when `VISUAL` is unset or blank | `vi` on macOS/Linux; `notepad` on Windows |
 
 For example, allow up to 60 seconds per generation attempt in Bash or Zsh:
 
@@ -325,6 +392,8 @@ Model selection is built into the application rather than exposed as a CLI optio
 | Failed to commit changes                 | Check your Git identity, repository state, and hook output. GSmart attempts to copy the message to your clipboard as a fallback. |
 | Could not copy message to clipboard      | Copy the printed message directly from the terminal.                                                                             |
 | Failed to unstage files after dry-run    | Run `git status` to inspect the index and unstage the files you intended only to preview.                                        |
+| Editor failed or edits did not appear    | Check `VISUAL` / `EDITOR` and add a wait flag for GUI editors, such as `code --wait`, then retry **Edit message**.               |
+| Staged content has changed               | Regenerate for the updated changes, review the new message, then choose **Commit** again.                                        |
 
 For more detail, combine debug logging with a preview:
 
@@ -410,7 +479,7 @@ mkdir -p coverage
 pnpm run test:coverage
 ```
 
-`pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite first, then instruments a selected set of tests.
+`pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite once under c8, which maps results back to the TypeScript source and merges coverage from mocked module instances. New `test/*.test.ts` files are included automatically.
 
 </details>
 
@@ -425,6 +494,8 @@ pnpm run test:coverage
 | `src/utils/ai.ts`           | Provider models, prompts, timeouts, and retries          |
 | `src/utils/openai-oauth.ts` | ChatGPT browser login and token refresh                  |
 | `src/utils/git.ts`          | Git operations and diff parsing                          |
+| `src/utils/editor.ts`       | External message editing and temporary-file cleanup      |
+| `src/utils/interrupt.ts`    | Foreground operation cancellation                        |
 | `src/utils/index.ts`        | File selection, staging, and clipboard helpers           |
 | `src/utils/config.ts`       | Local credentials and settings                           |
 | `src/definitions.ts`        | Shared TypeScript contracts                              |

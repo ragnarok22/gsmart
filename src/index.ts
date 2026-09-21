@@ -14,12 +14,17 @@ import { checkForUpdates } from "./utils/version-check";
 import { showHolidayMessage } from "./utils/holiday";
 import { enableDebug, debugLog } from "./utils/debug";
 import { showWelcomeOnce } from "./utils/welcome";
+import { dispatchInterrupt } from "./utils/interrupt";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
-const handleSigTerm = () => process.exit(0);
+const handleSigTerm = (signal: NodeJS.Signals) => {
+  const exit = () => process.exit(0);
+  if (!dispatchInterrupt(signal, signal === "SIGTERM" ? exit : undefined))
+    exit();
+};
 
-process.on("SIGINT", handleSigTerm);
-process.on("SIGTERM", handleSigTerm);
+process.on("SIGINT", () => handleSigTerm("SIGINT"));
+process.on("SIGTERM", () => handleSigTerm("SIGTERM"));
 
 async function main() {
   // Check for updates
