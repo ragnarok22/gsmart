@@ -41,6 +41,8 @@ zle -C gsmart-test complete-word _gsmart_test_complete
 '''
     script.write_text(
         "autoload -Uz compinit\ncompinit -D\n"
+        + request.get("setup", "")
+        + "\n"
         + request["script"]
         + ("\nzle -C gsmart-test list-choices _main_complete\n" if display else capture_widget)
         + r'''
