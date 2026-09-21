@@ -506,6 +506,15 @@ for (const args of [[], ["generate"]]) {
     assert.equal(result.error, undefined);
     assert.equal(result.status, 1);
     assert.equal(result.stdout, "");
-    assert.equal(result.stderr, "error: generation failed asynchronously\n");
+    // Node may also emit runtime diagnostics, such as esmock's DEP0205 warning.
+    assert.deepEqual(
+      result.stderr.match(/^error:.*$/gm),
+      ["error: generation failed asynchronously"],
+      result.stderr,
+    );
+    assert.doesNotMatch(
+      result.stderr,
+      /[Uu]nhandled(?:Promise)?Rejection|[Uu]ncaughtException|^\w*Error:|^\s+at\s/m,
+    );
   });
 }
