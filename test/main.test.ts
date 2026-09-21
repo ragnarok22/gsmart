@@ -138,6 +138,11 @@ function buildMainCommand(
     AIBuilder: FakeAIBuilder as never,
     getActiveProviders: () => providers as never,
     retrieveFilesToCommit: async () => changes,
+    getStagedSnapshot: async () => ({
+      diff: changes ?? "",
+      branch,
+      fingerprint: "staged",
+    }),
     getGitBranch: async () => branch,
     commitChanges: async (msg: string) => {
       committedMessage = msg;
@@ -202,6 +207,11 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
     AIBuilder: FakeAIBuilder as never,
     getActiveProviders: () => [activeProviders[0]] as never,
     retrieveFilesToCommit: async () => changesPromise,
+    getStagedSnapshot: async () => ({
+      diff: "diff content",
+      branch: "main",
+      fingerprint: "staged",
+    }),
     getGitBranch: async () => {
       branchRequested = true;
       return "main";

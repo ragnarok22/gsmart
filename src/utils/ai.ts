@@ -2,6 +2,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createMistral } from "@ai-sdk/mistral";
+import { setTimeout as delay } from "node:timers/promises";
 import {
   generateText,
   type LanguageModel,
@@ -198,14 +199,19 @@ export type RetryOptions = {
   delayFn?: (ms: number) => Promise<void>;
 };
 
+export type GenerationOptions = RetryOptions & {
+  abortSignal?: AbortSignal;
+  refinement?: {
+    previousMessage: string;
+    feedback: string;
+  };
+};
+
 type ProviderAuth = {
   apiKey: string;
   baseURL?: string;
   headers?: Record<string, string>;
 };
-
-const defaultDelay = (ms: number) =>
-  new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 const resolveTimeoutMs = (value: string | undefined): number => {
   const parsed = Number(value);
@@ -239,18 +245,26 @@ export class AIBuilder {
   async generateCommitMessage(
     branch_name: string,
     changes: string,
-    options?: RetryOptions,
+    options?: GenerationOptions,
   ) {
     debugLog("ai", `provider: ${this.provider}`);
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
-    const auth = await this.__resolveAuth();
-    if ("error" in auth) {
-      debugLog("ai", `auth validation failed for ${this.provider}`);
-      return auth;
-    }
+    try {
+      options?.abortSignal?.throwIfAborted();
+      const auth = await this.__resolveAuth();
+      options?.abortSignal?.throwIfAborted();
+      if ("error" in auth) {
+        debugLog("ai", `auth validation failed for ${this.provider}`);
+        return auth;
+      }
 
-    const model = this.__generateModel(auth);
-    return this.__generateText(model, branch_name, changes, options);
+      const model = this.__generateModel(auth);
+      return await this.__generateText(model, branch_name, changes, options);
+    } catch (error) {
+      if (options?.abortSignal?.aborted)
+        return { error: "Generation canceled." };
+      throw error;
+    }
   }
 
   private async __resolveAuth(): Promise<ProviderAuth | { error: string }> {
@@ -366,19 +380,25 @@ export class AIBuilder {
     model: LanguageModel,
     branch_name: string,
     changes: string,
-    options?: RetryOptions,
+    options?: GenerationOptions,
   ): Promise<string | { error: string }> {
     const [system, initialPrompt] = buildPrompt(branch_name, changes);
-    const prompt = this.prompt
-      ? `${initialPrompt}
-
-Additional instructions:
-${this.prompt}`
-      : initialPrompt;
+    const refinement = options?.refinement;
+    const prompt = [
+      initialPrompt,
+      this.prompt ? `Additional instructions:\n${this.prompt}` : "",
+      refinement
+        ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise. A multiline body is allowed. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
+        : "",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
 
     const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
-    const delayFn = options?.delayFn ?? defaultDelay;
+    const delayFn =
+      options?.delayFn ??
+      ((ms: number) => delay(ms, undefined, { signal: options?.abortSignal }));
     debugLog("ai", `timeout: ${timeoutMs}ms`);
 
     const stopTimer = debugTime("ai");
@@ -386,20 +406,22 @@ ${this.prompt}`
     const runAttempt = async (
       attempt: number,
     ): Promise<string | { error: string }> => {
+      options?.abortSignal?.throwIfAborted();
       try {
         const { text } = await generateText({
           model,
           system,
           prompt,
           timeout: { totalMs: timeoutMs },
+          ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
         });
 
-        stopTimer();
+        options?.abortSignal?.throwIfAborted();
         debugLog("ai", "generation succeeded");
         return text;
       } catch (error) {
+        if (options?.abortSignal?.aborted) throw error;
         if (!isRetryableError(error) || attempt === maxRetries) {
-          stopTimer();
           const classified = classifyError(error, this.provider, timeoutMs);
           debugLog("ai", `generation failed: ${classified}`);
           return { error: classified };
@@ -413,6 +435,10 @@ ${this.prompt}`
       }
     };
 
-    return runAttempt(1);
+    try {
+      return await runAttempt(1);
+    } finally {
+      stopTimer();
+    }
   }
 }

@@ -1,5 +1,6 @@
 import { spawnSync, type SpawnSyncOptions } from "node:child_process";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import type { GitStatus } from "../definitions";
 import { debugLog, debugTime } from "./debug";
 
@@ -44,6 +45,55 @@ export const getGitChanges = async (): Promise<string> => {
   } catch {
     return "";
   }
+};
+
+export type StagedSnapshot = {
+  branch: string;
+  diff: string;
+  fingerprint: string;
+};
+
+/** Capture the diff and its index/base identity, including binary and mode changes. */
+export const getStagedSnapshot = async (): Promise<StagedSnapshot> => {
+  const cwd = runGit(["rev-parse", "--show-toplevel"]);
+  const identity = () => {
+    const branch = runGit(["branch", "--show-current"], { cwd });
+    // --revs-only returns an empty value for an unborn HEAD.
+    const head = runGit(["rev-parse", "--revs-only", "HEAD"], { cwd });
+    const index = runGit(["ls-files", "--stage", "--full-name", "-z"], {
+      cwd,
+      trim: false,
+    });
+    if (/(?:^|\0)\d+ [a-f0-9]+ [123]\t/.test(index)) {
+      throw new Error(
+        "Resolve staged merge conflicts before generating a commit message.",
+      );
+    }
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify([branch, head, index]))
+      .digest("hex");
+    return { branch, fingerprint };
+  };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const before = identity();
+    const diff = runGit(
+      [
+        "diff",
+        "--cached",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--full-index",
+        "--no-color",
+      ],
+      { cwd, trim: false },
+    );
+    const after = identity();
+    if (before.fingerprint === after.fingerprint) return { ...after, diff };
+  }
+  throw new Error(
+    "Staged changes kept changing while being read. Finish staging and try again.",
+  );
 };
 
 export const commitChanges = async (message: string): Promise<boolean> => {
