@@ -40,7 +40,8 @@ _gsmart_test_complete() {
 zle -C gsmart-test complete-word _gsmart_test_complete
 '''
     script.write_text(
-        "autoload -Uz compinit\ncompinit -D\n"
+        # Audit and exclude insecure fpath entries without an interactive prompt.
+        "autoload -Uz compinit\ncompinit -i -D\n"
         + request.get("setup", "")
         + "\n"
         + request["script"]

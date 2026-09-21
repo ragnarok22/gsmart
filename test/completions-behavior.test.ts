@@ -2,6 +2,9 @@ import "../test-support/setup-env";
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 import { ICommand } from "../src/definitions.ts";
@@ -79,6 +82,7 @@ function completeZsh(
   words: string[],
   registry = commands,
   values: Record<string, string[]> = flagValues,
+  env: NodeJS.ProcessEnv = process.env,
 ): string[] {
   const result = spawnSync(
     "python3",
@@ -95,6 +99,7 @@ function completeZsh(
       }),
       encoding: "utf8",
       timeout: 15_000,
+      env,
     },
   );
   assert.equal(result.error, undefined);
@@ -102,13 +107,37 @@ function completeZsh(
   return JSON.parse(result.stdout);
 }
 
+it(
+  "initializes Zsh despite an unrelated insecure fpath directory",
+  shellTestOptions("zsh"),
+  (t) => {
+    const directory = mkdtempSync(join(tmpdir(), "gsmart-insecure-fpath-"));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    chmodSync(directory, 0o777);
+    writeFileSync(
+      join(directory, "_gsmart_unrelated"),
+      "#compdef unrelated\nreturn 1\n",
+    );
+    const paths = spawnSync(shells.zsh, ["-fc", "print -rl -- $fpath"], {
+      encoding: "utf8",
+    });
+    assert.equal(paths.status, 0, paths.stderr);
+    const matches = completeZsh(["gsmart", "--"], commands, flagValues, {
+      ...process.env,
+      FPATH: [directory, ...paths.stdout.trim().split("\n")].join(":"),
+    });
+    assert.ok(matches.includes("--yes"));
+  },
+);
+
 function completeFish(
   words: string[],
   registry = commands,
   values: Record<string, string[]> = flagValues,
 ): string[] {
-  const result = spawnSync(shells.fish, ["--no-config"], {
-    input: `${generateFishCompletion(registry, values)}\ncomplete -C ${fishQuote(commandLine(words, fishQuote))}\n`,
+  const script = `${generateFishCompletion(registry, values)}\ncomplete -C ${fishQuote(commandLine(words, fishQuote))}\n`;
+  // Fish 3.x mistakes Node's socket-backed stdin for a directory.
+  const result = spawnSync(shells.fish, ["--no-config", "-c", script], {
     encoding: "utf8",
     timeout: 10_000,
   });
