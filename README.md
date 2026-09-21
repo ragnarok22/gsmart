@@ -156,6 +156,8 @@ Preserve existing account IDs during migration.
 
 Press **Esc** to cancel feedback or candidate browsing. Press **Ctrl+C** during a refinement request to cancel it and return to the current candidate. Errors and canceled operations preserve the current candidate and never create a commit.
 
+**SIGTERM** requests shutdown instead of returning to review. GSmart cancels the active editor or refinement operation, finishes cleanup, and exits.
+
 #### Configure your editor
 
 GSmart uses the first non-empty setting in `$VISUAL`, then `$EDITOR`. If neither is set, it uses `vi` on macOS/Linux or `notepad` on Windows. Editor arguments and quoted executable paths are supported. Configure GUI editors to wait until you close the message file:
