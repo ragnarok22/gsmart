@@ -84,6 +84,28 @@ const defaults = {
   dryRun: false,
 };
 
+for (const args of [
+  ["--language", "es", "--history-examples", "0"],
+  ["generate", "--language=pt-BR", "--history-examples=5"],
+  ["config", "--show-effective", "--language", "es"],
+]) {
+  it(`parses convention options without implicit overrides: ${args.join(" ")}`, async () => {
+    const app = setup();
+    await app.parse(args);
+    const options = app.calls[0].options;
+    assert.equal(
+      options.language,
+      args.includes("--language=pt-BR") ? "pt-BR" : "es",
+    );
+    if (args.includes("--history-examples"))
+      assert.equal(options.historyExamples, "0");
+    if (args.includes("--history-examples=5"))
+      assert.equal(options.historyExamples, "5");
+    if (args.includes("--show-effective"))
+      assert.equal(options.showEffective, true);
+  });
+}
+
 for (const args of [[], ["generate"]]) {
   it(`runs generation with defaults for ${JSON.stringify(args)}`, async () => {
     const app = setup();

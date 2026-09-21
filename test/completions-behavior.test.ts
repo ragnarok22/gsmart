@@ -331,6 +331,8 @@ for (const [shell, complete] of Object.entries({
           "--dry-run",
           "--prompt",
           "--provider",
+          "--language",
+          "--history-examples",
           "--help",
           "--debug",
           "--version",
@@ -347,6 +349,8 @@ for (const [shell, complete] of Object.entries({
       });
 
       for (const before of [
+        ["--language", "es"],
+        ["--history-examples", "0"],
         ["--provider", "openai"],
         ["--provider=openai"],
         ["-Popenai"],
@@ -411,6 +415,7 @@ for (const [shell, complete] of Object.entries({
       });
 
       for (const before of [
+        ["config", "--show-effective"],
         ["config", "--show"],
         ["--debug", "config", "--show"],
         ["--provider", "openai", "config"],
@@ -422,6 +427,8 @@ for (const [shell, complete] of Object.entries({
       ]) {
         it(`keeps config options after ${before.join(" ")}`, () => {
           const matches = complete(["gsmart", ...before, "--"]);
+          if (!before.includes("--show-effective"))
+            assert.ok(matches.includes("--show-effective"));
           assert.ok(
             matches.some(
               (match) => match.replace(/=$/, "") === "--add-custom-prompt",

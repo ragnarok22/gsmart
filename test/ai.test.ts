@@ -8,6 +8,7 @@ import {
   DEFAULT_MAX_RETRIES,
 } from "../src/utils/constants.ts";
 import type { Provider } from "../src/definitions.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
 
 // ---------------------------------------------------------------------------
 // Helper: create an esmock'd AIBuilder with a fake generateText and config
@@ -644,6 +645,49 @@ test("prompt includes branch name and changes", async () => {
 // ===========================================================================
 // Constructor and changeProvider
 // ===========================================================================
+
+test("resolved conventions and history reach the SDK for generation and refinement", async () => {
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+  const builder = new AIBuilder("openai", "Obsolete user prompt");
+  const { conventions } = resolveConventions([
+    {
+      source: "repository",
+      settings: {
+        types: ["improve"],
+        scopes: ["engine"],
+        language: "pt-BR",
+        instructions: "Team instructions",
+        headerMaxLength: 70,
+        body: { presence: "forbidden" },
+        history: { enabled: true },
+      },
+    },
+  ]);
+  for (const refinement of [
+    undefined,
+    { previousMessage: "improve(engine): old message", feedback: "shorter" },
+  ]) {
+    await builder.generateCommitMessage("feature/APP-1", "+ changes", {
+      conventions,
+      historyExamples: ["improve(engine): example style"],
+      refinement,
+    });
+    const system = capturedOptions().system as string;
+    const prompt = capturedOptions().prompt as string;
+    assert.match(system, /Allowed types: improve/);
+    assert.match(system, /Allowed scopes: engine/);
+    assert.match(system, /language pt-BR/);
+    assert.match(system, /at most 70/);
+    assert.match(system, /body is forbidden/);
+    assert.match(prompt, /Team instructions/);
+    assert.match(prompt, /improve\(engine\): example style/);
+    assert.doesNotMatch(
+      prompt,
+      /Obsolete user prompt|A multiline body is allowed/,
+    );
+    if (refinement) assert.match(prompt, /shorter/);
+  }
+});
 
 test("constructor sets provider and prompt", async () => {
   const { AIBuilder } = await buildMockedAI();

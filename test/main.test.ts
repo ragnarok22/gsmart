@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { stripVTControlCharacters } from "node:util";
 import { createMainCommand } from "../src/commands/main.ts";
 import { parseDiffFileNames } from "../src/utils/git.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
 
 const normalizeMessage = (message?: string) =>
   message === undefined ? undefined : stripVTControlCharacters(message);
@@ -113,6 +114,11 @@ function buildMainCommand(
   }
 
   const MainCommand = createMainCommand({
+    loadEffectiveConventions: async ({ user = {}, cli = {} } = {}) =>
+      resolveConventions([
+        { source: "user", settings: user },
+        { source: "CLI", settings: cli },
+      ]),
     spinner: spinnerFactory.spinner as never,
     prompt: async (opts: unknown) => {
       const name = (opts as { name: string }).name;
@@ -195,6 +201,7 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
   }
 
   const MainCommand = createMainCommand({
+    loadEffectiveConventions: async () => resolveConventions(),
     spinner: spinnerFactory.spinner as never,
     prompt: async () => ({}),
     config: {

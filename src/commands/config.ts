@@ -3,6 +3,11 @@ import ora from "ora";
 import prompts from "prompts";
 import { ICommand } from "../definitions";
 import { setPrompt, getPrompt, clearPrompt } from "../utils/prompt-config";
+import { loadEffectiveConventions } from "../utils/repository-config";
+import {
+  conventionsFromOptions,
+  type ConventionOptions,
+} from "../utils/conventions";
 
 const PASTE_START = "\x1b[200~";
 const PASTE_END = "\x1b[201~";
@@ -144,8 +149,9 @@ export const readPromptInput = (
   });
 };
 
-type ConfigOptions = {
+type ConfigOptions = ConventionOptions & {
   show?: boolean;
+  showEffective?: boolean;
   addCustomPrompt?: string;
   clearCustomPrompt?: boolean;
 };
@@ -165,6 +171,7 @@ type ConfigCommandDeps = {
   spinner: typeof ora;
   promptConfig: PromptConfig;
   readPromptInput: typeof readPromptInput;
+  loadEffectiveConventions: typeof loadEffectiveConventions;
   log: typeof console.log;
 };
 
@@ -173,6 +180,7 @@ const defaultDeps: ConfigCommandDeps = {
   spinner: ora,
   promptConfig: { setPrompt, getPrompt, clearPrompt },
   readPromptInput,
+  loadEffectiveConventions,
   log: console.log,
 };
 
@@ -193,6 +201,15 @@ const configAction = async (
   options: ConfigOptions = {},
   deps: ConfigCommandDeps = defaultDeps,
 ) => {
+  if (options.showEffective) {
+    const savedPrompt = deps.promptConfig.getPrompt();
+    const effective = await deps.loadEffectiveConventions({
+      user: savedPrompt ? { instructions: savedPrompt } : {},
+      cli: conventionsFromOptions(options),
+    });
+    deps.log(JSON.stringify(effective, null, 2));
+    return;
+  }
   if (options.addCustomPrompt) {
     deps.promptConfig.setPrompt(options.addCustomPrompt);
     deps.spinner().succeed(chalk.green("Default prompt saved successfully"));
@@ -288,6 +305,11 @@ export const createConfigCommand = (
       {
         flags: "-s, --show",
         description: "Show current configuration",
+      },
+      {
+        flags: "--show-effective",
+        description:
+          "Show resolved commit conventions, sources, and compatibility diagnostics",
       },
       {
         flags: "--add-custom-prompt <prompt>",

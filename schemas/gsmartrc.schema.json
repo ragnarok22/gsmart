@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/ragnarok22/gsmart/main/schemas/gsmartrc.schema.json",
+  "title": "GSmart repository commit conventions",
+  "description": "Place .gsmartrc.json at the Git root. Credentials belong in user configuration, never in this file.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "types": {
+      "description": "Allowed commit types. null allows any Conventional Commit type.",
+      "anyOf": [{ "$ref": "#/definitions/names" }, { "type": "null" }]
+    },
+    "scopes": {
+      "description": "Allowed scopes; each scope component separated by /, \\ or , must be listed. null allows any scope.",
+      "anyOf": [{ "$ref": "#/definitions/names" }, { "type": "null" }]
+    },
+    "scope": {
+      "enum": ["optional", "required", "forbidden"],
+      "default": "optional"
+    },
+    "headerMaxLength": {
+      "description": "Maximum length of the entire first line, including type and scope. null removes the limit.",
+      "$ref": "#/definitions/length"
+    },
+    "subjectMaxLength": {
+      "description": "Maximum length of the description after type(scope): . null removes the limit.",
+      "$ref": "#/definitions/length"
+    },
+    "language": {
+      "description": "BCP 47 output language tag, e.g. en, es or pt-BR. Type tokens and footer labels keep their configured spelling.",
+      "type": "string",
+      "format": "language-tag",
+      "default": "en"
+    },
+    "instructions": {
+      "description": "Additional generation instructions. An empty string explicitly clears inherited instructions.",
+      "type": "string",
+      "maxLength": 10000
+    },
+    "tickets": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prefixes": {
+          "description": "Allowed prefixes followed by numeric IDs. null preserves any supplied ticket ID without restricting its prefix.",
+          "type": ["array", "null"],
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "pattern": "^\\S+$"
+          },
+          "default": null
+        },
+        "required": { "type": "boolean", "default": false },
+        "placement": {
+          "enum": ["subject", "body", "footer"],
+          "default": "footer"
+        },
+        "footerToken": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z-]*$",
+          "maxLength": 50,
+          "default": "Refs"
+        }
+      }
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "presence": {
+          "enum": ["optional", "required", "forbidden"],
+          "default": "optional"
+        },
+        "leadingBlank": { "type": "boolean", "default": true },
+        "maxLineLength": {
+          "description": "Maximum body line length; lines containing a URL are exempt, as in commitlint.",
+          "$ref": "#/definitions/length"
+        },
+        "instructions": { "type": "string", "maxLength": 10000 }
+      }
+    },
+    "footer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "leadingBlank": { "type": "boolean", "default": true }
+      }
+    },
+    "breakingChanges": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requireFooter": {
+          "description": "Require a BREAKING CHANGE: footer for breaking changes, even when the header uses !.",
+          "type": "boolean",
+          "default": false
+        },
+        "instructions": { "type": "string", "maxLength": 10000 }
+      }
+    },
+    "commitlint": { "type": "boolean", "default": true },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "default": 5
+        }
+      }
+    }
+  },
+  "definitions": {
+    "names": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100,
+        "pattern": "^[^\\s():!]+$"
+      }
+    },
+    "length": {
+      "anyOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }],
+      "default": null
+    }
+  }
+}

@@ -1,11 +1,12 @@
 import ora from "ora";
 import chalk from "chalk";
 import prompts from "prompts";
-import { ICommand, IProvider } from "../definitions";
+import { ICommand, IProvider, type EffectiveConventions } from "../definitions";
 import {
   commitChanges,
   getGitBranch,
   getStagedSnapshot,
+  getRecentCommitSubjects,
   parseDiffFileNames,
   type StagedSnapshot,
 } from "../utils/git";
@@ -16,9 +17,13 @@ import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 import { debugLog, debugTime } from "../utils/debug";
 import { editMessage } from "../utils/editor";
 import { withInterruptHandler } from "../utils/interrupt";
+import { loadEffectiveConventions } from "../utils/repository-config";
+import {
+  conventionsFromOptions,
+  type ConventionOptions,
+} from "../utils/conventions";
 
-type MainCommandOptions = {
-  prompt?: string;
+type MainCommandOptions = ConventionOptions & {
   provider?: string;
   yes?: boolean;
   dryRun?: boolean;
@@ -48,6 +53,8 @@ type MainCommandDeps = {
   retrieveFilesToCommit: typeof retrieveFilesToCommit;
   getGitBranch: typeof getGitBranch;
   getStagedSnapshot: typeof getStagedSnapshot;
+  loadEffectiveConventions: typeof loadEffectiveConventions;
+  getRecentCommitSubjects: typeof getRecentCommitSubjects;
   editMessage: typeof editMessage;
   commitChanges: typeof commitChanges;
   copyToClipboard: typeof copyToClipboard;
@@ -67,6 +74,8 @@ const defaultDeps: MainCommandDeps = {
   retrieveFilesToCommit,
   getGitBranch,
   getStagedSnapshot,
+  loadEffectiveConventions,
+  getRecentCommitSubjects,
   editMessage,
   commitChanges,
   copyToClipboard,
@@ -138,6 +147,30 @@ const mainAction = async (
   deps: MainCommandDeps = defaultDeps,
 ) => {
   const spinner = deps.spinner("").start();
+  let effective: EffectiveConventions;
+  let historyExamples: string[] = [];
+  try {
+    const savedPrompt = deps.config.getPrompt();
+    effective = await deps.loadEffectiveConventions({
+      user: savedPrompt ? { instructions: savedPrompt } : {},
+      cli: conventionsFromOptions(options),
+    });
+    for (const diagnostic of effective.diagnostics)
+      deps.debugLog("config", diagnostic);
+    const history = effective.conventions.history;
+    if (history.enabled && effective.root) {
+      historyExamples = await deps.getRecentCommitSubjects(
+        effective.root,
+        history.limit,
+      );
+    }
+  } catch (error) {
+    spinner.fail(
+      chalk.red(error instanceof Error ? error.message : String(error)),
+    );
+    deps.setExitCode(1);
+    return;
+  }
   const [changes, branch] = await Promise.all([
     deps.retrieveFilesToCommit(spinner, {
       autoStage: Boolean(options.yes),
@@ -207,7 +240,7 @@ const mainAction = async (
   deps.debugLog("generate", `provider: ${selectedProvider.title}`);
   if (options.provider)
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
-  const prompt = options.prompt || deps.config.getPrompt() || "";
+  const prompt = effective.conventions.instructions;
   const ai = new deps.AIBuilder(selectedProvider.value, prompt);
 
   const generate = async (
@@ -226,6 +259,8 @@ const mainAction = async (
           context.branch,
           context.diff,
           {
+            conventions: effective.conventions,
+            historyExamples,
             ...(refinement ? { refinement } : {}),
             ...(cancellable ? { abortSignal: controller.signal } : {}),
             onRetry: (attempt, maxRetries) => {
@@ -467,6 +502,15 @@ export const createMainCommand = (
         flags: "-p, --prompt <prompt>",
         default: "",
         description: "The prompt to use for generating the commit message",
+      },
+      {
+        flags: "--language <tag>",
+        description: "Output language tag for this run (e.g. en, es, pt-BR)",
+      },
+      {
+        flags: "--history-examples <count>",
+        description:
+          "Use 0–20 recent commit subjects as style examples (0 disables)",
       },
       {
         flags: "-P, --provider <provider>",
