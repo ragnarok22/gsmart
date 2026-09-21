@@ -54,10 +54,13 @@ if (mode === "editor") {
   await edit("feat: keep this candidate");
 } else {
   let finish!: () => void;
+  // Keep the simulated request alive until asynchronous cancellation completes.
+  const keepAlive = setInterval(() => {}, 1000);
   await withInterruptHandler(
     () => {
       // Model asynchronous request cancellation/cleanup, not an immediate return.
       setTimeout(() => {
+        clearInterval(keepAlive);
         process.send?.({ type: "cleaned" });
         finish();
       }, 25);
