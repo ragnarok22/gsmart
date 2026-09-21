@@ -1,174 +1,47 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents when working with code in this repository.
+## Setup and generated files
 
-## Project Overview
+- Single-package TypeScript/ESM CLI. Use Node.js >=22 (`.nvmrc` pins 22.14.0) and the pnpm version pinned in `package.json`.
+- Install with `pnpm install --frozen-lockfile`. `pnpm-workspace.yaml` configures esbuild's build permission, not additional packages. The lockfile contains multiple YAML documents; let pnpm manage it.
+- `prebuild.js` generates ignored `src/build-info.ts` from `package.json`. Build and typecheck have pre-hooks; run `pnpm run prebuild` before `pnpm run dev` or direct source execution on a fresh checkout. Do not hand-edit build metadata or `dist/`.
+- `pnpm run dev` only watches the bundle. Run the CLI with `pnpm exec tsx src/index.ts <args>`, or `pnpm run build` then `node dist/index.js <args>`. Local login is `pnpm exec tsx src/index.ts login`; `pnpm login` authenticates to the package registry.
 
-GSmart is a CLI tool that generates smart commit messages using AI. It analyzes git changes and creates conventional commit messages using various AI providers (OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA).
+## Verification
 
-## Project Structure
+- `pnpm run check` runs lint → typecheck → tests. Formatting is separate: `pnpm run format:check`; for a focused check, `pnpm exec prettier --check <files>`.
+- `pnpm test` uses Node's test runner with tsx and a required esmock registration hook. For a single file, run from the repo root:
 
-```
-src/
-├── index.ts          # CLI bootstrap with Commander.js and signal handling
-├── gsmart.ts         # Command registration and wiring
-├── definitions.ts    # Shared types and interfaces
-├── build-info.ts     # Generated build metadata (name, version, description)
-├── types/
-│   └── conf.d.ts     # Module type declaration for conf
-├── commands/         # CLI command implementations (one file per command)
-│   ├── main.ts       # Default command for commit message generation
-│   ├── login.ts      # API key configuration
-│   ├── reset.ts      # Configuration reset
-│   ├── config.ts     # Custom prompt configuration (set, get, clear)
-│   ├── completions.ts # Shell completion script generator (bash, zsh, fish)
-│   └── index.ts      # Command barrel export
-└── utils/            # Reusable helpers (side-effect free)
-    ├── ai.ts         # AI provider abstraction, prompt building, retry, and timeout handling
-    ├── config.ts     # Persistent API key storage and validation using conf package
-    ├── constants.ts  # Shared constants (DEFAULT_PROVIDER, DEFAULT_TIMEOUT_MS, DEFAULT_MAX_RETRIES, INITIAL_RETRY_DELAY_MS)
-    ├── debug.ts      # Debug logging controlled by --debug flag
-    ├── git.ts        # Git command wrappers for status, diff, commits, staging
-    ├── holiday.ts    # Seasonal greeting messages for CLI output
-    ├── index.ts      # Shared helpers: file staging, clipboard, and retrieval logic
-    ├── prompt-config.ts # Custom prompt persistence
-    ├── providers.ts  # AI provider definitions and active-provider filter
-    ├── version-check.ts # Update notification via update-notifier
-    └── welcome.ts    # First-run welcome message with shell completion instructions
+  ```sh
+  pnpm exec node --import ./test-support/register-esmock.mjs --import tsx --test test/ai.test.ts
+  ```
 
-test/                 # Tests mirror source with .test.ts suffix
-dist/                 # Compiled output (read-only, gitignored)
-```
+  Add `--test-name-pattern="name fragment"` or `--watch` before the test path. The package test script hardcodes `test/*.test.ts`, so use the direct command for focused runs.
 
-## Development Commands
+- Coverage: `mkdir -p coverage && pnpm run test:coverage`. This runs the full suite first, then instruments an explicit subset listed in `package.json`, writing `coverage/lcov.info`. New test files are not automatically included in that subset.
+- Tests that load config should import `../test-support/setup-env` first. Config creates its `Conf` store at module load; `GSMART_CONFIG_DIR` must be set beforehand. The helper creates a temporary directory only if the variable is unset, so any supplied override must be disposable.
+- Use the dependency-injected `createMainCommand` factory for command tests and esmock for AI/module boundaries; retry tests can inject `delayFn`. Git tests use real temporary repositories and need `git` available.
+- Typecheck covers `src/` only; passing it does not validate test-file types. New features need unit coverage in `test/*.test.ts`.
 
-Use **pnpm** for all workflows. Requires Node.js >=20 with ESM support.
+## Code style and implementation patterns
 
-| Command                  | Description                         |
-| ------------------------ | ----------------------------------- |
-| `pnpm install`           | Install dependencies                |
-| `pnpm run dev`           | Watch mode for development          |
-| `pnpm run build`         | Production bundle to `dist/`        |
-| `pnpm run start`         | Run compiled CLI from dist/index.js |
-| `pnpm test`              | Run test suite                      |
-| `pnpm run test:coverage` | Run tests with coverage report      |
-| `pnpm test -- --watch`   | Run tests in watch mode             |
-| `pnpm run lint`          | ESLint checks                       |
-| `pnpm run lint:fix`      | ESLint with auto-fix                |
-| `pnpm run typecheck`     | TypeScript type checking            |
-| `pnpm run format`        | Format with Prettier                |
-| `pnpm run format:check`  | Check formatting without writing    |
-| `pnpm run check`         | Run lint, typecheck, and test       |
-| `pnpm run clean`         | Remove dist directory               |
+- Prettier uses its defaults (no custom config): 2-space indentation, double quotes, semicolons, and trailing commas. Format touched files with `pnpm exec prettier --write <files>`.
+- Source imports are relative and usually extensionless; `tsconfig.json` uses bundler resolution and defines no `src/` alias. Tests also use explicit `.ts` imports; follow the surrounding file.
+- TypeScript is strict, but `noUnusedLocals` and `noUnusedParameters` are disabled; ESLint's TypeScript recommended rules check unused bindings and explicit `any`. Typecheck alone does not enforce these rules.
+- Follow the command factory pattern in `src/commands/main.ts` and `config.ts`: named `create*Command(deps: Partial<...> = {})`, merge with `defaultDeps`, and default-export the instantiated `ICommand`. Keep prompts, spinners, config, and logging injectable.
+- Shared CLI/provider/Git contracts live in `src/definitions.ts`; command-specific option and dependency types stay beside their implementation. `ICommand.action` receives `Record<string, unknown>`; adapt it to the local options type at the action boundary.
+- CLI flags use kebab-case, while Commander exposes camelCase option keys: `--dry-run` → `dryRun`, `--add-custom-prompt` → `addCustomPrompt`. Positional arguments are copied into the same options object by `src/index.ts`.
 
-## Architecture
+## Wiring and behavior
 
-### Command Architecture
+- `src/index.ts` turns `ICommand` objects into Commander commands. Export new commands through `src/commands/index.ts` and register them in `src/gsmart.ts`. Shell completions maintain a separate `allCommands` list in `src/commands/completions.ts`; update it too.
+- Provider changes span `src/definitions.ts` (provider union), `src/utils/providers.ts` (choices), `src/utils/config.ts` (credentials/validation), and `src/utils/ai.ts` (models, endpoints, generation). OpenAI also supports ChatGPT OAuth via `src/utils/openai-oauth.ts`; configured-provider detection must account for tokens as well as API keys.
+- `AIBuilder` returns a message or `{ error: string }` for handled generation failures. Timeout comes from `GSMART_TIMEOUT`; retry defaults live in `src/utils/constants.ts`.
+- Git wrappers use argument arrays and NUL-delimited `git status --porcelain -z`. Preserve rename/copy `original_path` handling when changing parsing or staging.
+- `retrieveFilesToCommit` in `src/utils/index.ts` returns an existing staged diff immediately; auto-staging only happens when that diff is empty. `--yes` proceeds to commit. `--dry-run` still authenticates and calls AI, and can temporarily stage/unstage files.
 
-The CLI follows a command pattern:
+## Repository workflows
 
-- Each command exports an `ICommand` object with name, description, options, arguments, and action
-- Commands are registered in `src/gsmart.ts` and loaded by the main program
-- The default command is "generate" which analyzes staged changes and creates commit messages
-
-### AI Provider System
-
-- Multiple providers supported through unified `AIBuilder` class
-- Supported providers: OpenAI, Anthropic, Google, Mistral, Fireworks AI, PlataformIA
-- Models: gpt-5.6-luna, claude-haiku-4-5-20251001, gemini-3.5-flash-lite, mistral-large-latest, deepseek-v4-flash, radiance
-- Fireworks and PlataformIA use OpenAI-compatible endpoints with custom base URLs
-- API keys stored securely using the conf package with format validation per provider
-- Requests have a 30s default timeout (configurable via `GSMART_TIMEOUT` env var)
-- Automatic retries with exponential backoff for transient errors (default 3 retries)
-- Error classification: network, auth, rate-limit, timeout, and generic errors
-
-### Git Integration
-
-- Uses `spawnSync` for git commands (status, diff, commit, staging)
-- Parses `git status -z` (null-separated) for file change detection
-- Supports renames, copies, and deletions with original path tracking
-- Requires staged changes to generate commit messages
-
-## Key Design Patterns
-
-### Type Safety
-
-- Strong TypeScript typing with interfaces for commands (options and arguments), providers, and git status
-- Provider types constrained to specific string literals
-- `GitStatus.status` is a string matching `git status --porcelain` codes (e.g., "M", "??", "D")
-
-### Error Handling
-
-- AI generation returns union types `string | {error: string}` for graceful error handling
-- Detailed error classification for provider errors (network, auth, rate-limit, timeout)
-- Git operations wrapped in try-catch with boolean success indicators
-- CLI provides user-friendly error messages with ora spinner feedback
-
-### Debug Mode
-
-- Global `--debug` / `-D` flag enables verbose logging across all commands
-- Timing information for AI generation and other operations via `debugTime`/`debugLog`
-
-### User Experience
-
-- Interactive prompts using the prompts package for provider selection
-- Loading spinners with ora for long-running operations
-- Chalk for colored terminal output
-- Clipboard integration for commit message copying
-
-## Build System
-
-- **Bundler**: tsup configured for ESM output with declarations
-- **Target**: esnext with source maps and minification
-- **Output**: Single ESM bundle in `dist/` directory
-- **Pre-build**: Custom prebuild.js script generates build info
-- **Module Resolution**: Uses `bundler` moduleResolution for modern ESM
-- **Tree-shaking**: Package marked with `sideEffects: false`
-
-## Coding Style
-
-- **Indentation**: 2 spaces
-- **Quotes**: Double quotes
-- **Trailing commas**: Where allowed
-- **Imports**: Use absolute paths from `src/`
-- **Functions**: Descriptive verbs (e.g., `generateCommitSummary`)
-- **Command names**: kebab-case (e.g., `generate-message`)
-
-Run `pnpm run lint` after changes to catch unused exports or type drift.
-
-## Testing Guidelines
-
-- New features require unit test coverage
-- Tests use Node.js built-in test runner with tsx
-- Name tests after observable behavior: `"generates default prompt when none provided"`
-- Isolate side effects with fakes from `src/utils`
-- Keep fixtures adjacent to specs in `test/`
-
-## Commit & Pull Request Guidelines
-
-Follow **Conventional Commits**: `type(scope): summary`
-
-- Scopes mirror directories: `feat(utils): add provider cache`
-- Use `pnpm exec gsmart` to generate commit messages
-- Squash before merge unless preserving milestones
-- PRs must describe user-facing impact and link related issues
-- Include CLI transcripts or screenshots for behavior changes
-
-### Commit Types
-
-| Type       | Description                     |
-| ---------- | ------------------------------- |
-| `feat`     | New feature                     |
-| `fix`      | Bug fix                         |
-| `docs`     | Documentation only              |
-| `style`    | Formatting, no logic change     |
-| `refactor` | Code change without feature/fix |
-| `test`     | Adding or updating tests        |
-| `chore`    | Build, tooling, dependencies    |
-
-## Security
-
-- Never commit secrets or API keys
-- Use environment variables and `.env` files (excluded from source control)
-- Review `SECURITY.md` before reporting vulnerabilities
-- Coordinate with maintainers for disclosure timelines
+- `CLAUDE.md` is a symlink to this file; keep one instruction source.
+- Use Conventional Commits with directory scopes, e.g. `feat(utils): ...`. Include a CLI transcript for behavior-changing PRs.
+- Release preparation is documented in `.claude/commands/release.md`. Pushing a `v*` tag triggers `.github/workflows/release.yml` to build, test, create a GitHub release, and publish to npm; release preparation stops before pushing.
