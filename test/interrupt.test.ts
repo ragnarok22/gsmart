@@ -4,6 +4,7 @@ import { fork } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 
 type Message = { type: string; file?: string };
 type Outcome =
@@ -70,6 +71,14 @@ for (const mode of ["editor", "refinement"] as const) {
         });
         const { file } = await ready;
         if (file) assert.ok(existsSync(file));
+        // Simulate a busy parent/CI runner: the operation must remain alive
+        // even when the signal is not delivered immediately after "ready".
+        await delay(250);
+        assert.equal(
+          exited,
+          false,
+          `Fixture exited while awaiting a signal: ${stderr}`,
+        );
         assert.equal(child.kill(signal), true);
         const result = await outcome;
         assert.equal(
@@ -77,6 +86,9 @@ for (const mode of ["editor", "refinement"] as const) {
           signal === "SIGTERM" ? "exit" : "resumed",
           stderr,
         );
+        if (signal === "SIGTERM") {
+          assert.deepEqual(result, { type: "exit", code: 0, signal: null });
+        }
         if (mode === "editor")
           assert.ok(
             file && !existsSync(file),
