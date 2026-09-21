@@ -18,7 +18,7 @@
 
   Add `--test-name-pattern="name fragment"` or `--watch` before the test path. The package test script hardcodes `test/*.test.ts`, so use the direct command for focused runs.
 
-- Coverage: `mkdir -p coverage && pnpm run test:coverage`. This runs the full suite first, then instruments an explicit subset listed in `package.json`, writing `coverage/lcov.info`. New test files are not automatically included in that subset.
+- Coverage: `pnpm run test:coverage`. This runs the full suite once under c8 and writes source-mapped coverage for `src/**/*.ts` to `coverage/lcov.info`. c8 merges esmock's separately loaded module copies; keep the esmock registration hook in `pnpm test`. New `test/*.test.ts` files are automatically included.
 - Tests that load config should import `../test-support/setup-env` first. Config creates its `Conf` store at module load; `GSMART_CONFIG_DIR` must be set beforehand. The helper creates a temporary directory only if the variable is unset, so any supplied override must be disposable.
 - Use the dependency-injected `createMainCommand` factory for command tests and esmock for AI/module boundaries; retry tests can inject `delayFn`. Git tests use real temporary repositories and need `git` available.
 - Typecheck covers `src/` only; passing it does not validate test-file types. New features need unit coverage in `test/*.test.ts`.

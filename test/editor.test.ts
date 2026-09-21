@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import type { SpawnOptions } from "node:child_process";
+import esmock from "esmock";
 import {
   existsSync,
   mkdtempSync,
@@ -152,3 +155,144 @@ test("interrupting an active editor preserves the candidate and cleans up before
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+for (const shell of [undefined, "C:\\Custom Shell\\cmd.exe"]) {
+  test(`Windows editor runner quotes paths and waits for exit using ${shell ?? "the default shell"}`, async (t) => {
+    const originalShell = process.env.ComSpec;
+    t.after(() => {
+      if (originalShell === undefined) delete process.env.ComSpec;
+      else process.env.ComSpec = originalShell;
+    });
+    if (shell === undefined) delete process.env.ComSpec;
+    else process.env.ComSpec = shell;
+
+    const child = new EventEmitter();
+    const launches: {
+      executable: string;
+      args: string[];
+      options: SpawnOptions;
+    }[] = [];
+    const { runEditor: launchEditor } = await esmock<
+      typeof import("../src/utils/editor.ts")
+    >("../src/utils/editor.ts", {
+      "node:child_process": {
+        spawn: (executable: string, args: string[], options: SpawnOptions) => {
+          launches.push({ executable, args, options });
+          return child;
+        },
+      },
+    });
+    let completed = false;
+    const result = launchEditor(
+      '"C:\\Program Files\\Editor\\editor.exe" --wait',
+      "C:\\Users\\Test User\\message.txt",
+      "win32",
+    ).then((exit) => {
+      completed = true;
+      return exit;
+    });
+    await Promise.resolve();
+    assert.equal(
+      completed,
+      false,
+      "The runner must wait for the editor to close",
+    );
+    assert.deepEqual(launches, [
+      {
+        executable: shell ?? "cmd.exe",
+        args: [
+          "/d",
+          "/s",
+          "/c",
+          '""C:\\Program Files\\Editor\\editor.exe" --wait "C:\\Users\\Test User\\message.txt""',
+        ],
+        options: { stdio: "inherit", windowsVerbatimArguments: true },
+      },
+    ]);
+    child.emit("close", 0, null);
+    assert.deepEqual(await result, { code: 0, signal: null });
+  });
+}
+
+test("editor runner propagates subprocess launch errors", async () => {
+  const child = new EventEmitter();
+  const { runEditor: launchEditor } = await esmock<
+    typeof import("../src/utils/editor.ts")
+  >("../src/utils/editor.ts", {
+    "node:child_process": { spawn: () => child },
+  });
+  const failure = new Error("spawn ENOENT");
+  const rejected = assert.rejects(
+    launchEditor("editor", "/tmp/message", "linux"),
+    failure,
+  );
+  child.emit("error", failure);
+  await rejected;
+});
+
+test("editor cleanup failure reports the retained file and preserves the current candidate", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "gsmart-editor-cleanup-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  let file = "";
+  const cleanupPaths: string[] = [];
+  const { createMessageEditor: createEditor } = await esmock<
+    typeof import("../src/utils/editor.ts")
+  >("../src/utils/editor.ts", {
+    "node:fs": {
+      rmSync: (path: string) => {
+        cleanupPaths.push(path);
+        throw new Error("EBUSY: editor still has the file open");
+      },
+    },
+  });
+  const edit = createEditor({
+    tempDirectory: () => root,
+    runEditor: async (_command, path) => {
+      file = path;
+      writeFileSync(file, "fix: unsaved candidate\n\nKeep for recovery.");
+      return { code: 0, signal: null };
+    },
+  });
+  const result = await edit(original);
+  assert.equal(result.status, "error");
+  if (result.status === "error") {
+    assert.ok(result.error.includes(dirname(file)));
+    assert.match(result.error, /Current candidate kept/);
+    assert.match(result.error, /Close the editor, remove the directory/);
+  }
+  assert.deepEqual(cleanupPaths, [dirname(file)]);
+  assert.equal(
+    readFileSync(file, "utf8"),
+    "fix: unsaved candidate\n\nKeep for recovery.",
+  );
+});
+
+test("editor reports temporary-file setup failure without launching a process", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "gsmart-editor-setup-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const edit = createMessageEditor({
+    tempDirectory: () => join(root, "missing-directory"),
+    runEditor: async () =>
+      assert.fail("Editor must not launch without its message file"),
+  });
+  const result = await edit(original);
+  assert.equal(result.status, "error");
+  if (result.status === "error") {
+    assert.match(result.error, /ENOENT/);
+    assert.match(result.error, /Current candidate kept/);
+  }
+});
+
+for (const code of [130, 143]) {
+  test(`editor treats shell exit status ${code} as cancellation`, async () => {
+    let file = "";
+    const edit = createMessageEditor({
+      runEditor: async (_command, path) => {
+        file = path;
+        return { code, signal: null };
+      },
+    });
+    assert.deepEqual(await edit(original), { status: "cancelled" });
+    assert.ok(!existsSync(dirname(file)));
+  });
+}

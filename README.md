@@ -477,7 +477,7 @@ mkdir -p coverage
 pnpm run test:coverage
 ```
 
-`pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite first, then instruments a selected set of tests.
+`pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite once under c8, which maps results back to the TypeScript source and merges coverage from mocked module instances. New `test/*.test.ts` files are included automatically.
 
 </details>
 

@@ -409,6 +409,54 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
   assert.equal(capturedModelId, "gpt-5.6-luna");
 });
 
+for (const scenario of ["missing", "expired"] as const) {
+  test(`OpenAI OAuth ${scenario} credentials stop generation with login instructions`, async () => {
+    let generationCalls = 0;
+    let refreshCalls = 0;
+    const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+      ai: {
+        generateText: async () => {
+          generationCalls++;
+          return { text: "unexpected message" };
+        },
+      },
+      "../src/utils/openai-oauth.ts": {
+        ensureFreshOpenAIOAuthTokens: async () => {
+          refreshCalls++;
+          throw new Error("Refresh token expired");
+        },
+      },
+      "../src/utils/config.ts": {
+        default: {
+          getOpenAIAuthMode: () => "oauth",
+          getOpenAIOAuthTokens: () =>
+            scenario === "missing"
+              ? null
+              : {
+                  idToken: "id-token",
+                  accessToken: "expired-access-token",
+                  refreshToken: "expired-refresh-token",
+                },
+        },
+        validateApiKey: () =>
+          assert.fail("OAuth must not fall back to API-key validation"),
+      },
+    });
+    const result = await new AIBuilder("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+    );
+    assert.deepEqual(result, {
+      error:
+        scenario === "missing"
+          ? "openai - ChatGPT login is not configured. Run `gsmart login` and choose ChatGPT subscription."
+          : "openai - ChatGPT login expired. Run `gsmart login` and choose ChatGPT subscription again.",
+    });
+    assert.equal(generationCalls, 0);
+    assert.equal(refreshCalls, scenario === "missing" ? 0 : 1);
+  });
+}
+
 test("invalid provider throws an error", async () => {
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     ai: {
@@ -554,6 +602,22 @@ test("cancellation interrupts the default retry delay", async () => {
   });
   assert.deepEqual(result, { error: "Generation canceled." });
   assert.equal(attempts, 1);
+});
+
+test("a response arriving after cancellation is discarded rather than accepted", async () => {
+  const controller = new AbortController();
+  const { AIBuilder } = await buildMockedAI(async () => {
+    controller.abort();
+    return { text: "feat: late response" };
+  });
+  const result = await new AIBuilder("openai", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      abortSignal: controller.signal,
+    },
+  );
+  assert.deepEqual(result, { error: "Generation canceled." });
 });
 
 test("system prompt contains conventional commits instruction", async () => {

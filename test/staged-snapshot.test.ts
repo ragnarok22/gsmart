@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import {
+  execFileSync,
+  spawnSync,
+  type SpawnSyncOptions,
+} from "node:child_process";
+import esmock from "esmock";
 import { getStagedSnapshot, commitChanges } from "../src/utils/git.ts";
 
 async function withRepository(
@@ -135,5 +140,71 @@ test("commitChanges preserves a multiline message through Git", async () => {
       "feat: subject\n\nFirst paragraph.\nSecond line.\n\nRefs: #499";
     assert.equal(await commitChanges(message), true);
     assert.equal(git("log", "-1", "--format=%B").trimEnd(), message);
+  });
+});
+
+test("staged snapshot retries and discards a diff captured while the index changed", async () => {
+  await withRepository(async (git) => {
+    writeFileSync("file.txt", "initial staged version\n");
+    git("add", "file.txt");
+    let diffReads = 0;
+    const { getStagedSnapshot: capture } = await esmock<
+      typeof import("../src/utils/git.ts")
+    >("../src/utils/git.ts", {
+      "node:child_process": {
+        spawnSync: (
+          command: string,
+          args: string[],
+          options: SpawnSyncOptions,
+        ) => {
+          const result = spawnSync(command, args, options);
+          if (args[0] === "diff" && ++diffReads === 1) {
+            // Simulate another process staging content between the diff read
+            // and the following identity check, using a real Git index.
+            writeFileSync("file.txt", "stable updated version\n");
+            git("add", "file.txt");
+          }
+          return result;
+        },
+      },
+    });
+    const snapshot = await capture();
+    assert.equal(diffReads, 2);
+    assert.match(snapshot.diff, /stable updated version/);
+    assert.ok(!snapshot.diff.includes("initial staged version"));
+    assert.deepEqual(snapshot, await getStagedSnapshot());
+  });
+});
+
+test("staged snapshot fails after bounded retries when staging never settles", async () => {
+  await withRepository(async (git) => {
+    writeFileSync("file.txt", "initial staged version\n");
+    git("add", "file.txt");
+    let diffReads = 0;
+    const { getStagedSnapshot: capture } = await esmock<
+      typeof import("../src/utils/git.ts")
+    >("../src/utils/git.ts", {
+      "node:child_process": {
+        spawnSync: (
+          command: string,
+          args: string[],
+          options: SpawnSyncOptions,
+        ) => {
+          const result = spawnSync(command, args, options);
+          if (args[0] === "diff") {
+            diffReads++;
+            writeFileSync("file.txt", `concurrent version ${diffReads}\n`);
+            git("add", "file.txt");
+          }
+          return result;
+        },
+      },
+    });
+    await assert.rejects(
+      capture,
+      /Staged changes kept changing.*Finish staging and try again/,
+    );
+    assert.equal(diffReads, 3);
+    assert.match(git("diff", "--cached"), /concurrent version 3/);
   });
 });
