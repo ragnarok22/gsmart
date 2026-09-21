@@ -68,7 +68,7 @@ export const createMessageEditor = (overrides: Partial<EditorDeps> = {}) => {
     ...overrides,
   };
 
-  return async (currentMessage: string): Promise<EditResult> => {
+  const edit = async (currentMessage: string): Promise<EditResult> => {
     const env = deps.env();
     const platform = deps.platform();
     const command =
@@ -116,6 +116,14 @@ export const createMessageEditor = (overrides: Partial<EditorDeps> = {}) => {
     }
     return result;
   };
+
+  // runEditor handles cancellation; keep its enclosing scope open until the
+  // temporary file is removed, so SIGTERM cannot exit at child-process close.
+  return (currentMessage: string): Promise<EditResult> =>
+    withInterruptHandler(
+      () => {},
+      () => edit(currentMessage),
+    );
 };
 
 export const editMessage = createMessageEditor();

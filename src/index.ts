@@ -18,7 +18,9 @@ import { dispatchInterrupt } from "./utils/interrupt";
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = (signal: NodeJS.Signals) => {
-  if (!dispatchInterrupt(signal)) process.exit(0);
+  const exit = () => process.exit(0);
+  if (!dispatchInterrupt(signal, signal === "SIGTERM" ? exit : undefined))
+    exit();
 };
 
 process.on("SIGINT", () => handleSigTerm("SIGINT"));
