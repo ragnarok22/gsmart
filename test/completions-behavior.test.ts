@@ -122,6 +122,59 @@ function completeFish(
     .map((match) => match.split("\t")[0]);
 }
 
+function renderZshCompletion(line: string): string {
+  const result = spawnSync(
+    "python3",
+    [
+      fileURLToPath(
+        new URL("../test-support/complete-zsh.py", import.meta.url),
+      ),
+    ],
+    {
+      input: JSON.stringify({
+        shell: shells.zsh,
+        script: generateZshCompletion(commands, flagValues),
+        line,
+        display: true,
+        // Oh My Zsh's standard matcher/menu settings; no plugins required.
+        setup: `zmodload -i zsh/complist
+zstyle ':completion:*:*:*:*:*' menu select
+zstyle ':completion:*' matcher-list 'm:{[:lower:][:upper:]}={[:upper:][:lower:]}' 'r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' list-colors ''`,
+      }),
+      encoding: "utf8",
+      timeout: 15_000,
+    },
+  );
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+describe("Zsh completion menu rendering", shellTestOptions("zsh"), () => {
+  for (const line of [
+    "gsmart -",
+    "gsmart --",
+    "gsmart generate -",
+    "gsmart config -",
+  ]) {
+    it(`keeps options and descriptions together without duplicates for ${line}`, () => {
+      const screen = renderZshCompletion(line);
+      assert.equal((screen.match(/--debug\b/g) || []).length, 1, screen);
+      const debugRow = screen
+        .split(/\r?\n/)
+        .find((row) => row.includes("--debug"));
+      assert.ok(debugRow?.includes("Enable debug logging"), screen);
+      if (!line.endsWith("--")) assert.ok(debugRow?.includes("-D"), screen);
+      assert.equal(
+        (screen.match(/Enable debug logging/g) || []).length,
+        1,
+        screen,
+      );
+    });
+  }
+});
+
 describe("root-command completion behavior", () => {
   describe("bash regressions", shellTestOptions("bash"), () => {
     it("offers generation flags directly after gsmart in bash", () => {
