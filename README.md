@@ -347,18 +347,18 @@ Model selection is built into the application rather than exposed as a CLI optio
 
 ## Command reference
 
-`gsmart` is shorthand for `gsmart generate`. Use `gsmart --help` for the command list or `gsmart generate --help` for generation options.
+Run `gsmart` to generate a commit message. `gsmart --help` shows generation options and the available subcommands.
 
 | Command                      | Purpose                                                 |
 | ---------------------------- | ------------------------------------------------------- |
-| `gsmart` / `gsmart generate` | Generate a message and choose what to do with it        |
+| `gsmart`                     | Generate a message and choose what to do with it        |
 | `gsmart login`               | Configure a provider's authentication                   |
 | `gsmart config`              | Set, show, or clear your default writing instructions   |
 | `gsmart reset`               | Clear the active local configuration after confirmation |
 | `gsmart completions <shell>` | Print a completion script for `bash`, `zsh`, or `fish`  |
 | `gsmart help [command]`      | Show help for a command                                 |
 
-**Generation options** — use with `gsmart` or `gsmart generate`:
+**Generation options** — use directly with `gsmart`:
 
 | Option                  | Short | Purpose                                                       |
 | ----------------------- | ----- | ------------------------------------------------------------- |
@@ -406,6 +406,12 @@ Still stuck? [Open an issue](https://github.com/ragnarok22/gsmart/issues) with y
 ## Shell completions
 
 Enable tab completion for your shell, then start a new terminal session.
+
+Completions work directly with `gsmart`: try `gsmart --<Tab>`, `gsmart --provider <Tab>`, or `gsmart config --<Tab>`. The older `gsmart generate` invocation remains available as a hidden compatibility alias, but is omitted from command suggestions and the main help listing.
+
+**Updating an existing setup?** For Bash and Zsh, reload the completion definition with the `eval` command below or start a new terminal. For Fish, regenerate the saved completion file and start a new terminal.
+
+If your shell startup caches generated completion scripts, regenerate that cached copy after updating GSmart so new sessions load the current definitions too.
 
 <details>
 <summary><strong>Bash</strong> — add to <code>~/.bashrc</code></summary>
@@ -481,6 +487,8 @@ pnpm run test:coverage
 
 `pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite once under c8, which maps results back to the TypeScript source and merges coverage from mocked module instances. New `test/*.test.ts` files are included automatically.
 
+Native completion tests use Bash, Zsh, Fish, and Python 3 (for Zsh's terminal harness). Locally, suites for unavailable shells are skipped. CI installs all three shells and sets `GSMART_REQUIRE_SHELL_TESTS=1` so missing runtimes fail the checks. Set `GSMART_TEST_BASH`, `GSMART_TEST_ZSH`, or `FISH` to test a specific shell executable.
+
 </details>
 
 <details>
@@ -488,7 +496,8 @@ pnpm run test:coverage
 
 | Location                    | Responsibility                                           |
 | --------------------------- | -------------------------------------------------------- |
-| `src/index.ts`              | Commander CLI setup, options, and signal handling        |
+| `src/index.ts`              | CLI startup, lifecycle output, and signal handling       |
+| `src/program.ts`            | Testable command registration, root action, and alias    |
 | `src/gsmart.ts`             | Command registration                                     |
 | `src/commands/`             | Generation, login, configuration, reset, and completions |
 | `src/utils/ai.ts`           | Provider models, prompts, timeouts, and retries          |

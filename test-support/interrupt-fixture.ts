@@ -9,28 +9,6 @@ import {
   withInterruptHandler,
 } from "../src/utils/interrupt.ts";
 
-// Load the real CLI signal registrations without its startup UI or commands.
-class Command {
-  name() {
-    return this;
-  }
-  version() {
-    return this;
-  }
-  description() {
-    return this;
-  }
-  option() {
-    return this;
-  }
-  hook() {
-    return this;
-  }
-  parse() {
-    return this;
-  }
-}
-
 // Supply generated metadata in memory, before any filesystem resolution.
 // esmock's relative virtual mocks produce a responseURL rejected by Node.
 const buildInfoModule = `data:text/javascript,${encodeURIComponent(
@@ -53,8 +31,11 @@ register(
   import.meta.url,
 );
 
+// Load the real CLI signal registrations without parsing the fixture arguments.
 await esmock("../src/index.ts", {
-  commander: { Command },
+  "../src/program.ts": {
+    createProgram: () => ({ parseAsync: async () => {} }),
+  },
   "../src/gsmart.ts": { default: [] },
   "../src/utils/interrupt.ts": { dispatchInterrupt },
   "../src/utils/version-check.ts": { checkForUpdates: () => {} },

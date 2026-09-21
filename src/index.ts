@@ -7,9 +7,9 @@
 //  \____/\____/ |_| |_| |_| \__,_||_|    \__| CLI
 //  Created by: Reinier Hernández
 
-import { Argument as CommanderArgument, Command } from "commander";
 import commands from "./gsmart";
 import info from "./build-info";
+import { createProgram } from "./program";
 import { checkForUpdates } from "./utils/version-check";
 import { showHolidayMessage } from "./utils/holiday";
 import { enableDebug, debugLog } from "./utils/debug";
@@ -27,62 +27,29 @@ process.on("SIGINT", () => handleSigTerm("SIGINT"));
 process.on("SIGTERM", () => handleSigTerm("SIGTERM"));
 
 async function main() {
-  // Check for updates
-  checkForUpdates({ name: info.name, version: info.version });
-
-  // Define the program
-  const program = new Command();
-
-  program.name(info.name).version(info.version).description(info.description);
-  program.option("-D, --debug", "Enable debug logging", false);
-
-  program.hook("preAction", (thisCommand) => {
-    const opts = thisCommand.optsWithGlobals();
-    if (opts.debug) {
+  const program = createProgram({
+    commands,
+    metadata: info,
+    onDebug: () => {
       enableDebug();
       debugLog("cli", `version: ${info.version}`);
       debugLog("cli", `command: ${process.argv.slice(2).join(" ")}`);
-    }
+    },
+    beforeAction: () => {
+      checkForUpdates({ name: info.name, version: info.version });
+      showWelcomeOnce(process.env.SHELL);
+    },
+    afterAction: () => {
+      if (!process.exitCode) showHolidayMessage();
+    },
   });
 
-  for (const command of commands) {
-    const cmd = program
-      .command(command.name, { isDefault: command.default })
-      .description(command.description);
-
-    if (command.options) {
-      for (const opt of command.options) {
-        cmd.option(opt.flags, opt.description, opt.default);
-      }
-    }
-
-    if (command.arguments) {
-      for (const arg of command.arguments) {
-        const syntax = arg.required ? `<${arg.name}>` : `[${arg.name}]`;
-        const cmdArg = new CommanderArgument(syntax, arg.description);
-        if (arg.choices) {
-          cmdArg.choices(arg.choices);
-        }
-        cmd.addArgument(cmdArg);
-      }
-    }
-
-    cmd.action(async (...actionArgs: unknown[]) => {
-      const opts = cmd.opts();
-      if (command.arguments) {
-        command.arguments.forEach((arg, index) => {
-          opts[arg.name] = actionArgs[index];
-        });
-      }
-      await Promise.resolve(command.action(opts));
-      if (!command.silent) {
-        showHolidayMessage();
-      }
-    });
-  }
-
-  showWelcomeOnce(process.env.SHELL);
-  program.parse(process.argv);
+  await program.parseAsync(process.argv);
 }
 
-main();
+main().catch((error: unknown) => {
+  console.error(
+    `error: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = 1;
+});

@@ -9,18 +9,12 @@ import {
   parseFlag,
 } from "../src/commands/completions";
 import MainCommand from "../src/commands/main";
-import LoginCommand from "../src/commands/login";
 import ResetCommand from "../src/commands/reset";
 import CompletionsCommand from "../src/commands/completions";
+import allCommands from "../src/gsmart";
 import { getActiveProviders } from "../src/utils/providers";
 
 // Derive test data from actual definitions — single source of truth
-const allCommands = [
-  MainCommand,
-  LoginCommand,
-  ResetCommand,
-  CompletionsCommand,
-];
 const providerValues = getActiveProviders().map((p) => p.value);
 const flagValues = { provider: providerValues };
 
@@ -39,8 +33,8 @@ const fishFlags = (cmd: typeof MainCommand) =>
   (cmd.options || []).flatMap((opt) => {
     const f = parseFlag(opt);
     return [
-      f.short ? `-s ${f.short}` : "",
-      f.long ? `-l ${f.long}` : "",
+      f.short ? `-s '${f.short}'` : "",
+      f.long ? `-l '${f.long}'` : "",
     ].filter(Boolean);
   });
 
@@ -85,12 +79,6 @@ describe("zsh completion", () => {
 
   it("includes shell-specific marker", () => {
     assert.ok(generate().includes("#compdef gsmart"));
-  });
-
-  it("dispatches subcommands using $line[1]", () => {
-    const script = generate();
-    assert.ok(script.includes("case $line[1] in"));
-    assert.ok(!script.includes("case $words[1] in"));
   });
 
   it("includes all commands", () => {
@@ -231,14 +219,14 @@ describe("generators handle edge-case commands", () => {
     const cmds = [{ name: "bare", description: "No opts", action: () => {} }];
     const script = generateFishCompletion(cmds, {});
     assert.ok(!script.includes("__fish_seen_subcommand_from bare"));
-    assert.ok(script.includes("__fish_use_subcommand"));
+    assert.ok(script.includes("-n '__gsmart_context commands'"));
   });
 
-  it("skips commands with no options or arguments in zsh args", () => {
+  it("includes commands with no options or arguments in zsh", () => {
     const cmds = [{ name: "bare", description: "No opts", action: () => {} }];
     const script = generateZshCompletion(cmds, {});
     assert.ok(script.includes("'bare:No opts'"));
-    assert.ok(!script.includes("bare)"));
+    assert.ok(script.includes("'bare')"));
   });
 
   it("handles flag with only long name", () => {
@@ -254,11 +242,9 @@ describe("generators handle edge-case commands", () => {
     assert.ok(bash.includes("--verbose"));
 
     const fish = generateFishCompletion(cmds, {});
-    const testLine = fish
-      .split("\n")
-      .find((l) => l.includes("__fish_seen_subcommand_from test"));
+    const testLine = fish.split("\n").find((l) => l.includes("-l 'verbose'"));
     assert.ok(testLine);
-    assert.ok(testLine.includes("-l verbose"));
+    assert.ok(testLine.includes("__gsmart_context options"));
     assert.ok(!testLine.includes("-s "));
   });
 
@@ -273,7 +259,12 @@ describe("generators handle edge-case commands", () => {
     ];
     const fish = generateFishCompletion(cmds, {});
     assert.ok(fish.includes("-r"));
-    assert.ok(!fish.includes("-a '"));
+    assert.ok(
+      !fish
+        .split("\n")
+        .find((line) => line.includes("-l 'output'"))
+        ?.includes("-a "),
+    );
 
     const zsh = generateZshCompletion(cmds, {});
     assert.ok(zsh.includes(":output:"));
@@ -298,8 +289,9 @@ describe("generators handle edge-case commands", () => {
 
     const zsh = generateZshCompletion(cmds, {});
 
-    assert.ok(zsh.includes("choose)"));
-    assert.ok(zsh.includes("_arguments '1:mode:(fast safe)'"));
+    assert.ok(zsh.includes("'choose')"));
+    assert.ok(zsh.includes("'1:Mode:->values0'"));
+    assert.ok(zsh.includes("compadd -- 'fast' 'safe'"));
   });
 
   it("uses fallback value label for short-only value flags in zsh", () => {
@@ -314,14 +306,14 @@ describe("generators handle edge-case commands", () => {
 
     const zsh = generateZshCompletion(cmds, {});
 
-    assert.ok(zsh.includes("'-o[Output]:value:'"));
+    assert.ok(zsh.includes("'-o+[Output]:value:'"));
   });
 
-  it("generates bash value completions for unmatched flagValues keys", () => {
+  it("ignores values for unregistered options", () => {
     const cmds = [{ name: "test", description: "Test", action: () => {} }];
     const bash = generateBashCompletion(cmds, { unknown: ["one", "two"] });
 
-    assert.ok(bash.includes("--unknown)"));
-    assert.ok(bash.includes('compgen -W "one two"'));
+    assert.ok(!bash.includes("--unknown"));
+    assert.ok(!bash.includes("'one' 'two'"));
   });
 });
