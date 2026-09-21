@@ -14,7 +14,12 @@ interface PackageManagerDetectionOptions {
 
 type PackageManager = "npm" | "pnpm";
 
-const PNPM_PATH_PATTERNS = ["/.pnpm/", "/pnpm/global/", "/share/pnpm/"];
+const PNPM_PATH_PATTERNS = [
+  "/.pnpm/",
+  "/pnpm/global/",
+  "/pnpm/store/",
+  "/share/pnpm/",
+];
 
 function normalizeModulePath(moduleUrl: string): string {
   try {

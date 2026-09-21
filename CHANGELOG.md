@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed update notifications recommending npm instead of pnpm when a global installation resolves to the pnpm store
+
 ## [0.15.1] - 2026-09-21
 
 ### Changed

@@ -44,6 +44,28 @@ test("detectPackageManager detects pnpm from install path", () => {
   );
 });
 
+test("detectPackageManager detects pnpm from normalized Windows store paths", () => {
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "C:\\Users\\test\\AppData\\Local\\PNPM\\store\\v11\\links\\@\\gsmart\\0.15.0\\hash\\node_modules\\gsmart\\dist\\index.js",
+    }),
+    "pnpm",
+  );
+});
+
+test("detectPackageManager returns npm for non-pnpm store paths", () => {
+  assert.equal(
+    detectPackageManager({
+      env: {},
+      moduleUrl:
+        "file:///Users/test/Library/not-pnpm/store/v11/links/@/gsmart/0.15.0/hash/node_modules/gsmart/dist/index.js",
+    }),
+    "npm",
+  );
+});
+
 test("detectPackageManager detects pnpm from user agent", () => {
   assert.equal(
     detectPackageManager({
@@ -107,6 +129,27 @@ test("printUpdateNotice renders pnpm update details", () => {
   assert(logs[1].includes("1.0.0"));
   assert(logs[2].includes("https://github.com/ragnarok22/gsmart/releases"));
   assert(logs[3].includes("pnpm add -g gsmart@latest"));
+});
+
+test("printUpdateNotice recommends pnpm for a resolved global store install", () => {
+  const logs = captureConsoleLogs(() => {
+    printUpdateNotice(
+      { name: "gsmart", version: "0.15.0" },
+      "0.15.0",
+      "0.15.1",
+      {
+        env: {},
+        moduleUrl:
+          "file:///Users/test/Library/pnpm/store/v11/links/@/gsmart/0.15.0/78aec853860848032d0d8a04bc2a57c35518edc1b1e0af3275098e28d3e20238/node_modules/gsmart/dist/index.js",
+      },
+    );
+  });
+
+  assert(
+    logs.some((line) => line.includes("pnpm add -g gsmart@latest")),
+    `expected pnpm update command, received:\n${logs.join("\n")}`,
+  );
+  assert(!logs.some((line) => line.includes("npm install -g")));
 });
 
 test("checkForUpdates stays silent when update-notifier has no cached update", () => {
