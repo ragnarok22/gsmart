@@ -208,3 +208,36 @@ test("staged snapshot fails after bounded retries when staging never settles", a
     assert.match(git("diff", "--cached"), /concurrent version 3/);
   });
 });
+
+test("staged snapshot supports an index larger than 1 MiB with a tiny staged diff", async () => {
+  await withRepository(async (git) => {
+    const blob = execFileSync("git", ["hash-object", "-w", "--stdin"], {
+      input: "shared baseline content\n",
+      encoding: "utf8",
+    }).trim();
+    // Populate the real index without creating thousands of working-tree files.
+    const entries = Array.from(
+      { length: 18_000 },
+      (_, index) =>
+        `100644 ${blob}\ttracked/path-${String(index).padStart(5, "0")}.txt\n`,
+    ).join("");
+    assert.ok(Buffer.byteLength(entries) > 1024 * 1024);
+    execFileSync("git", ["update-index", "--index-info"], { input: entries });
+    git("commit", "--quiet", "-m", "large baseline");
+
+    writeFileSync("tiny.txt", "small staged change\n");
+    git("add", "tiny.txt");
+    const diff = git("diff", "--cached");
+    assert.ok(Buffer.byteLength(diff) < 1024);
+    const snapshot = await getStagedSnapshot();
+    assert.equal(snapshot.diff, git("diff", "--cached", "--full-index"));
+    assert.equal(snapshot.branch, "main");
+    assert.deepEqual(await getStagedSnapshot(), snapshot);
+
+    writeFileSync("tiny.txt", "another small staged change\n");
+    git("add", "tiny.txt");
+    const changed = await getStagedSnapshot();
+    assert.notEqual(changed.fingerprint, snapshot.fingerprint);
+    assert.match(changed.diff, /another small staged change/);
+  });
+});

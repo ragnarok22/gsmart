@@ -1,6 +1,7 @@
 import "./setup-env";
 import esmock from "esmock";
 import { writeFileSync } from "node:fs";
+import { register } from "node:module";
 import { join } from "node:path";
 import { createMessageEditor, runEditor } from "../src/utils/editor.ts";
 import {
@@ -29,6 +30,28 @@ class Command {
     return this;
   }
 }
+
+// Supply generated metadata in memory, before any filesystem resolution.
+// esmock's relative virtual mocks produce a responseURL rejected by Node.
+const buildInfoModule = `data:text/javascript,${encodeURIComponent(
+  `export default ${JSON.stringify({
+    name: "gsmart",
+    version: "0.0.0-test",
+    description: "Interrupt test fixture",
+  })};`,
+)}`;
+register(
+  `data:text/javascript,${encodeURIComponent(`
+    export function resolve(specifier, context, nextResolve) {
+      if (specifier === "./build-info" &&
+          context.parentURL?.split("?")[0] === ${JSON.stringify(new URL("../src/index.ts", import.meta.url).href)}) {
+        return { url: ${JSON.stringify(buildInfoModule)}, shortCircuit: true };
+      }
+      return nextResolve(specifier, context);
+    }
+  `)}`,
+  import.meta.url,
+);
 
 await esmock("../src/index.ts", {
   commander: { Command },
