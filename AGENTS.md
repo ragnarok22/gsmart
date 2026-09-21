@@ -19,6 +19,7 @@
   Add `--test-name-pattern="name fragment"` or `--watch` before the test path. The package test script hardcodes `test/*.test.ts`, so use the direct command for focused runs.
 
 - Coverage: `pnpm run test:coverage`. This runs the full suite once under c8 and writes source-mapped coverage for `src/**/*.ts` to `coverage/lcov.info`. c8 merges esmock's separately loaded module copies; keep the esmock registration hook in `pnpm test`. New `test/*.test.ts` files are automatically included.
+- Native completion tests use Bash, Zsh, Fish, and Python 3 (for Zsh's PTY/ZLE harness). Missing-shell suites skip locally; `GSMART_REQUIRE_SHELL_TESTS=1` makes missing runtimes fail in CI. `GSMART_TEST_BASH`, `GSMART_TEST_ZSH`, and `FISH` can override shell executables.
 - Tests that load config should import `../test-support/setup-env` first. Config creates its `Conf` store at module load; `GSMART_CONFIG_DIR` must be set beforehand. The helper creates a temporary directory only if the variable is unset, so any supplied override must be disposable.
 - Use the dependency-injected `createMainCommand` factory for command tests and esmock for AI/module boundaries; retry tests can inject `delayFn`. Git tests use real temporary repositories and need `git` available.
 - Typecheck covers `src/` only; passing it does not validate test-file types. New features need unit coverage in `test/*.test.ts`.
@@ -34,7 +35,7 @@
 
 ## Wiring and behavior
 
-- `src/index.ts` turns `ICommand` objects into Commander commands. Export new commands through `src/commands/index.ts` and register them in `src/gsmart.ts`. Shell completions maintain a separate `allCommands` list in `src/commands/completions.ts`; update it too.
+- `src/program.ts` turns `ICommand` objects into Commander commands; `src/index.ts` handles startup and signals. The default descriptor's action and options live on the root command, with its name retained as a hidden compatibility alias. Silent commands skip welcome, update, and holiday output. Export new commands through `src/commands/index.ts` and register them in `src/gsmart.ts`. Shell completions maintain a separate `allCommands` list in `src/commands/completions.ts`; update it too (a regression test checks it against the CLI registry).
 - Provider changes span `src/definitions.ts` (provider union), `src/utils/providers.ts` (choices), `src/utils/config.ts` (credentials/validation), and `src/utils/ai.ts` (models, endpoints, generation). OpenAI also supports ChatGPT OAuth via `src/utils/openai-oauth.ts`; configured-provider detection must account for tokens as well as API keys.
 - `AIBuilder` returns a message or `{ error: string }` for handled generation failures. Timeout comes from `GSMART_TIMEOUT`; retry defaults live in `src/utils/constants.ts`.
 - Git wrappers use argument arrays and NUL-delimited `git status --porcelain -z`. Preserve rename/copy `original_path` handling when changing parsing or staging.
