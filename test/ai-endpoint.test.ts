@@ -160,9 +160,66 @@ test("missing custom model and blank overrides return setup errors before reques
   assert.equal(server.requests.length, 0);
 });
 
+for (const baseURL of [
+  "",
+  "ftp://localhost/v1",
+  "http://localhost:1234/v1/chat/completions",
+]) {
+  test(`invalid saved custom URL returns setup guidance before networking: ${baseURL || "missing"}`, async (t) => {
+    config.setModel("custom", "local-model");
+    config.setKey("custom", "saved-secret");
+    // Existing or externally edited stores can contain values the setter rejects.
+    t.mock.method(config, "getCustomBaseURL", () => baseURL);
+    const fetch = t.mock.method(globalThis, "fetch", async () =>
+      assert.fail("must validate the endpoint before a request"),
+    );
+    const result = await new AIBuilder("custom", "").generateCommitMessage(
+      "main",
+      "diff",
+    );
+    assert.ok(typeof result === "object");
+    assert.match(
+      result.error,
+      /custom.*gsmart config --provider custom --base-url <url> --model <model>/,
+    );
+    assert.doesNotMatch(result.error, /saved-secret/);
+    assert.equal(fetch.mock.callCount(), 0);
+  });
+}
+
+test("custom generation failures give endpoint guidance without exposing raw error secrets", async () => {
+  config.setCustomBaseURL("http://localhost:1234/v1");
+  config.setModel("custom", "local-model");
+  let calls = 0;
+  const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      generateText: async () => {
+        calls++;
+        throw new Error("Failed to generate with key saved-secret");
+      },
+    },
+  });
+  const result = await new MockAI("custom", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      onRetry: () =>
+        assert.fail("an unclassified generation failure must not retry"),
+    },
+  );
+  assert.match(
+    result.error,
+    /custom - Generation failed.*local-model.*--base-url/,
+  );
+  assert.doesNotMatch(result.error, /saved-secret/);
+  assert.equal(calls, 1);
+});
+
 for (const [status, message, expected] of [
   [404, "model missing", /--model.*base-url/],
   [400, "model not supported", /Model is not available/],
+  [422, "unsupported model", /Model is not available/],
+  [400, "invalid request format", /API request failed \(HTTP 400\)/],
   [405, "method not allowed", /Chat Completions/],
   [401, "unauthorized", /--api-key.*--clear-api-key/],
   [403, "forbidden", /authentication/],
@@ -561,6 +618,79 @@ function stalledOAuthResponse(signal: AbortSignal) {
     { headers: { "content-type": "text/event-stream" } },
   );
 }
+
+test("OAuth transport failures after HTTP 200 exhaust retries and never return partial text", async () => {
+  let calls = 0;
+  const builder = await oauthBuilder(async () => {
+    calls++;
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(encodeEvents(partialOAuthEvents())),
+          );
+          setImmediate(() =>
+            controller.error(
+              new TypeError("terminated", {
+                cause: Object.assign(new Error("other side closed"), {
+                  code: "UND_ERR_SOCKET",
+                }),
+              }),
+            ),
+          );
+        },
+      }),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  });
+  const retries: number[] = [];
+  const delays: number[] = [];
+  const result = await builder.generateCommitMessage("main", "diff", {
+    maxRetries: 2,
+    onRetry: (attempt: number) => retries.push(attempt),
+    delayFn: async (ms: number) => {
+      delays.push(ms);
+    },
+  });
+  assert.equal(calls, 2);
+  assert.deepEqual(retries, [1]);
+  assert.deepEqual(delays, [1000]);
+  assert.match(result.error, /Response stream was interrupted/);
+  assert.doesNotMatch(result.error, /feat: incomplete/);
+});
+
+test("OAuth refuses a completed stream whose SDK finish reason is not stop", async () => {
+  config.setOpenAIOAuthTokens({
+    accessToken: "access",
+    refreshToken: "refresh",
+    idToken: "id",
+    expiresAt: Date.now() + 3_600_000,
+  });
+  let calls = 0;
+  const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+    ai: {
+      streamText: () => ({
+        fullStream: (async function* () {
+          calls++;
+          yield { type: "text-delta", text: "feat: incomplete" };
+          yield { type: "raw", rawValue: { type: "response.completed" } };
+          yield { type: "finish", finishReason: "tool-calls" };
+        })(),
+      }),
+    },
+  });
+  const result = await new MockAI("openai", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      onRetry: () =>
+        assert.fail("unsuccessful completion must not retry unchanged"),
+    },
+  );
+  assert.match(result.error, /Response did not complete successfully/);
+  assert.doesNotMatch(result.error, /feat: incomplete/);
+  assert.equal(calls, 1);
+});
 
 for (const interruption of ["timeout", "eof", "disconnect"] as const) {
   test(`real OAuth SDK recovers from ${interruption} without concatenating partial text`, async (t) => {

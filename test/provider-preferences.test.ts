@@ -136,6 +136,52 @@ test("model and endpoint validation accepts local URLs and rejects invalid opera
   }
 });
 
+for (const suffix of ["?", "#", "?#"]) {
+  test(`custom base URLs reject bare delimiters ${suffix} without changing saved settings`, async () => {
+    const original = "http://localhost:11434/v1";
+    const invalid = `${original}${suffix}`;
+    config.setCustomBaseURL(original);
+    config.setModel("custom", "original-model");
+    assert.throws(() => validateBaseURL(invalid), /query|fragment/);
+    assert.throws(() => config.setCustomBaseURL(invalid), /query|fragment/);
+    assert.equal(config.getCustomBaseURL(), original);
+
+    const capture = output();
+    await createConfigCommand({ ...capture, config }).action({
+      provider: "custom",
+      baseUrl: invalid,
+      model: "replacement-model",
+      defaultProvider: "custom",
+    });
+    assert.equal(capture.exitCode(), 1, capture.text());
+    assert.match(capture.text(), /query|fragment/);
+    assert.equal(config.getCustomBaseURL(), original);
+    assert.equal(config.getModel("custom"), "original-model");
+    assert.equal(config.getDefaultProvider(), undefined);
+  });
+}
+
+test("custom base URLs preserve percent-encoded delimiters in the path", () => {
+  assert.equal(
+    validateBaseURL(" https://localhost/proxy%3Fname%23part/v1/ "),
+    "https://localhost/proxy%3Fname%23part/v1",
+  );
+});
+
+test("configured detection rejects a legacy stored URL with bare delimiters", () => {
+  fs.writeFileSync(
+    join(process.env.GSMART_CONFIG_DIR!, "config.json"),
+    JSON.stringify({
+      custom: { baseURL: "http://localhost:1234/v1?#", model: "local" },
+    }),
+  );
+  assert.equal(isProviderConfigured("custom", config), false);
+  assert.equal(
+    isProviderConfigured("custom", config.getProviderSnapshot()),
+    false,
+  );
+});
+
 test("configured detection supports keyless endpoints and active OAuth mode", () => {
   config.setCustomBaseURL("http://localhost:1234/v1");
   assert.equal(isProviderConfigured("custom", config), false);
@@ -152,6 +198,28 @@ test("configured detection supports keyless endpoints and active OAuth mode", ()
     idToken: "id",
   });
   assert.equal(isProviderConfigured("openai", config), true);
+});
+
+test("legacy OAuth tokens remain usable without a key but do not override API-key login", async () => {
+  config.setOpenAIOAuthTokens({
+    accessToken: "legacy-access",
+    refreshToken: "legacy-refresh",
+    idToken: "legacy-id",
+  });
+  config.setOpenAIAuthMode("api-key");
+  config.setDefaultProvider("openai");
+  assert.equal(isProviderConfigured("openai", config), true);
+  const oauth = mainRun();
+  await oauth.command.action({ dryRun: true });
+  assert.equal(oauth.exitCode(), 0, oauth.text());
+  assert.equal(oauth.requests[0].options?.model, "gpt-5-codex");
+
+  config.setKey("openai", "sk-api-key-123456789");
+  const apiKey = mainRun();
+  await apiKey.command.action({ dryRun: true });
+  assert.equal(apiKey.exitCode(), 0, apiKey.text());
+  assert.equal(apiKey.requests[0].options?.model, defaultModels.openai);
+  assert.equal(config.getOpenAIOAuthTokens()?.accessToken, "legacy-access");
 });
 
 test("config flags persist settings, inspect without secrets, and clear individual preferences", async () => {
@@ -399,6 +467,125 @@ test("interactive provider and model preferences can be saved and cleared", asyn
   assert.equal(capture.exitCode(), 0);
 });
 
+for (const responses of [
+  [{}],
+  [{ action: "provider" }, {}],
+  [{ action: "model" }, {}],
+  [{ action: "model" }, { provider: "anthropic" }, {}],
+]) {
+  test(`canceled config selection preserves preferences: ${JSON.stringify(responses)}`, async () => {
+    config.setDefaultProvider("anthropic");
+    config.setModel("anthropic", "saved-model");
+    const capture = output();
+    const remaining = [...responses];
+    await createConfigCommand({
+      ...capture,
+      config,
+      prompt: async () => {
+        assert.ok(remaining.length, "must stop prompting after cancellation");
+        return remaining.shift()!;
+      },
+    }).action({});
+    assert.equal(config.getDefaultProvider(), "anthropic");
+    assert.equal(config.getModel("anthropic"), "saved-model");
+    assert.equal(remaining.length, 0);
+    assert.doesNotMatch(capture.text(), /saved/i);
+  });
+}
+
+test("invalid config sets the default process exit code and preserves settings", async () => {
+  config.setDefaultProvider("anthropic");
+  const capture = output();
+  const previousExitCode = process.exitCode;
+  try {
+    process.exitCode = 0;
+    await createConfigCommand({
+      config,
+      spinner: capture.spinner,
+      log: capture.log,
+      prompt: async () => assert.fail("invalid flags must not open a prompt"),
+    }).action({ defaultProvider: "unknown-provider" });
+    assert.equal(process.exitCode, 1);
+    assert.match(capture.text(), /Unknown provider/);
+    assert.equal(config.getDefaultProvider(), "anthropic");
+  } finally {
+    process.exitCode = previousExitCode;
+  }
+});
+
+test("interactive prompt clearing reports an empty store without asking for confirmation", async () => {
+  const capture = output();
+  const questions: string[] = [];
+  await createConfigCommand({
+    ...capture,
+    config,
+    prompt: async (question) => {
+      assert.ok(!Array.isArray(question));
+      questions.push(String(question.name));
+      return { action: "clear" };
+    },
+  }).action({});
+  assert.deepEqual(questions, ["action"]);
+  assert.match(capture.text(), /No default prompt to clear/);
+  assert.equal(config.getPrompt(), "");
+});
+
+for (const failure of [
+  undefined,
+  new Error("Browser authorization failed"),
+  "unexpected failure",
+]) {
+  test(`unsuccessful OpenAI login preserves the current authentication: ${String(failure)}`, async () => {
+    const tokens = {
+      accessToken: "saved-access",
+      refreshToken: "saved-refresh",
+      idToken: "saved-id",
+    };
+    config.setOpenAIOAuthTokens(tokens);
+    config.setOpenAIAuthMode("api-key");
+    config.setKey("openai", "sk-saved-key-123456");
+    const capture = output();
+    let logins = 0;
+    const questions: string[] = [];
+    await createLoginCommand({
+      ...capture,
+      config,
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        questions.push(String(question.name));
+        if (question.name === "provider") return { provider: "openai" };
+        assert.equal(
+          question.name,
+          "authMethod",
+          "must not fall through to API-key login",
+        );
+        return failure === undefined ? {} : { authMethod: "oauth" };
+      },
+      loginWithOpenAIOAuth: async () => {
+        logins++;
+        throw failure;
+      },
+    }).action({});
+    assert.equal(logins, failure === undefined ? 0 : 1);
+    assert.deepEqual(questions, ["provider", "authMethod"]);
+    assert.equal(config.getOpenAIAuthMode(), "api-key");
+    assert.equal(config.getKey("openai"), "sk-saved-key-123456");
+    assert.deepEqual(config.getOpenAIOAuthTokens(), tokens);
+    assert.match(
+      capture.text(),
+      failure === undefined
+        ? /No authentication method selected/
+        : failure instanceof Error
+          ? /Browser authorization failed/
+          : /ChatGPT login failed/,
+    );
+    assert.doesNotMatch(
+      capture.text(),
+      /saved-access|saved-refresh|sk-saved-key/,
+    );
+  });
+}
+
 for (const [input, expected] of [
   ["\r", ""],
   ["\x1b", "saved-model"],
@@ -485,9 +672,123 @@ for (const entry of ["config", "login"]) {
     );
     assert.equal(config.getCustomBaseURL(), "http://localhost:1234/v1");
   });
+
+  for (const cancelAt of ["baseURL", "model", "key"]) {
+    test(`${entry} cancels custom setup at ${cancelAt} without changing any saved values`, async () => {
+      config.setCustomBaseURL("http://localhost:1234/v1");
+      config.setModel("custom", "saved-model");
+      config.setKey("custom", "saved-secret");
+      const capture = output();
+      const questions: string[] = [];
+      const deps = {
+        ...capture,
+        config,
+        prompt: async (question: Parameters<typeof prompts>[0]) => {
+          assert.ok(!Array.isArray(question));
+          const name = String(question.name);
+          assert.ok(
+            !questions.includes(cancelAt),
+            "must stop after cancellation",
+          );
+          questions.push(name);
+          if (name === "action") return { action: "endpoint" };
+          if (name === "provider") return { provider: "custom" };
+          if (name === cancelAt) return {};
+          if (name === "baseURL")
+            return { baseURL: "http://localhost:9999/v1" };
+          if (name === "model") return { model: "new-model" };
+          return assert.fail(`Unexpected prompt: ${name}`);
+        },
+      };
+      const command =
+        entry === "config"
+          ? createConfigCommand(deps)
+          : createLoginCommand(deps);
+      await command.action({});
+      assert.equal(questions.at(-1), cancelAt);
+      assert.equal(config.getCustomBaseURL(), "http://localhost:1234/v1");
+      assert.equal(config.getModel("custom"), "saved-model");
+      assert.equal(config.getKey("custom"), "saved-secret");
+      assert.doesNotMatch(capture.text(), /saved|saved-secret/i);
+      if (entry === "login") assert.match(capture.text(), /setup cancelled/i);
+    });
+  }
+
+  test(`${entry} saves custom password authentication without exposing it`, async () => {
+    const capture = output();
+    const responses: Record<string, unknown>[] = [
+      { action: "endpoint", provider: "custom" },
+      { baseURL: " http://localhost:1234/v1/ " },
+      { model: " local-model " },
+      { key: "  short-secret  " },
+    ];
+    const deps = {
+      ...capture,
+      config,
+      prompt: async () => {
+        assert.ok(responses.length, "unexpected prompt");
+        return responses.shift()!;
+      },
+    };
+    await (
+      entry === "config" ? createConfigCommand(deps) : createLoginCommand(deps)
+    ).action({});
+    assert.equal(config.getCustomBaseURL(), "http://localhost:1234/v1");
+    assert.equal(config.getModel("custom"), "local-model");
+    assert.equal(config.getKey("custom"), "short-secret");
+    assert.equal(isProviderConfigured("custom", config), true);
+    assert.match(capture.text(), /Custom endpoint saved/);
+    assert.doesNotMatch(capture.text(), /short-secret/);
+  });
+
+  for (const invalid of ["url", "model", "prompt failure"] as const) {
+    test(`${entry} reports custom setup ${invalid} without partially replacing settings`, async () => {
+      config.setCustomBaseURL("http://localhost:1234/v1");
+      config.setModel("custom", "saved-model");
+      config.setKey("custom", "saved-secret");
+      const capture = output();
+      const deps = {
+        ...capture,
+        config,
+        prompt: async (question: Parameters<typeof prompts>[0]) => {
+          assert.ok(!Array.isArray(question));
+          if (question.name === "action") return { action: "endpoint" };
+          if (question.name === "provider") return { provider: "custom" };
+          if (invalid === "prompt failure") throw "Terminal unavailable";
+          if (question.name === "baseURL")
+            return {
+              baseURL:
+                invalid === "url" ? "invalid" : "http://localhost:9999/v1",
+            };
+          if (question.name === "model") return { model: "   " };
+          return assert.fail(
+            "invalid input must stop setup before the password prompt",
+          );
+        },
+      };
+      await (
+        entry === "config"
+          ? createConfigCommand(deps)
+          : createLoginCommand(deps)
+      ).action({});
+      assert.match(
+        capture.text(),
+        invalid === "url"
+          ? /absolute HTTP or HTTPS/
+          : invalid === "model"
+            ? /non-empty model ID/
+            : /Terminal unavailable/,
+      );
+      assert.equal(config.getCustomBaseURL(), "http://localhost:1234/v1");
+      assert.equal(config.getModel("custom"), "saved-model");
+      assert.equal(config.getKey("custom"), "saved-secret");
+      assert.doesNotMatch(capture.text(), /Custom endpoint saved|saved-secret/);
+      if (entry === "config") assert.equal(capture.exitCode(), 1);
+    });
+  }
 }
 
-function mainRun() {
+function mainRun(overrides: Parameters<typeof createMainCommand>[0] = {}) {
   const capture = output();
   const requests: { provider: Provider; options?: GenerationOptions }[] = [];
   const questions: string[] = [];
@@ -520,6 +821,7 @@ function mainRun() {
     commitChanges: async () => assert.fail("dry run must not commit"),
     debugLog: () => {},
     debugTime: () => () => {},
+    ...overrides,
   });
   return {
     ...capture,
@@ -593,3 +895,77 @@ test("unconfigured saved provider and empty model fail before staging with diagn
   assert.match(invalid.text(), /non-empty/);
   assert.equal(invalid.retrievals(), 0);
 });
+
+for (const selection of ["explicit", "saved"] as const) {
+  test(`${selection} hosted provider without credentials fails before staging rather than using another provider`, async () => {
+    config.setKey("anthropic", "sk-ant-configured-key");
+    if (selection === "saved") config.setDefaultProvider("openai");
+    const run = mainRun();
+    await run.command.action({
+      yes: true,
+      ...(selection === "explicit" ? { provider: "openai" } : {}),
+    });
+    assert.equal(run.exitCode(), 1);
+    assert.match(run.text(), /Provider openai is not configured.*gsmart login/);
+    assert.equal(run.retrievals(), 0);
+    assert.deepEqual(run.requests, []);
+    assert.deepEqual(run.questions, []);
+  });
+}
+
+test("custom default with a URL but no model fails before staging", async () => {
+  config.setDefaultProvider("custom");
+  config.setCustomBaseURL("http://localhost:1234/v1");
+  const run = mainRun();
+  await run.command.action({ yes: true });
+  assert.equal(run.exitCode(), 1);
+  assert.match(run.text(), /No model configured for custom.*--model/);
+  assert.equal(run.retrievals(), 0);
+  assert.deepEqual(run.requests, []);
+});
+
+test("a saved keyless custom model is selected automatically without prompts", async () => {
+  config.setCustomBaseURL("http://localhost:1234/v1");
+  config.setModel("custom", "saved-local");
+  const run = mainRun();
+  await run.command.action({ dryRun: true });
+  assert.equal(run.exitCode(), 0, run.text());
+  assert.equal(run.requests[0].provider, "custom");
+  assert.equal(run.requests[0].options?.model, "saved-local");
+  assert.deepEqual(run.questions, []);
+});
+
+test("losing the selected provider credentials during file selection never falls back to another provider", async () => {
+  config.setKey("openai", "sk-api-key-123456789");
+  config.setKey("anthropic", "sk-ant-configured-key");
+  const run = mainRun({
+    retrieveFilesToCommit: async () => {
+      config.clearKey("openai");
+      return "diff";
+    },
+  });
+  await run.command.action({ provider: "openai", dryRun: true });
+  assert.match(run.text(), /No valid provider/);
+  assert.deepEqual(run.requests, []);
+  assert.deepEqual(run.questions, []);
+});
+
+for (const failure of [
+  new Error("Cannot read model preference"),
+  "Preference store unavailable",
+]) {
+  test(`model preference read failure is reported without starting generation: ${String(failure)}`, async (t) => {
+    config.setKey("anthropic", "sk-ant-configured-key");
+    t.mock.method(config, "getModel", () => {
+      throw failure;
+    });
+    const run = mainRun();
+    await run.command.action({ provider: "anthropic", dryRun: true });
+    assert.equal(run.exitCode(), 1);
+    assert.ok(
+      run.text().includes(failure instanceof Error ? failure.message : failure),
+    );
+    assert.deepEqual(run.requests, []);
+    assert.deepEqual(run.questions, []);
+  });
+}

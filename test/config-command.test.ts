@@ -441,3 +441,138 @@ for (const options of [
     assert.doesNotMatch(events[0].message!, /secret-key/);
   });
 }
+
+for (const scenario of [
+  {
+    name: "the action menu",
+    responses: [{}],
+    questions: ["action"],
+    events: [{ type: "fail", message: "No option selected" }],
+  },
+  {
+    name: "default provider selection",
+    responses: [{ action: "provider" }, {}],
+    questions: ["action", "provider"],
+    events: [],
+  },
+  {
+    name: "provider selection for a model",
+    responses: [{ action: "model" }, {}],
+    questions: ["action", "provider"],
+    events: [],
+  },
+]) {
+  test(`config cancellation at ${scenario.name} stops before further prompts or configuration access`, async (t) => {
+    const questions: string[] = [];
+    const events: { type: string; message?: string }[] = [];
+    const accessConfig = t.mock.fn(() =>
+      assert.fail("Cancellation must not read or write settings"),
+    );
+    const setExitCode = t.mock.fn();
+    const command = createConfigCommand({
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        questions.push(String(question.name));
+        return scenario.responses[questions.length - 1] ?? {};
+      },
+      spinner: () => createSpinner(events) as never,
+      config: {
+        getModel: accessConfig,
+        setModel: accessConfig,
+        clearModel: accessConfig,
+        setDefaultProvider: accessConfig,
+        clearDefaultProvider: accessConfig,
+      } as never,
+      promptConfig: {
+        getPrompt: accessConfig,
+        setPrompt: accessConfig,
+        clearPrompt: accessConfig,
+      },
+      readPromptInput: accessConfig,
+      setExitCode,
+    });
+
+    await command.action({});
+
+    assert.deepEqual(questions, scenario.questions);
+    assert.equal(accessConfig.mock.callCount(), 0);
+    assert.equal(setExitCode.mock.callCount(), 0);
+    assert.deepEqual(events, scenario.events);
+  });
+}
+
+test(
+  "config save failure sets the process exit code and reports only the error message",
+  serial,
+  async (t) => {
+    const originalExitCode = process.exitCode;
+    const events: { type: string; message?: string }[] = [];
+    const log = t.mock.fn();
+    const unexpected = t.mock.fn(() =>
+      assert.fail(
+        "A failed save must stop before prompting or displaying settings",
+      ),
+    );
+    const setPrompt = t.mock.fn(() => {
+      throw new Error("Could not save default prompt", {
+        cause: new Error("secret-storage-details"),
+      });
+    });
+    const command = createConfigCommand({
+      prompt: unexpected,
+      spinner: () => createSpinner(events) as never,
+      promptConfig: {
+        getPrompt: unexpected,
+        setPrompt,
+        clearPrompt: unexpected,
+      },
+      config: {} as never,
+      log,
+    });
+
+    try {
+      process.exitCode = 0;
+      await command.action({
+        addCustomPrompt: "secret-prompt-text",
+        show: true,
+      });
+      assert.equal(process.exitCode, 1);
+    } finally {
+      process.exitCode = originalExitCode;
+    }
+
+    assert.deepEqual(
+      setPrompt.mock.calls.map((call) => call.arguments),
+      [["secret-prompt-text"]],
+    );
+    assert.equal(unexpected.mock.callCount(), 0);
+    assert.equal(log.mock.callCount(), 0);
+    assert.deepEqual(events, [
+      { type: "fail", message: "Could not save default prompt" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(events), /secret-/);
+  },
+);
+
+test("config handles a non-Error prompt rejection as a command failure", async (t) => {
+  const events: { type: string; message?: string }[] = [];
+  const setExitCode = t.mock.fn();
+  const command = createConfigCommand({
+    prompt: async () => {
+      throw "Configuration input closed";
+    },
+    spinner: () => createSpinner(events) as never,
+    config: {} as never,
+    setExitCode,
+  });
+
+  await command.action({});
+
+  assert.deepEqual(
+    setExitCode.mock.calls.map((call) => call.arguments),
+    [[1]],
+  );
+  assert.deepEqual(events, [
+    { type: "fail", message: "Configuration input closed" },
+  ]);
+});

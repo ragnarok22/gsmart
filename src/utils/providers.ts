@@ -107,8 +107,8 @@ export function validateBaseURL(value: string): string {
     !["http:", "https:"].includes(url.protocol) ||
     url.username ||
     url.password ||
-    url.search ||
-    url.hash
+    // search/hash omit bare delimiters; href preserves them.
+    /[?#]/.test(url.href)
   ) {
     throw new Error(
       "Endpoint must use HTTP or HTTPS without credentials, a query, or a fragment. Configure authentication separately.",
