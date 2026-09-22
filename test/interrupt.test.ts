@@ -55,6 +55,9 @@ for (const { mode, signal, cleanCheckout } of scenarios) {
           recursive: true,
           filter: (source) => !source.endsWith("build-info.ts"),
         });
+        cpSync(new URL("../schemas", import.meta.url), join(cwd, "schemas"), {
+          recursive: true,
+        });
         cpSync(
           new URL("../test-support", import.meta.url),
           join(cwd, "test-support"),

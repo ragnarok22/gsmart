@@ -17,13 +17,13 @@ GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Comm
 - **Start with your actual changes.** Generate a message from your staged diff and branch name, or choose files interactively.
 - **Keep the final say.** Review each suggestion before committing, or use `--yes` for a non-interactive workflow.
 - **Bring your preferred provider.** Choose from six providers, including OpenAI with ChatGPT subscription login or an API key.
-- **Make it sound like your project.** Save writing instructions and add context for individual commits.
+- **Make it sound like your project.** Share repository conventions, save personal writing instructions, and add context for individual commits.
 
 > **First visit?** Follow the quick start below. **Already using GSmart?** Jump to the [workflow recipes](#everyday-workflows), [shell completions](#shell-completions), or [release notes](https://github.com/ragnarok22/gsmart/blob/main/CHANGELOG.md).
 
 ## Quick start
 
-You'll need **Node.js 22+**, **Git**, and an account with one of the [supported providers](#providers). Run GSmart inside the Git repository you're working on.
+You'll need **Node.js 22.12.0+**, **Git**, and an account with one of the [supported providers](#providers). Run GSmart inside the Git repository you're working on.
 
 ### 1. Install
 
@@ -103,7 +103,7 @@ Stage or select changes → Generate a message → Review → Edit, refine, rest
 ```
 
 1. **Read the changes.** GSmart uses your staged diff—the changes Git is ready to commit. If that diff is empty, it offers to stage files for you.
-2. **Ask your provider.** It sends the diff, current branch name, and any custom instructions to the selected AI provider.
+2. **Ask your provider.** It sends the diff, current branch name, resolved commit conventions, and any custom instructions to the selected AI provider. Recent commit subjects are also sent when you enable history examples.
 3. **Choose the next step.** You review the message before committing. Commits use `git commit`, so your Git hooks still run; pushing remains a separate Git step.
 
 Already staged part of a file with `git add -p`? GSmart uses that staged diff. Other unstaged edits are left out. Files staged through the interactive picker stay staged if you choose **Copy** or **Do nothing**.
@@ -230,7 +230,7 @@ Explain the intent behind a change:
 gsmart --prompt "This fixes checkout retries after a payment timeout; reference SHOP-142."
 ```
 
-This replaces your saved custom instructions for this run. To reuse a style across commits, [save a default prompt](#configuration).
+This replaces repository or saved personal custom instructions for this run. Structured conventions such as allowed types and length limits still apply. To reuse a style across commits, [configure repository conventions or save a default prompt](#configuration).
 
 ### Stay up to date
 
@@ -265,10 +265,124 @@ gsmart config --clear-custom-prompt
 Custom instructions are selected in this order:
 
 1. A nonempty `--prompt` for the current run.
-2. Your saved default prompt, if there is no one-off prompt.
-3. Built-in instructions alone, if neither is set.
+2. The repository's `instructions` setting, if present in `.gsmartrc.json`.
+3. Your saved default prompt.
+4. Built-in instructions alone.
 
-The selected custom instructions are added to GSmart's built-in Conventional Commits instructions. A one-off prompt replaces the saved custom prompt rather than combining with it. `config --show` displays the saved prompt, not credentials.
+The selected text is added to the resolved Conventional Commits instructions. These custom-instruction sources replace each other rather than concatenate. Repository `"instructions": ""` explicitly clears inherited personal instructions. `config --show` displays the saved personal prompt, not credentials.
+
+### Shared repository conventions
+
+Create and commit `.gsmartrc.json` at your **Git root**. GSmart uses that same file from the root or any nested directory, including in Git worktrees. Nested `.gsmartrc.json` files do not override the root file.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/ragnarok22/gsmart/main/schemas/gsmartrc.schema.json",
+  "types": ["feat", "fix", "docs", "refactor", "test", "chore"],
+  "scopes": ["cli", "utils", "deps"],
+  "scope": "optional",
+  "headerMaxLength": 72,
+  "subjectMaxLength": 60,
+  "language": "en",
+  "tickets": {
+    "prefixes": ["APP-"],
+    "required": false,
+    "placement": "footer",
+    "footerToken": "Refs"
+  },
+  "body": {
+    "presence": "optional",
+    "maxLineLength": 100,
+    "instructions": "Explain why the change is needed when it is not obvious."
+  },
+  "breakingChanges": {
+    "requireFooter": true,
+    "instructions": "Describe the impact and any migration steps."
+  },
+  "instructions": "Use imperative mood and describe observable changes.",
+  "commitlint": true,
+  "history": { "enabled": false, "limit": 5 }
+}
+```
+
+The [JSON Schema](schemas/gsmartrc.schema.json) is included in the npm package as `gsmart/schemas/gsmartrc.schema.json`. Use the `$schema` URL for editor support; runtime validation uses the bundled schema without a network request. All settings are optional. Unknown properties, malformed JSON, and invalid values stop generation with the config path and setting to correct, before file selection or auto-staging.
+
+| Setting               | Meaning and default                                                                                                                                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types`               | Allowed types; defaults to `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. `null` allows any Conventional Commit type.                                                                                                                                 |
+| `scopes`              | Allowed scopes, or `null` for unrestricted scopes (default). For multiple scopes separated by `/`, `\` or `,`, each component must be allowed.                                                                                                                                                       |
+| `scope`               | `optional` (default), `required`, or `forbidden`.                                                                                                                                                                                                                                                    |
+| `headerMaxLength`     | Maximum length of the entire first line, including type and scope. Positive integer or `null` (default: no limit).                                                                                                                                                                                   |
+| `subjectMaxLength`    | Maximum length of the description **after** `type(scope): `. Positive integer or `null` (default: no limit).                                                                                                                                                                                         |
+| `language`            | Output language tag, such as `en` (default), `es`, or `pt-BR`. Type tokens, scopes, ticket IDs and footer labels retain their configured spelling.                                                                                                                                                   |
+| `tickets`             | `prefixes` (default `null`, unrestricted), `required` (default `false`), `placement` (`subject`, `body`, or default `footer`), and `footerToken` (default `Refs`). Configured prefixes are followed by numeric IDs. Supply IDs in the branch, changes, or prompt; historical IDs must not be reused. |
+| `body`                | `presence` (`optional`, `required`, `forbidden`), `leadingBlank` (default `true`), `maxLineLength` (default `null`; URL-containing lines are exempt), and optional `instructions`.                                                                                                                   |
+| `footer.leadingBlank` | Separate footers from preceding content with a blank line (default `true`).                                                                                                                                                                                                                          |
+| `breakingChanges`     | `requireFooter` (default `false`) requires a `BREAKING CHANGE:` footer for breaking changes even with a `!` header; `instructions` supplies migration/impact guidance.                                                                                                                               |
+| `instructions`        | Additional generation instructions, up to 10,000 characters. Body and breaking-change instructions have the same limit.                                                                                                                                                                              |
+| `commitlint`          | Import compatible rules from a root commitlint configuration (default `true`). Set to `false` to skip discovery and loading.                                                                                                                                                                         |
+| `history`             | `enabled` (default `false`) and `limit` (1–20, default `5`).                                                                                                                                                                                                                                         |
+
+Configuration is merged **per setting**, from highest to lowest priority:
+
+1. Explicit CLI options (`--prompt`, `--language`, `--history-examples`).
+2. `.gsmartrc.json` settings.
+3. Compatible rules imported from the repository's commitlint configuration.
+4. User settings (currently the saved default prompt).
+5. Built-in defaults.
+
+Nested objects merge by individual field; arrays replace rather than concatenate. Explicit `false`, `null` where allowed, and empty instruction strings override inherited values. CLI options override their corresponding settings, not the entire repository configuration. Structured conventions take precedence over conflicting free-text instructions or refinement feedback. The resolved settings are reused throughout generation, refinement, and staged-change regeneration.
+
+Inspect the effective configuration, including source paths, imported rule severity, and compatibility diagnostics:
+
+```bash
+gsmart config --show-effective
+gsmart config --show-effective --language es --history-examples 0
+```
+
+Conventions guide AI generation; review the result for accuracy. Git hooks continue to enforce your project's validation. The shared `ResolvedConventions` and effective rule metadata provide the configuration interface for [message validation (#495)](https://github.com/ragnarok22/gsmart/issues/495).
+
+Repository configuration accepts no API keys, OAuth tokens, or provider credentials. Login continues to use the active user-level store selected by `GSMART_CONFIG_DIR`; `gsmart reset` clears that store. Repository files are maintained through Git.
+
+#### Commitlint compatibility
+
+GSmart uses `@commitlint/load` to resolve presets and synchronous/asynchronous rule factories. Referenced presets and plugins must be installed in your repository. JavaScript and TypeScript configuration executes through the standard loader when integration is enabled.
+
+Discovery is limited to the Git root, in this order: the `commitlint` field in `package.json`; `.commitlintrc`, `.commitlintrc.json`, `.commitlintrc.yaml`, `.commitlintrc.yml`; `.commitlintrc.{js,cjs,mjs}`; `commitlint.config.{js,cjs,mjs}`; `.commitlintrc.{ts,cts,mts}`; `commitlint.config.{ts,cts,mts}`. Parent/global and nested configurations are not searched. `package.yaml` manifests are not a discovery source.
+
+| Rule                   | Supported form                                                                    | GSmart setting                              |
+| ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
+| `type-enum`            | `always` with a string array                                                      | `types`                                     |
+| `scope-enum`           | `always` with a string array, using commitlint's default `/`, `\`, `,` delimiters | `scopes`                                    |
+| `scope-empty`          | `always` / `never`                                                                | `scope: "forbidden"` / `"required"`         |
+| `header-max-length`    | `always` with a positive integer or `Infinity`                                    | `headerMaxLength`                           |
+| `subject-max-length`   | `always` with a positive integer or `Infinity`                                    | `subjectMaxLength`                          |
+| `body-empty`           | `always` / `never`                                                                | `body.presence: "forbidden"` / `"required"` |
+| `body-leading-blank`   | `always` / `never`                                                                | `body.leadingBlank: true` / `false`         |
+| `body-max-line-length` | `always` with a positive integer or `Infinity`                                    | `body.maxLineLength`                        |
+| `footer-leading-blank` | `always` / `never`                                                                | `footer.leadingBlank: true` / `false`       |
+
+Severity `0` disables import of that rule; severities `1` and `2` supply generation conventions and retain warning/error metadata for validation. Empty enum arrays map to `null` (unrestricted), and `Infinity` removes a length limit. Disabled rules contribute no override. Explicit `.gsmartrc.json` values replace mapped rules, including their severity metadata.
+
+Imported values must also fit the schema's bounds (for example, up to 100 enum entries with 100 characters per name). Other rules, inverted enum/length rules, and object-form `scope-enum` values are not translated. Their active rule names appear in `config --show-effective` diagnostics and `--debug` logs. Custom parser formats, plugin behavior, and commitlint ignore predicates do not change GSmart's Conventional Commit format. Invalid config or missing presets produce an actionable load error.
+
+#### Output language and history examples
+
+```bash
+# Language override for a single run
+gsmart --language es
+gsmart --language pt-BR
+
+# Use five recent subjects as style examples
+gsmart --history-examples 5
+
+# Disable examples even when the repository enables them
+gsmart --history-examples 0
+```
+
+Language changes generated commit prose, while CLI help and documentation remain in their existing language.
+
+History is opt-in. When enabled, GSmart reads recent non-merge commit subjects reachable from `HEAD`, bounded to **20 subjects, 200 characters each, and 4,000 subject characters total**. It excludes bodies, labels the subjects as style examples, and sends them to the selected provider alongside the diff. Explicit conventions override historical style. A repository without commits contributes no examples, and disabling history skips the history read entirely.
 
 ### Environment variables
 
@@ -360,24 +474,27 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 
 **Generation options** — use directly with `gsmart`:
 
-| Option                  | Short | Purpose                                                       |
-| ----------------------- | ----- | ------------------------------------------------------------- |
-| `--provider <provider>` | `-P`  | Choose an already-configured provider                         |
-| `--prompt <prompt>`     | `-p`  | Supply custom instructions for this run                       |
-| `--yes`                 | `-y`  | Skip generation prompts and commit automatically              |
-| `--dry-run`             | `-d`  | Generate a message and show analyzed files without committing |
+| Option                       | Short | Purpose                                                           |
+| ---------------------------- | ----- | ----------------------------------------------------------------- |
+| `--provider <provider>`      | `-P`  | Choose an already-configured provider                             |
+| `--prompt <prompt>`          | `-p`  | Supply custom instructions for this run                           |
+| `--language <tag>`           |       | Override the generated message's language (`en`, `es`, `pt-BR`)   |
+| `--history-examples <count>` |       | Include 0–20 recent subjects as style examples; `0` disables them |
+| `--yes`                      | `-y`  | Skip generation prompts and commit automatically                  |
+| `--dry-run`                  | `-d`  | Generate a message and show analyzed files without committing     |
 
 **Other options:**
 
-| Command and option                         | Short | Purpose                                   |
-| ------------------------------------------ | ----- | ----------------------------------------- |
-| `gsmart --debug`                           | `-D`  | Enable diagnostic logging and timing      |
-| `gsmart --version`                         | `-V`  | Print the installed version               |
-| `gsmart --help`                            | `-h`  | Show help; also available on subcommands  |
-| `gsmart config --show`                     | `-s`  | Display the saved default prompt          |
-| `gsmart config --add-custom-prompt <text>` |       | Save default writing instructions         |
-| `gsmart config --clear-custom-prompt`      |       | Clear default writing instructions        |
-| `gsmart reset --force`                     | `-f`  | Reset local settings without confirmation |
+| Command and option                         | Short | Purpose                                                |
+| ------------------------------------------ | ----- | ------------------------------------------------------ |
+| `gsmart --debug`                           | `-D`  | Enable diagnostic logging and timing                   |
+| `gsmart --version`                         | `-V`  | Print the installed version                            |
+| `gsmart --help`                            | `-h`  | Show help; also available on subcommands               |
+| `gsmart config --show`                     | `-s`  | Display the saved default prompt                       |
+| `gsmart config --show-effective`           |       | Display resolved conventions, sources, and diagnostics |
+| `gsmart config --add-custom-prompt <text>` |       | Save default writing instructions                      |
+| `gsmart config --clear-custom-prompt`      |       | Clear default writing instructions                     |
+| `gsmart reset --force`                     | `-f`  | Reset local settings without confirmation              |
 
 ## Troubleshooting
 
@@ -394,6 +511,8 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 | Failed to unstage files after dry-run    | Run `git status` to inspect the index and unstage the files you intended only to preview.                                        |
 | Editor failed or edits did not appear    | Check `VISUAL` / `EDITOR` and add a wait flag for GUI editors, such as `code --wait`, then retry **Edit message**.               |
 | Staged content has changed               | Regenerate for the updated changes, review the new message, then choose **Commit** again.                                        |
+| Invalid conventions or malformed JSON    | Fix the reported setting in the root `.gsmartrc.json`; inspect `gsmart config --show-effective` after correcting it.             |
+| Could not load commitlint configuration  | Correct the root config or install its referenced presets/plugins; `"commitlint": false` disables this integration.              |
 
 For more detail, combine debug logging with a preview:
 
@@ -447,7 +566,7 @@ gsmart completions fish > ~/.config/fish/completions/gsmart.fish
 
 ## Development
 
-Use **Node.js 22+** (`.nvmrc` pins the development version) and the **pnpm version pinned in `package.json`**.
+Use **Node.js 22.12.0+** (`.nvmrc` pins the development version) and the **pnpm version pinned in `package.json`**.
 
 ```bash
 git clone https://github.com/ragnarok22/gsmart.git

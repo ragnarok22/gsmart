@@ -18,7 +18,8 @@ import {
   ensureFreshOpenAIOAuthTokens,
   OpenAIOAuthTokens,
 } from "./openai-oauth";
-import { Provider } from "../definitions";
+import { Provider, type ResolvedConventions } from "../definitions";
+import { buildCommitPrompt } from "./commit-prompt";
 import {
   DEFAULT_PROVIDER,
   DEFAULT_TIMEOUT_MS,
@@ -28,59 +29,6 @@ import {
 import { debugLog, debugTime } from "./debug";
 
 export { providers, getActiveProviders } from "./providers";
-
-/**
- * Build the prompt for the AI model
- * @param branch_name - The current git branch name
- * @param changes - The changes in the current branch
- * @returns - A tuple containing the system and prompt
- **/
-const buildPrompt = (
-  branch_name: string,
-  changes: string,
-): [string, string] => {
-  const system = `Role and Objective
-Produce commit messages that strictly adhere to the Conventional Commits specification.
-
-# Instructions
-- Generate a commit message that includes:
-  - **Type** (required): Choose from \`feat\`, \`fix\`, \`docs\`, \`style\`, \`refactor\`, \`perf\`, \`test\`, \`build\`, \`ci\`, \`chore\`, or \`revert\`.
-  - **Scope** (optional): Specify additional context about the affected code area.
-  - **Description** (required): Provide a succinct summary of the changes.
-- Format: \`<type>(<scope>): <description>\`
-  - \`<scope>\` is optional and may be omitted.
-- Ensure the commit message fully meets all structure and content criteria before outputting.
-
-# Output Format
-- Output only the commit message after it successfully passes all structure and content validation checks. Do not include any validation explanation or checklist.
-
-# Stop Conditions
-- Output only the commit message after it successfully passes all structure and content validation checks. No additional text or explanations should be included.`;
-
-  const prompt = `Generate a commit message for these changes on branch ${branch_name}:
-
-Changes:
-${changes}
-
-Format: <type>(<scope>): <description>
-Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
-
-Examples:
-- feat(auth): add login functionality with OAuth
-- fix(api): resolve undefined response in user endpoint
-- docs(readme): update installation instructions
-- style(components): format code according to style guide
-- refactor(utils): simplify error handling logic
-- perf(queries): optimize database lookups
-- test(auth): add unit tests for authentication flow
-- build(deps): update dependency versions
-- ci(github): add workflow for automated testing
-- chore(release): prepare v1.2.0 release
-- revert: remove feature flag for beta functionality
-
-Return ONLY the commit message. No explanations or additional text.`;
-  return [system, prompt];
-};
 
 function classifyError(
   error: unknown,
@@ -200,6 +148,8 @@ export type RetryOptions = {
 };
 
 export type GenerationOptions = RetryOptions & {
+  conventions?: ResolvedConventions;
+  historyExamples?: string[];
   abortSignal?: AbortSignal;
   refinement?: {
     previousMessage: string;
@@ -382,13 +332,19 @@ export class AIBuilder {
     changes: string,
     options?: GenerationOptions,
   ): Promise<string | { error: string }> {
-    const [system, initialPrompt] = buildPrompt(branch_name, changes);
+    const [system, initialPrompt] = buildCommitPrompt(
+      branch_name,
+      changes,
+      options?.conventions,
+      options?.historyExamples,
+    );
+    const instructions = options?.conventions?.instructions ?? this.prompt;
     const refinement = options?.refinement;
     const prompt = [
       initialPrompt,
-      this.prompt ? `Additional instructions:\n${this.prompt}` : "",
+      instructions ? `Additional instructions:\n${instructions}` : "",
       refinement
-        ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise. A multiline body is allowed. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
+        ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise, while following the structured conventions. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
         : "",
     ]
       .filter(Boolean)

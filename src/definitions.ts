@@ -41,3 +41,60 @@ export type GitStatus = {
   file_path: string;
   original_path?: string;
 };
+
+/** Serializable conventions shared by generation and message validation. */
+export type CommitConventions = {
+  types?: string[] | null;
+  scopes?: string[] | null;
+  scope?: "optional" | "required" | "forbidden";
+  headerMaxLength?: number | null;
+  subjectMaxLength?: number | null;
+  language?: string;
+  instructions?: string;
+  tickets?: {
+    prefixes?: string[] | null;
+    required?: boolean;
+    placement?: "subject" | "body" | "footer";
+    footerToken?: string;
+  };
+  body?: {
+    presence?: "optional" | "required" | "forbidden";
+    leadingBlank?: boolean;
+    maxLineLength?: number | null;
+    instructions?: string;
+  };
+  footer?: { leadingBlank?: boolean };
+  breakingChanges?: { requireFooter?: boolean; instructions?: string };
+  commitlint?: boolean;
+  history?: { enabled?: boolean; limit?: number };
+};
+
+export type ResolvedConventions = Required<
+  Omit<
+    CommitConventions,
+    "tickets" | "body" | "footer" | "breakingChanges" | "history"
+  >
+> & {
+  tickets: Required<NonNullable<CommitConventions["tickets"]>>;
+  body: Required<NonNullable<CommitConventions["body"]>>;
+  footer: Required<NonNullable<CommitConventions["footer"]>>;
+  breakingChanges: Required<NonNullable<CommitConventions["breakingChanges"]>>;
+  history: Required<NonNullable<CommitConventions["history"]>>;
+};
+
+export type ConventionRuleMetadata = {
+  name: string;
+  severity: 1 | 2;
+};
+
+export type EffectiveConventions = {
+  conventions: ResolvedConventions;
+  /** Leaf setting paths, such as body.presence, mapped to their winning source. */
+  sources: Record<string, string>;
+  /** Only effective imported rules; explicit overrides remove imported metadata. */
+  ruleMetadata: Record<string, ConventionRuleMetadata>;
+  diagnostics: string[];
+  root?: string;
+  repositoryConfigPath?: string;
+  commitlintConfigPath?: string;
+};

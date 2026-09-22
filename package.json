@@ -25,7 +25,7 @@
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
   "engines": {
-    "node": ">=22",
+    "node": ">=22.12.0",
     "pnpm": ">=10"
   },
   "publishConfig": {
@@ -34,6 +34,7 @@
   },
   "files": [
     "dist",
+    "schemas",
     "LICENSE",
     "README.md"
   ],
@@ -43,7 +44,8 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./schemas/gsmartrc.schema.json": "./schemas/gsmartrc.schema.json"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -72,7 +74,9 @@
     "@ai-sdk/google": "^4.0.76",
     "@ai-sdk/mistral": "^4.0.48",
     "@ai-sdk/openai": "^4.0.71",
+    "@commitlint/load": "^21.2.3",
     "ai": "^7.0.107",
+    "ajv": "^8.20.0",
     "chalk": "6.0.0",
     "clipboardy": "^5.3.2",
     "commander": "^15.0.0",

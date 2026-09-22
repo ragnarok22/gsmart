@@ -8,6 +8,7 @@ import type { AIBuilder } from "../src/utils/ai.ts";
 import type { EditResult } from "../src/utils/editor.ts";
 import type { StagedSnapshot } from "../src/utils/git.ts";
 import { dispatchInterrupt } from "../src/utils/interrupt.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
 
 const original =
   "feat(db): add migration\n\nCreate the accounts table.\nKeep existing records.";
@@ -82,6 +83,11 @@ function setup({
     },
   };
   const command = createMainCommand({
+    loadEffectiveConventions: async ({ user = {}, cli = {} } = {}) =>
+      resolveConventions([
+        { source: "user", settings: user },
+        { source: "CLI", settings: cli },
+      ]),
     spinner: (() => spinner) as never,
     prompt: async (question) => {
       assert.ok(!Array.isArray(question));
