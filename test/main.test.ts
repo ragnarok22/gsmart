@@ -128,6 +128,8 @@ function buildMainCommand(
       return {};
     },
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
       getAllKeys: () => allKeys,
       getKey: (provider: string) => allKeys[provider] ?? "",
       getOpenAIAuthMode: () => openAIAuthMode,
@@ -163,6 +165,7 @@ function buildMainCommand(
     debugTime: () => () => undefined,
     log: (...args: unknown[]) =>
       logs.push(stripVTControlCharacters(args.map(String).join(" "))),
+    setExitCode: () => {},
   });
 
   return {
@@ -205,6 +208,8 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
     spinner: spinnerFactory.spinner as never,
     prompt: async () => ({}),
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
       getAllKeys: () => ({ openai: "sk-key" }),
       getKey: () => "sk-key",
       getOpenAIAuthMode: () => "api-key",
@@ -272,7 +277,11 @@ test("main fails when no API keys are configured", async () => {
   await MainCommand.action({});
 
   assert.equal(getCommittedMessage(), "");
-  assert(events.some((event) => event.message?.includes("No API keys found")));
+  assert(
+    events.some((event) =>
+      event.message?.includes("No configured providers found"),
+    ),
+  );
 });
 
 test("main uses OpenAI when ChatGPT OAuth is configured without an API key", async () => {
@@ -310,7 +319,7 @@ test("main fails with invalid explicit provider", async () => {
   await MainCommand.action({ provider: "invalid" });
 
   assert.equal(getCommittedMessage(), "");
-  assert(events.some((event) => event.message?.includes("No valid provider")));
+  assert(events.some((event) => event.message?.includes("Unknown provider")));
 });
 
 test("main stops when AI returns an error", async () => {

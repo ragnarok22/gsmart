@@ -16,7 +16,10 @@ import { getActiveProviders } from "../src/utils/providers";
 
 // Derive test data from actual definitions — single source of truth
 const providerValues = getActiveProviders().map((p) => p.value);
-const flagValues = { provider: providerValues };
+const flagValues = {
+  provider: providerValues,
+  "default-provider": providerValues,
+};
 
 const COMMANDS = allCommands.map((c) => c.name);
 const PROVIDERS = providerValues;

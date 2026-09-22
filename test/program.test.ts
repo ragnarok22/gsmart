@@ -79,7 +79,6 @@ function setup(
 const defaults = {
   debug: false,
   prompt: "",
-  provider: "",
   yes: false,
   dryRun: false,
 };

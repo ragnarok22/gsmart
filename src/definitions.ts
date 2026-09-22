@@ -9,7 +9,13 @@ export interface ICommand {
 }
 
 export type Provider =
-  "openai" | "anthropic" | "google" | "mistral" | "fireworks" | "plataformia";
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "mistral"
+  | "fireworks"
+  | "plataformia"
+  | "custom";
 
 export type Option = {
   flags: string;

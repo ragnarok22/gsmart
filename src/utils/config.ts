@@ -2,7 +2,12 @@ import Conf from "conf";
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
-import { providers } from "./providers";
+import {
+  providers,
+  validateProvider,
+  validateModel,
+  validateBaseURL,
+} from "./providers";
 import { debugLog } from "./debug";
 import { OpenAIOAuthTokens } from "./openai-oauth";
 
@@ -57,6 +62,44 @@ const conf = new Conf({
 });
 
 class Config {
+  setDefaultProvider(provider: Provider): void {
+    this.__set("defaultProvider", validateProvider(provider));
+  }
+
+  getDefaultProvider(): Provider | undefined {
+    const value = this.__get("defaultProvider");
+    return value ? validateProvider(value) : undefined;
+  }
+
+  clearDefaultProvider(): void {
+    this.__delete("defaultProvider");
+  }
+
+  setModel(provider: Provider, model: string): void {
+    this.__set(`${validateProvider(provider)}.model`, validateModel(model));
+  }
+
+  getModel(provider: Provider): string {
+    return this.__get(`${provider}.model`);
+  }
+
+  clearModel(provider: Provider): void {
+    this.__delete(`${validateProvider(provider)}.model`);
+  }
+
+  setCustomBaseURL(baseURL: string): void {
+    this.__set("custom.baseURL", validateBaseURL(baseURL));
+  }
+
+  getCustomBaseURL(): string {
+    return this.__get("custom.baseURL");
+  }
+
+  clearCustomEndpoint(): void {
+    this.__delete("custom");
+    if (this.getDefaultProvider() === "custom") this.clearDefaultProvider();
+  }
+
   /**
    * Set the API key for the specified provider in the config
    * @param provider - The provider to set the key for

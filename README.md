@@ -16,14 +16,14 @@ GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Comm
 
 - **Start with your actual changes.** Generate a message from your staged diff and branch name, or choose files interactively.
 - **Keep the final say.** Review each suggestion before committing, or use `--yes` for a non-interactive workflow.
-- **Bring your preferred provider.** Choose from six providers, including OpenAI with ChatGPT subscription login or an API key.
+- **Bring your preferred provider and model.** Save defaults for six hosted providers, or connect a local OpenAI-compatible endpoint such as Ollama or LM Studio. OpenAI supports ChatGPT subscription login and API keys.
 - **Make it sound like your project.** Share repository conventions, save personal writing instructions, and add context for individual commits.
 
 > **First visit?** Follow the quick start below. **Already using GSmart?** Jump to the [workflow recipes](#everyday-workflows), [shell completions](#shell-completions), or [release notes](https://github.com/ragnarok22/gsmart/blob/main/CHANGELOG.md).
 
 ## Quick start
 
-You'll need **Node.js 22.12.0+**, **Git**, and an account with one of the [supported providers](#providers). Run GSmart inside the Git repository you're working on.
+You'll need **Node.js 22.12.0+**, **Git**, and either an account with one of the [supported providers](#providers) or a [local inference server](#local-inference-and-custom-endpoints). Run GSmart inside the Git repository you're working on.
 
 ### 1. Install
 
@@ -55,7 +55,8 @@ gsmart login
 Select a provider, then follow its sign-in flow:
 
 - **OpenAI:** choose **ChatGPT subscription** to authorize in your browser, or **API key** to paste a key.
-- **Other providers:** paste an API key when prompted. See the [provider table](#providers) for links.
+- **Other hosted providers:** paste an API key when prompted. See the [provider table](#providers) for links.
+- **Custom (OpenAI-compatible):** enter your API base URL and model ID. Leave the key blank for a keyless local server.
 
 Credentials are saved locally for future runs. You can run `gsmart login` again to add another provider or update your authentication.
 
@@ -94,7 +95,7 @@ feat(auth): add password reset
 | Copy message to clipboard   | Copies the message so you can use or edit it elsewhere.                                  |
 | Do nothing                  | Ends the run, leaving your changes available for later.                                  |
 
-**Nothing staged yet?** Run `gsmart` and use the file picker to choose what to stage. If you have multiple providers configured, you'll also be asked which one to use.
+**Nothing staged yet?** Run `gsmart` and use the file picker to choose what to stage. If you have multiple providers configured and no saved default or explicit `--provider`, you'll also be asked which one to use.
 
 ## How it works
 
@@ -129,7 +130,7 @@ Common types include `feat` for new functionality, `fix` for a bug fix, `docs` f
 
 Choose **Edit message** to change the subject and multiline body in an external editor. The first line is the subject; separate the body with a blank line. Save and close the file to return to review, then select **Commit** when satisfied.
 
-Choose **Regenerate with feedback** for targeted changes such as “shorter”, “mention the migration”, or “this fixes a bug”. Submit blank feedback for another version. Refinement reuses the selected provider, captured branch and diff, custom instructions, and current candidate—including manual edits.
+Choose **Regenerate with feedback** for targeted changes such as “shorter”, “mention the migration”, or “this fixes a bug”. Submit blank feedback for another version. Refinement reuses the selected provider and model, captured branch and diff, custom instructions, and current candidate—including manual edits.
 
 Example review session:
 
@@ -187,9 +188,10 @@ After configuring it with `gsmart login`:
 
 ```bash
 gsmart --provider anthropic
+gsmart --provider anthropic --model claude-haiku-4-5-20251001
 ```
 
-Use the exact identifier from the [provider table](#providers). This selects a provider for the current run without saving a default.
+Use the exact identifier from the [provider table](#providers). These options select a provider and model for the current run without changing saved preferences. See [provider and model defaults](#provider-and-model-defaults) to make the choice persistent.
 
 ### Preview before committing
 
@@ -199,7 +201,7 @@ Generate a message and list the files in the analyzed diff:
 gsmart --dry-run
 ```
 
-Dry run still needs authentication and makes an AI request. It skips committing and the final action menu. If nothing is staged, GSmart temporarily stages your selected files to read their diff, then attempts to unstage them. Existing staged changes stay staged.
+Dry run still makes an AI request and needs a configured provider (authentication is optional for custom endpoints). It skips committing and the final action menu. If nothing is staged, GSmart temporarily stages your selected files to read their diff, then attempts to unstage them. Existing staged changes stay staged.
 
 ### Skip the generation prompts
 
@@ -209,7 +211,7 @@ Use `--yes` when you're ready to generate and commit in one step:
 gsmart --yes --provider openai
 ```
 
-Login must already be configured. Specifying a provider makes the choice explicit; otherwise, GSmart uses the first configured provider in the [table's order](#providers).
+A hosted login or custom endpoint must already be configured. GSmart uses an explicit `--provider`, then your saved default provider, then the first configured provider in the [table's order](#providers).
 
 `--yes` skips message review and editing. If staged content changes before its commit or cannot be verified, it stops with exit status `1` and asks you to rerun GSmart.
 
@@ -248,6 +250,90 @@ Check your installation with `gsmart --version`. The [changelog](https://github.
 
 ## Configuration
 
+### Provider and model defaults
+
+Use the `gsmart config` menu to save a default provider, choose a model, or configure a custom endpoint. The equivalent flags work without interactive prompts:
+
+```bash
+gsmart config --default-provider anthropic
+gsmart config --provider anthropic --model claude-haiku-4-5-20251001
+gsmart config --show
+
+# One invocation; does not change the saved settings
+gsmart --provider openai --model gpt-5-codex --dry-run
+
+# Return to automatic provider selection or a built-in model
+gsmart config --clear-default-provider
+gsmart config --provider anthropic --clear-model
+```
+
+Selection precedence is:
+
+| Setting  | First choice          | Second choice                         | Fallback                                                                                                   |
+| -------- | --------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Provider | Explicit `--provider` | Saved default provider                | One configured provider automatically; a chooser if several exist; first configured provider under `--yes` |
+| Model    | Explicit `--model`    | Saved model for the selected provider | [Built-in model](#which-models-does-gsmart-use), with a separate ChatGPT OAuth fallback                    |
+
+An explicit or saved provider must be configured; GSmart reports setup instructions rather than silently choosing another provider. A `custom` endpoint is configured when it has a valid base URL and a saved model (or a `--model` override). It does not need a hosted-provider login. Custom endpoints have no built-in model because model IDs depend on the server.
+
+Model IDs are trimmed and must be nonempty. Availability is checked by the provider during generation, so new or private models do not need to be added to GSmart's source code. `--model` does not change the API operation or authentication mode. Provider and model selection remain the same during refinement and staged-change regeneration.
+
+### Local inference and custom endpoints
+
+The `custom` provider uses **OpenAI-compatible Chat Completions** (`POST <base-url>/chat/completions`). Configure the base URL, including `/v1` when required, rather than the full operation URL. You can save one custom endpoint per configuration directory; use `GSMART_CONFIG_DIR` for separate profiles.
+
+#### Ollama
+
+Install [Ollama](https://ollama.com/), start its server (`ollama serve`, or the desktop app), and download a model. With the server running:
+
+```bash
+ollama pull llama3.2
+gsmart config --provider custom \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.2 --clear-api-key
+gsmart config --default-provider custom
+
+# Run inside a Git repository with staged changes
+gsmart --dry-run
+```
+
+The local Ollama server does not require a key. Use the exact installed model ID, including its tag. Ollama's native `/api/chat` endpoint is not the OpenAI-compatible URL. See [Ollama's compatibility documentation](https://docs.ollama.com/api/openai-compatibility).
+
+#### LM Studio
+
+Download and load a text-generation model in [LM Studio](https://lmstudio.ai/), then start the server from its Developer tab. With the default port and authentication disabled:
+
+```bash
+# Find the model identifier returned by your server
+curl http://localhost:1234/v1/models
+
+# Replace MODEL_ID with that identifier
+gsmart config --provider custom \
+  --base-url http://localhost:1234/v1 \
+  --model MODEL_ID --clear-api-key
+gsmart config --default-provider custom
+gsmart --dry-run
+```
+
+See [LM Studio's OpenAI-compatible endpoints](https://lmstudio.ai/docs/developer/openai-compat). If server authentication is enabled, configure its token instead of `--clear-api-key`.
+
+#### Optional authentication and compatibility
+
+```bash
+# Set the custom server's bearer token; hosted keys are configured through login
+gsmart config --provider custom --api-key YOUR_ENDPOINT_KEY
+
+# Remove authentication; requests will contain no Authorization header
+gsmart config --provider custom --clear-api-key
+
+# Remove the URL, model, key, and default-provider selection if it points to custom
+gsmart config --clear-custom-endpoint
+```
+
+You can also choose **Custom (OpenAI-compatible)** in `gsmart login`, or **Configure custom / local endpoint** in `gsmart config`, to enter the key through a password prompt. A blank key clears any previous custom key. Custom keys have no hosted-provider prefix or minimum-length requirement. Custom requests use only the custom key; they never inherit OpenAI API keys or ChatGPT tokens.
+
+The server must accept text system/user messages and return a standard Chat Completions response. GSmart's custom integration does not use the Responses API, native Ollama/LM Studio APIs, legacy text completions, or automatic protocol detection. A Responses-only model needs a provider/API integration that supports it. Local models must be downloaded/loaded separately and have enough context for the diff and instructions. Model quality, context limits, and hardware determine results and latency; increase `GSMART_TIMEOUT` for slow inference.
+
 ### Save your preferred commit style
 
 Use `gsmart config` for the interactive menu, or set instructions directly:
@@ -269,7 +355,7 @@ Custom instructions are selected in this order:
 3. Your saved default prompt.
 4. Built-in instructions alone.
 
-The selected text is added to the resolved Conventional Commits instructions. These custom-instruction sources replace each other rather than concatenate. Repository `"instructions": ""` explicitly clears inherited personal instructions. `config --show` displays the saved personal prompt, not credentials.
+The selected text is added to the resolved Conventional Commits instructions. These custom-instruction sources replace each other rather than concatenate. Repository `"instructions": ""` explicitly clears inherited personal instructions. `config --show` displays the saved personal prompt and provider/model preferences, with authentication status but no credential values.
 
 ### Shared repository conventions
 
@@ -404,7 +490,7 @@ Invalid or nonpositive timeout values fall back to 30 seconds. GSmart retries tr
 <details>
 <summary><strong>Where settings live, separate configurations, and resetting</strong></summary>
 
-GSmart stores API keys, ChatGPT login tokens, and your default prompt in a local, user-level configuration file managed by `conf`. These settings are shared across repositories when you use the same configuration directory.
+GSmart stores API keys, ChatGPT login tokens, provider/model preferences, the custom endpoint, and your default prompt in a local, user-level configuration file managed by `conf`. These settings are shared across repositories when you use the same configuration directory. Provider preferences and endpoint credentials are not read from `.gsmartrc.json`.
 
 To keep a separate configuration, set `GSMART_CONFIG_DIR` consistently for login and generation. For example, in Bash or Zsh:
 
@@ -420,7 +506,7 @@ To clear the active configuration:
 gsmart reset
 ```
 
-This asks for confirmation, then clears all settings in that configuration store, including provider credentials, ChatGPT login tokens, and the saved prompt. `gsmart reset --force` skips the confirmation. Resetting clears local settings; credential revocation is managed through your provider.
+This asks for confirmation, then clears all settings in that configuration store, including provider credentials, ChatGPT login tokens, provider/model defaults, the custom endpoint, and the saved prompt. `gsmart reset --force` skips the confirmation. Resetting clears local settings; credential revocation is managed through your provider.
 
 </details>
 
@@ -428,34 +514,39 @@ This asks for confirmation, then clears all settings in that configuration store
 
 Run `gsmart login` to configure any of these providers:
 
-| Provider      | `--provider` value | Authentication                                                                |
-| ------------- | ------------------ | ----------------------------------------------------------------------------- |
-| OpenAI        | `openai`           | ChatGPT subscription login or [API key](https://platform.openai.com/api-keys) |
-| Anthropic     | `anthropic`        | [API key](https://console.anthropic.com/settings/keys)                        |
-| Google Gemini | `google`           | [API key](https://aistudio.google.com/apikey)                                 |
-| Mistral       | `mistral`          | [API key](https://console.mistral.ai/api-keys/)                               |
-| Fireworks AI  | `fireworks`        | [API key](https://fireworks.ai/api-keys)                                      |
-| PlataformIA   | `plataformia`      | [API key](https://console.plataformia.com/api-keys)                           |
+| Provider       | `--provider` value | Authentication                                                                          |
+| -------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| OpenAI         | `openai`           | ChatGPT subscription login or [API key](https://platform.openai.com/api-keys)           |
+| Anthropic      | `anthropic`        | [API key](https://console.anthropic.com/settings/keys)                                  |
+| Google Gemini  | `google`           | [API key](https://aistudio.google.com/apikey)                                           |
+| Mistral        | `mistral`          | [API key](https://console.mistral.ai/api-keys/)                                         |
+| Fireworks AI   | `fireworks`        | [API key](https://fireworks.ai/api-keys)                                                |
+| PlataformIA    | `plataformia`      | [API key](https://console.plataformia.com/api-keys)                                     |
+| Custom / local | `custom`           | Optional bearer token; [configure URL and model](#local-inference-and-custom-endpoints) |
 
-With one configured provider, GSmart selects it automatically. With several, it offers a chooser. `--provider` selects one explicitly; `--yes` uses the first configured entry in the order above.
+An explicit `--provider` takes precedence over your saved default. Without either, GSmart selects a single configured provider automatically or offers a chooser when several exist. `--yes` uses the first configured entry in the order above when no explicit or saved choice exists.
 
 **Using ChatGPT?** Choose **OpenAI → ChatGPT subscription** during login. GSmart prints an authorization URL and attempts to open it in your browser. Complete authorization on the machine running the CLI so the local callback can finish. Tokens refresh automatically; if the login expires, run `gsmart login` again.
 
+ChatGPT login uses the Codex Responses endpoint with streaming and storage disabled. Its model access differs from the public OpenAI API. Saved OpenAI models and `--model` overrides must be supported by the active authentication mode; use API-key login for API-only models. Fireworks and PlataformIA use Chat Completions, while OpenAI API-key requests use Responses.
+
 <details>
-<summary><strong>Which models does GSmart use?</strong></summary>
+<summary id="which-models-does-gsmart-use"><strong>Which models does GSmart use?</strong></summary>
 
-Models are selected by GSmart's provider integration. The current model IDs are:
+When neither `--model` nor a saved model is set, the built-in fallbacks are:
 
-| Provider     | Model ID                                      |
-| ------------ | --------------------------------------------- |
-| OpenAI       | `gpt-5.6-luna`                                |
-| Anthropic    | `claude-haiku-4-5-20251001`                   |
-| Google       | `gemini-3.5-flash-lite`                       |
-| Mistral      | `mistral-large-latest`                        |
-| Fireworks AI | `accounts/fireworks/models/deepseek-v4-flash` |
-| PlataformIA  | `radiance`                                    |
+| Provider             | Model ID                                                |
+| -------------------- | ------------------------------------------------------- |
+| OpenAI API key       | `gpt-5.6-luna`                                          |
+| OpenAI ChatGPT OAuth | `gpt-5-codex`                                           |
+| Anthropic            | `claude-haiku-4-5-20251001`                             |
+| Google               | `gemini-3.5-flash-lite`                                 |
+| Mistral              | `mistral-large-latest`                                  |
+| Fireworks AI         | `accounts/fireworks/models/deepseek-v4-flash`           |
+| PlataformIA          | `radiance`                                              |
+| Custom / local       | No fallback; configure a model available on your server |
 
-Model selection is built into the application rather than exposed as a CLI option. Availability depends on your provider account. See the [provider implementation](https://github.com/ragnarok22/gsmart/blob/main/src/utils/ai.ts) and [changelog](https://github.com/ragnarok22/gsmart/blob/main/CHANGELOG.md) for updates.
+Use `gsmart config --provider <provider> --model <model>` to save another model, or `--model <model>` for one run. `gsmart config --show` identifies saved and built-in models. Availability depends on the provider account, authentication mode, and API operation. Consult your provider's model catalog; an unsupported model produces guidance for selecting another model.
 
 </details>
 
@@ -463,56 +554,66 @@ Model selection is built into the application rather than exposed as a CLI optio
 
 Run `gsmart` to generate a commit message. `gsmart --help` shows generation options and the available subcommands.
 
-| Command                      | Purpose                                                 |
-| ---------------------------- | ------------------------------------------------------- |
-| `gsmart`                     | Generate a message and choose what to do with it        |
-| `gsmart login`               | Configure a provider's authentication                   |
-| `gsmart config`              | Set, show, or clear your default writing instructions   |
-| `gsmart reset`               | Clear the active local configuration after confirmation |
-| `gsmart completions <shell>` | Print a completion script for `bash`, `zsh`, or `fish`  |
-| `gsmart help [command]`      | Show help for a command                                 |
+| Command                      | Purpose                                                       |
+| ---------------------------- | ------------------------------------------------------------- |
+| `gsmart`                     | Generate a message and choose what to do with it              |
+| `gsmart login`               | Configure a provider's authentication                         |
+| `gsmart config`              | Manage prompts, provider/model defaults, and custom endpoints |
+| `gsmart reset`               | Clear the active local configuration after confirmation       |
+| `gsmart completions <shell>` | Print a completion script for `bash`, `zsh`, or `fish`        |
+| `gsmart help [command]`      | Show help for a command                                       |
 
 **Generation options** — use directly with `gsmart`:
 
-| Option                       | Short | Purpose                                                           |
-| ---------------------------- | ----- | ----------------------------------------------------------------- |
-| `--provider <provider>`      | `-P`  | Choose an already-configured provider                             |
-| `--prompt <prompt>`          | `-p`  | Supply custom instructions for this run                           |
-| `--language <tag>`           |       | Override the generated message's language (`en`, `es`, `pt-BR`)   |
-| `--history-examples <count>` |       | Include 0–20 recent subjects as style examples; `0` disables them |
-| `--yes`                      | `-y`  | Skip generation prompts and commit automatically                  |
-| `--dry-run`                  | `-d`  | Generate a message and show analyzed files without committing     |
+| Option                       | Short | Purpose                                                               |
+| ---------------------------- | ----- | --------------------------------------------------------------------- |
+| `--provider <provider>`      | `-P`  | Choose an already-configured provider                                 |
+| `--model <model>`            |       | Override the selected provider's saved or built-in model for this run |
+| `--prompt <prompt>`          | `-p`  | Supply custom instructions for this run                               |
+| `--language <tag>`           |       | Override the generated message's language (`en`, `es`, `pt-BR`)       |
+| `--history-examples <count>` |       | Include 0–20 recent subjects as style examples; `0` disables them     |
+| `--yes`                      | `-y`  | Skip generation prompts and commit automatically                      |
+| `--dry-run`                  | `-d`  | Generate a message and show analyzed files without committing         |
 
 **Other options:**
 
-| Command and option                         | Short | Purpose                                                |
-| ------------------------------------------ | ----- | ------------------------------------------------------ |
-| `gsmart --debug`                           | `-D`  | Enable diagnostic logging and timing                   |
-| `gsmart --version`                         | `-V`  | Print the installed version                            |
-| `gsmart --help`                            | `-h`  | Show help; also available on subcommands               |
-| `gsmart config --show`                     | `-s`  | Display the saved default prompt                       |
-| `gsmart config --show-effective`           |       | Display resolved conventions, sources, and diagnostics |
-| `gsmart config --add-custom-prompt <text>` |       | Save default writing instructions                      |
-| `gsmart config --clear-custom-prompt`      |       | Clear default writing instructions                     |
-| `gsmart reset --force`                     | `-f`  | Reset local settings without confirmation              |
+| Command and option                                    | Short | Purpose                                                                         |
+| ----------------------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| `gsmart --debug`                                      | `-D`  | Enable diagnostic logging and timing                                            |
+| `gsmart --version`                                    | `-V`  | Print the installed version                                                     |
+| `gsmart --help`                                       | `-h`  | Show help; also available on subcommands                                        |
+| `gsmart config --show`                                | `-s`  | Display prompt, provider/model preferences, endpoint, and authentication status |
+| `gsmart config --default-provider <provider>`         |       | Save the default provider                                                       |
+| `gsmart config --clear-default-provider`              |       | Return to automatic selection                                                   |
+| `gsmart config --provider <provider> --model <model>` |       | Save a model for a provider                                                     |
+| `gsmart config --provider <provider> --clear-model`   |       | Remove a saved model                                                            |
+| `gsmart config --provider custom --base-url <url>`    |       | Set the Chat Completions base URL                                               |
+| `gsmart config --provider custom --api-key <key>`     |       | Set custom endpoint authentication                                              |
+| `gsmart config --provider custom --clear-api-key`     |       | Remove custom endpoint authentication                                           |
+| `gsmart config --clear-custom-endpoint`               |       | Remove custom endpoint settings and its default-provider selection              |
+| `gsmart config --show-effective`                      |       | Display resolved conventions, sources, and diagnostics                          |
+| `gsmart config --add-custom-prompt <text>`            |       | Save default writing instructions                                               |
+| `gsmart config --clear-custom-prompt`                 |       | Clear default writing instructions                                              |
+| `gsmart reset --force`                                | `-f`  | Reset local settings without confirmation                                       |
 
 ## Troubleshooting
 
-| What you see                             | What to try                                                                                                                      |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `gsmart: command not found`              | Confirm the global installation completed and your package manager's global executable directory is on `PATH`.                   |
-| No changes found                         | Run `git status` in the repository and check that you have changes to describe.                                                  |
-| No API keys / no valid provider          | Run `gsmart login`. If you passed `--provider`, use a configured identifier from the provider table.                             |
-| Invalid API key or expired ChatGPT login | Run `gsmart login` again to update the key or repeat browser authorization.                                                      |
-| Request timed out / could not reach API  | Check connectivity; for slow responses, increase `GSMART_TIMEOUT`.                                                               |
-| Rate limited / model unavailable         | Wait before retrying a rate limit. For an unavailable model, check account access or select another configured provider.         |
-| Failed to commit changes                 | Check your Git identity, repository state, and hook output. GSmart attempts to copy the message to your clipboard as a fallback. |
-| Could not copy message to clipboard      | Copy the printed message directly from the terminal.                                                                             |
-| Failed to unstage files after dry-run    | Run `git status` to inspect the index and unstage the files you intended only to preview.                                        |
-| Editor failed or edits did not appear    | Check `VISUAL` / `EDITOR` and add a wait flag for GUI editors, such as `code --wait`, then retry **Edit message**.               |
-| Staged content has changed               | Regenerate for the updated changes, review the new message, then choose **Commit** again.                                        |
-| Invalid conventions or malformed JSON    | Fix the reported setting in the root `.gsmartrc.json`; inspect `gsmart config --show-effective` after correcting it.             |
-| Could not load commitlint configuration  | Correct the root config or install its referenced presets/plugins; `"commitlint": false` disables this integration.              |
+| What you see                                      | What to try                                                                                                                                                                        |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gsmart: command not found`                       | Confirm the global installation completed and your package manager's global executable directory is on `PATH`.                                                                     |
+| No changes found                                  | Run `git status` in the repository and check that you have changes to describe.                                                                                                    |
+| No configured providers / provider not configured | Run `gsmart login` or configure a custom endpoint URL and model. Inspect saved defaults with `gsmart config --show`.                                                               |
+| Invalid API key or expired ChatGPT login          | Run `gsmart login` again to update the key or repeat browser authorization.                                                                                                        |
+| Request timed out / could not reach API           | Check connectivity and start your local server if applicable; verify the host/port and increase `GSMART_TIMEOUT` for slow models.                                                  |
+| Rate limited / model unavailable                  | Wait before retrying a rate limit. Check model access or load/download the local model; select another with `--model`.                                                             |
+| Endpoint unsupported / unexpected response        | Check that the custom base URL includes `/v1` if required and serves OpenAI-compatible Chat Completions. Native API URLs and Responses-only servers are not supported by `custom`. |
+| Failed to commit changes                          | Check your Git identity, repository state, and hook output. GSmart attempts to copy the message to your clipboard as a fallback.                                                   |
+| Could not copy message to clipboard               | Copy the printed message directly from the terminal.                                                                                                                               |
+| Failed to unstage files after dry-run             | Run `git status` to inspect the index and unstage the files you intended only to preview.                                                                                          |
+| Editor failed or edits did not appear             | Check `VISUAL` / `EDITOR` and add a wait flag for GUI editors, such as `code --wait`, then retry **Edit message**.                                                                 |
+| Staged content has changed                        | Regenerate for the updated changes, review the new message, then choose **Commit** again.                                                                                          |
+| Invalid conventions or malformed JSON             | Fix the reported setting in the root `.gsmartrc.json`; inspect `gsmart config --show-effective` after correcting it.                                                               |
+| Could not load commitlint configuration           | Correct the root config or install its referenced presets/plugins; `"commitlint": false` disables this integration.                                                                |
 
 For more detail, combine debug logging with a preview:
 

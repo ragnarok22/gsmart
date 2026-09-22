@@ -12,7 +12,17 @@ import {
 } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder, type GenerationOptions } from "../utils/ai";
-import { getActiveProviders } from "../utils/providers";
+import {
+  getActiveProviders,
+  validateProvider,
+  validateModel,
+  validateBaseURL,
+  resolveModel,
+} from "../utils/providers";
+import {
+  isProviderConfigured,
+  usesOpenAIOAuth,
+} from "../utils/provider-config";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 import { debugLog, debugTime } from "../utils/debug";
 import { editMessage } from "../utils/editor";
@@ -25,6 +35,7 @@ import {
 
 type MainCommandOptions = ConventionOptions & {
   provider?: string;
+  model?: string;
   yes?: boolean;
   dryRun?: boolean;
 };
@@ -98,17 +109,11 @@ const getProvider = async (
   provider: string,
   skipPrompt = false,
   deps: MainCommandDeps = defaultDeps,
+  model?: string,
 ): Promise<IProvider | null> => {
-  const allKeys = deps.config.getAllKeys();
   const activeProviders = deps
     .getActiveProviders()
-    .filter(
-      (p) =>
-        allKeys[p.value] ||
-        (p.value === "openai" &&
-          deps.config.getOpenAIAuthMode() === "oauth" &&
-          Boolean(deps.config.getOpenAIOAuthTokens())),
-    );
+    .filter((p) => isProviderConfigured(p.value, deps.config, model));
 
   if (provider) {
     const selectedProvider = activeProviders.find((p) => p.value === provider);
@@ -149,7 +154,25 @@ const mainAction = async (
   const spinner = deps.spinner("").start();
   let effective: EffectiveConventions;
   let historyExamples: string[] = [];
+  let requestedProvider: string | undefined;
   try {
+    requestedProvider =
+      options.provider !== undefined
+        ? validateProvider(options.provider)
+        : deps.config.getDefaultProvider();
+    if (options.model !== undefined) validateModel(options.model);
+    if (requestedProvider) {
+      const provider = validateProvider(requestedProvider);
+      if (provider === "custom") {
+        validateBaseURL(deps.config.getCustomBaseURL());
+        resolveModel(provider, options.model, deps.config.getModel(provider));
+      }
+      if (!isProviderConfigured(provider, deps.config, options.model)) {
+        throw new Error(
+          `Provider ${provider} is not configured. Run \`gsmart login\` or change the default with \`gsmart config --default-provider <provider>\`.`,
+        );
+      }
+    }
     const savedPrompt = deps.config.getPrompt();
     effective = await deps.loadEffectiveConventions({
       user: savedPrompt ? { instructions: savedPrompt } : {},
@@ -186,17 +209,19 @@ const mainAction = async (
 
   spinner.stop();
   const selectedProvider = await getProvider(
-    options.provider ?? "",
+    requestedProvider ?? "",
     Boolean(options.yes),
     deps,
+    options.model,
   );
 
-  if (!selectedProvider && !options.provider) {
+  if (!selectedProvider && !requestedProvider) {
     spinner.fail(
       chalk.red(
-        "No API keys found. Please run `gsmart login` to paste your API key.",
+        "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`.",
       ),
     );
+    deps.setExitCode(1);
     return;
   } else if (!selectedProvider) {
     spinner.fail(
@@ -241,6 +266,21 @@ const mainAction = async (
   if (options.provider)
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   const prompt = effective.conventions.instructions;
+  let model: string;
+  try {
+    model = resolveModel(
+      selectedProvider.value,
+      options.model,
+      deps.config.getModel(selectedProvider.value),
+      selectedProvider.value === "openai" && usesOpenAIOAuth(deps.config),
+    );
+  } catch (error) {
+    spinner.fail(
+      chalk.red(error instanceof Error ? error.message : String(error)),
+    );
+    deps.setExitCode(1);
+    return;
+  }
   const ai = new deps.AIBuilder(selectedProvider.value, prompt);
 
   const generate = async (
@@ -259,6 +299,7 @@ const mainAction = async (
           context.branch,
           context.diff,
           {
+            model,
             conventions: effective.conventions,
             historyExamples,
             ...(refinement ? { refinement } : {}),
@@ -273,6 +314,7 @@ const mainAction = async (
         if (controller.signal.aborted) return null;
         if (typeof message === "object") {
           spinner.fail(chalk.red(message.error));
+          if (!cancellable) deps.setExitCode(1);
           return null;
         }
         if (!message.trim()) {
@@ -514,8 +556,12 @@ export const createMainCommand = (
       },
       {
         flags: "-P, --provider <provider>",
-        default: "",
         description: "The AI provider to use for generating the commit message",
+      },
+      {
+        flags: "--model <model>",
+        description:
+          "Model for this run (overrides the saved model and built-in default)",
       },
       {
         flags: "-y, --yes",

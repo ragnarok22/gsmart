@@ -1,10 +1,12 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createMistral } from "@ai-sdk/mistral";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   generateText,
+  streamText,
   type LanguageModel,
   APICallError,
   NoSuchModelError,
@@ -27,6 +29,7 @@ import {
   INITIAL_RETRY_DELAY_MS,
 } from "./constants";
 import { debugLog, debugTime } from "./debug";
+import { resolveModel, validateModel, validateBaseURL } from "./providers";
 
 export { providers, getActiveProviders } from "./providers";
 
@@ -34,15 +37,34 @@ function classifyError(
   error: unknown,
   provider: string,
   timeoutMs: number,
+  context: { modelId: string; baseURL?: string; oauth?: boolean },
 ): string {
-  if (error instanceof Error && error.name === "AbortError") {
-    return `${provider} - Request timed out after ${timeoutMs / 1000}s. Please check your network connection and try again.`;
+  const modelHint = `Selected model: "${context.modelId}". Use --model <model> or \`gsmart config --provider ${provider} --model <model>\` to change it.`;
+  const endpointHint =
+    provider === "custom"
+      ? ` Endpoint: ${context.baseURL}/chat/completions. Check the server is running, the base URL includes /v1 if required, and the server supports Chat Completions. Change it with \`gsmart config --provider custom --base-url <url>\`.`
+      : "";
+  const modelError = `${provider} - Model is not available or the endpoint is unsupported. ${modelHint}${endpointHint}${context.oauth ? " Choose a model supported by your ChatGPT subscription, or use API-key login for API-only models." : " Check your plan or try a different provider; for local models, download/load the model on the server."}`;
+  const connectionError = `${provider} - Could not reach the ${provider} API. ${provider === "custom" ? endpointHint.trim() : "Check your internet connection."}`;
+  if (
+    error instanceof Error &&
+    ["AbortError", "TimeoutError"].includes(error.name)
+  ) {
+    return `${provider} - Request timed out after ${timeoutMs / 1000}s. Please check your network connection and try again. Increase GSMART_TIMEOUT for slow models.${endpointHint}`;
   }
 
   if (APICallError.isInstance(error)) {
     const status = error.statusCode;
 
+    if (status != null && status >= 200 && status < 300) {
+      return `${provider} - Unexpected response from ${provider}. Check the API response format.${endpointHint}`;
+    }
+
     if (status === 401 || status === 403) {
+      if (provider === "custom")
+        return `${provider} - Endpoint rejected authentication (HTTP ${status}). Set its key with \`gsmart config --provider custom --api-key <key>\` or remove it with --clear-api-key for a keyless server.${endpointHint}`;
+      if (context.oauth)
+        return `${provider} - ChatGPT authorization or model access was rejected (HTTP ${status}). Run \`gsmart login\` and choose ChatGPT subscription. ${modelHint}`;
       return `${provider} - Invalid API key. Run \`gsmart login\` to reconfigure.`;
     }
 
@@ -50,8 +72,13 @@ function classifyError(
       return `${provider} - Rate limited by ${provider}. Wait a moment and try again.`;
     }
 
-    if (status === 404) {
-      return `${provider} - Model is not available. Check your plan or try a different provider.`;
+    if (
+      status === 404 ||
+      status === 405 ||
+      ((status === 400 || status === 422) &&
+        /model|not supported|unsupported/i.test(error.message))
+    ) {
+      return modelError;
     }
 
     if (status == null) {
@@ -63,15 +90,15 @@ function classifyError(
         msg.includes("network") ||
         msg.includes("dns")
       ) {
-        return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
+        return connectionError;
       }
     }
 
-    return `${provider} - API request failed (HTTP ${status ?? "unknown"}). Please try again.`;
+    return `${provider} - API request failed (HTTP ${status ?? "unknown"}). Please try again. ${modelHint}${endpointHint}`;
   }
 
   if (NoSuchModelError.isInstance(error)) {
-    return `${provider} - Model "${error.modelId}" is not available. Check your plan or try a different provider.`;
+    return `${provider} - Model "${error.modelId}" is not available. ${modelHint}${endpointHint} Check your plan or try a different provider.`;
   }
 
   if (
@@ -80,7 +107,7 @@ function classifyError(
     JSONParseError.isInstance(error) ||
     NoContentGeneratedError.isInstance(error)
   ) {
-    return `${provider} - Unexpected response from ${provider}. Please try again.`;
+    return `${provider} - Unexpected response from ${provider}. Please try again.${endpointHint}`;
   }
 
   if (error instanceof Error) {
@@ -92,7 +119,7 @@ function classifyError(
       msg.includes("network") ||
       msg.includes("dns")
     ) {
-      return `${provider} - Could not reach the ${provider} API. Check your internet connection.`;
+      return connectionError;
     }
   }
 
@@ -100,7 +127,9 @@ function classifyError(
     error instanceof Error && error.message
       ? error.message
       : "An error occurred while generating the commit message";
-  return `${provider} - ${message}`;
+  return provider === "custom"
+    ? `${provider} - Generation failed. ${modelHint}${endpointHint}`
+    : `${provider} - ${message}`;
 }
 
 function hasNetworkKeyword(msg: string): boolean {
@@ -115,7 +144,11 @@ function hasNetworkKeyword(msg: string): boolean {
 }
 
 function isRetryableError(error: unknown): boolean {
-  if (error instanceof Error && error.name === "AbortError") return true;
+  if (
+    error instanceof Error &&
+    ["AbortError", "TimeoutError"].includes(error.name)
+  )
+    return true;
 
   if (APICallError.isInstance(error)) {
     const status = error.statusCode;
@@ -148,6 +181,7 @@ export type RetryOptions = {
 };
 
 export type GenerationOptions = RetryOptions & {
+  model?: string;
   conventions?: ResolvedConventions;
   historyExamples?: string[];
   abortSignal?: AbortSignal;
@@ -158,9 +192,10 @@ export type GenerationOptions = RetryOptions & {
 };
 
 type ProviderAuth = {
-  apiKey: string;
+  apiKey?: string;
   baseURL?: string;
   headers?: Record<string, string>;
+  oauth?: boolean;
 };
 
 const resolveTimeoutMs = (value: string | undefined): number => {
@@ -201,6 +236,13 @@ export class AIBuilder {
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
     try {
       options?.abortSignal?.throwIfAborted();
+      if (options?.model !== undefined) {
+        try {
+          validateModel(options.model);
+        } catch (error) {
+          return { error: (error as Error).message };
+        }
+      }
       const auth = await this.__resolveAuth();
       options?.abortSignal?.throwIfAborted();
       if ("error" in auth) {
@@ -208,8 +250,26 @@ export class AIBuilder {
         return auth;
       }
 
-      const model = this.__generateModel(auth);
-      return await this.__generateText(model, branch_name, changes, options);
+      let modelId: string;
+      try {
+        modelId = resolveModel(
+          this.provider,
+          options?.model,
+          config.getModel(this.provider),
+          auth.oauth,
+        );
+      } catch (error) {
+        return { error: (error as Error).message };
+      }
+      debugLog("ai", `model: ${modelId}`);
+      const model = this.__generateModel(auth, modelId);
+      return await this.__generateText(
+        model,
+        branch_name,
+        changes,
+        { ...auth, modelId },
+        options,
+      );
     } catch (error) {
       if (options?.abortSignal?.aborted)
         return { error: "Generation canceled." };
@@ -218,6 +278,18 @@ export class AIBuilder {
   }
 
   private async __resolveAuth(): Promise<ProviderAuth | { error: string }> {
+    if (this.provider === "custom") {
+      try {
+        return {
+          baseURL: validateBaseURL(config.getCustomBaseURL()),
+          apiKey: config.getKey("custom").trim() || undefined,
+        };
+      } catch (error) {
+        return {
+          error: `custom - ${(error as Error).message} Configure it with \`gsmart config --provider custom --base-url <url> --model <model>\`.`,
+        };
+      }
+    }
     if (this.provider === "openai") {
       const oauthTokens = this.__getOpenAIOAuthTokens();
       const useOAuth =
@@ -251,7 +323,7 @@ export class AIBuilder {
     const validationError = validateApiKey(this.provider, apiKey);
     if (validationError) return { error: validationError };
 
-    return { apiKey };
+    return { apiKey: apiKey.trim() };
   }
 
   private __getOpenAIOAuthTokens(): OpenAIOAuthTokens | null {
@@ -261,6 +333,7 @@ export class AIBuilder {
   private __openAIOAuthProviderAuth(tokens: OpenAIOAuthTokens): ProviderAuth {
     return {
       apiKey: tokens.accessToken,
+      oauth: true,
       baseURL: "https://chatgpt.com/backend-api/codex",
       headers: {
         ...(tokens.accountId ? { "ChatGPT-Account-ID": tokens.accountId } : {}),
@@ -269,7 +342,7 @@ export class AIBuilder {
     };
   }
 
-  private __generateModel(auth: ProviderAuth): LanguageModel {
+  private __generateModel(auth: ProviderAuth, modelId: string): LanguageModel {
     debugLog("ai", `selecting model for provider: ${this.provider}`);
     switch (this.provider) {
       case "openai": {
@@ -278,41 +351,47 @@ export class AIBuilder {
           ...(auth.baseURL ? { baseURL: auth.baseURL } : {}),
           ...(auth.headers ? { headers: auth.headers } : {}),
         });
-        return openai("gpt-5.6-luna");
+        return openai.responses(modelId);
       }
       case "anthropic": {
         const anthropic = createAnthropic({
           apiKey: auth.apiKey,
         });
-        return anthropic("claude-haiku-4-5-20251001");
+        return anthropic(modelId);
       }
       case "google": {
         const gemini = createGoogleGenerativeAI({
           apiKey: auth.apiKey,
         });
 
-        return gemini("gemini-3.5-flash-lite");
+        return gemini(modelId);
       }
       case "mistral": {
         const mistral = createMistral({
           apiKey: auth.apiKey,
         });
-        return mistral("mistral-large-latest");
+        return mistral(modelId);
       }
       case "fireworks": {
         const openai = createOpenAI({
           apiKey: auth.apiKey,
           baseURL: "https://api.fireworks.ai/inference/v1",
         });
-        return openai("accounts/fireworks/models/deepseek-v4-flash");
+        return openai.chat(modelId);
       }
       case "plataformia": {
         const openai = createOpenAI({
           apiKey: auth.apiKey,
           baseURL: "https://apigateway.avangenio.net",
         });
-        return openai("radiance");
+        return openai.chat(modelId);
       }
+      case "custom":
+        return createOpenAICompatible({
+          name: "custom",
+          baseURL: auth.baseURL!,
+          ...(auth.apiKey ? { apiKey: auth.apiKey } : {}),
+        }).chatModel(modelId);
       default:
         throw new Error("Invalid provider");
     }
@@ -330,6 +409,7 @@ export class AIBuilder {
     model: LanguageModel,
     branch_name: string,
     changes: string,
+    context: ProviderAuth & { modelId: string },
     options?: GenerationOptions,
   ): Promise<string | { error: string }> {
     const [system, initialPrompt] = buildCommitPrompt(
@@ -364,13 +444,31 @@ export class AIBuilder {
     ): Promise<string | { error: string }> => {
       options?.abortSignal?.throwIfAborted();
       try {
-        const { text } = await generateText({
+        const request = {
           model,
-          system,
           prompt,
+          // The retry loop below owns backoff and diagnostics for both APIs.
+          maxRetries: 0,
           timeout: { totalMs: timeoutMs },
           ...(options?.abortSignal ? { abortSignal: options.abortSignal } : {}),
-        });
+        };
+        let text: string;
+        if (context.oauth) {
+          // The ChatGPT Codex endpoint requires streaming, store:false, and
+          // top-level instructions. Buffer the response for the CLI review UI.
+          const result = streamText({
+            ...request,
+            providerOptions: { openai: { store: false, instructions: system } },
+            onError: () => {}, // Errors are classified below, without logging credentials.
+          });
+          text = "";
+          for await (const part of result.fullStream) {
+            if (part.type === "error") throw part.error;
+            if (part.type === "text-delta") text += part.text;
+          }
+        } else {
+          ({ text } = await generateText({ ...request, system }));
+        }
 
         options?.abortSignal?.throwIfAborted();
         debugLog("ai", "generation succeeded");
@@ -378,7 +476,12 @@ export class AIBuilder {
       } catch (error) {
         if (options?.abortSignal?.aborted) throw error;
         if (!isRetryableError(error) || attempt === maxRetries) {
-          const classified = classifyError(error, this.provider, timeoutMs);
+          const classified = classifyError(
+            error,
+            this.provider,
+            timeoutMs,
+            context,
+          );
           debugLog("ai", `generation failed: ${classified}`);
           return { error: classified };
         }

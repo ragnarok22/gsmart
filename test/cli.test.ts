@@ -48,6 +48,7 @@ it("root help exposes generation options and hides the compatibility alias", () 
   const result = runCLI(["--help"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /--provider/);
+  assert.match(result.stdout, /--model/);
   assert.match(result.stdout, /--dry-run/);
   assert.match(result.stdout, /--language/);
   assert.match(result.stdout, /--history-examples/);

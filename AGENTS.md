@@ -36,10 +36,10 @@
 ## Wiring and behavior
 
 - `src/program.ts` turns `ICommand` objects into Commander commands; `src/index.ts` handles startup and signals. The default descriptor's action and options live on the root command, with its name retained as a hidden compatibility alias. Silent commands skip welcome, update, and holiday output. Export new commands through `src/commands/index.ts` and register them in `src/gsmart.ts`. Shell completions maintain a separate `allCommands` list in `src/commands/completions.ts`; update it too (a regression test checks it against the CLI registry).
-- Provider changes span `src/definitions.ts` (provider union), `src/utils/providers.ts` (choices), `src/utils/config.ts` (credentials/validation), and `src/utils/ai.ts` (models, endpoints, generation). OpenAI also supports ChatGPT OAuth via `src/utils/openai-oauth.ts`; configured-provider detection must account for tokens as well as API keys.
+- Provider changes span `src/definitions.ts` (provider union), `src/utils/providers.ts` (choices, model defaults, validation), `src/utils/config.ts` (credentials/preferences), and `src/utils/ai.ts` (endpoints, generation). `src/utils/provider-config.ts` handles configured-provider detection, including keyless custom endpoints and ChatGPT OAuth tokens. Custom uses Chat Completions via `@ai-sdk/openai-compatible`; OpenAI uses Responses, with streaming, `store: false`, and instructions for the OAuth Codex endpoint. Model precedence is invocation override → saved provider model → auth-aware built-in fallback. Custom has no model fallback.
 - `AIBuilder` returns a message or `{ error: string }` for handled generation failures. Timeout comes from `GSMART_TIMEOUT`; retry defaults live in `src/utils/constants.ts`.
 - Git wrappers use argument arrays and NUL-delimited `git status --porcelain -z`. Preserve rename/copy `original_path` handling when changing parsing or staging.
-- `retrieveFilesToCommit` in `src/utils/index.ts` returns an existing staged diff immediately; auto-staging only happens when that diff is empty. `--yes` proceeds to commit. `--dry-run` still authenticates and calls AI, and can temporarily stage/unstage files.
+- `retrieveFilesToCommit` in `src/utils/index.ts` returns an existing staged diff immediately; auto-staging only happens when that diff is empty. `--yes` proceeds to commit. `--dry-run` still calls the configured AI provider (authentication is optional for custom endpoints), and can temporarily stage/unstage files.
 
 ## Repository workflows
 

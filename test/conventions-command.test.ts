@@ -54,6 +54,9 @@ function setup(cwd: string, responses: Record<string, unknown>[] = []) {
   const command = createMainCommand({
     spinner: (() => spinner) as never,
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
+      getKey: () => "private-key",
       getPrompt: () => "User instructions",
       getAllKeys: () => ({ anthropic: "private-key" }),
     } as never,
@@ -169,13 +172,14 @@ test("initial, refined and refreshed candidates share one resolved configuration
     { refresh: true },
     { action: "nothing" },
   ]);
-  await run.command.action({ historyExamples: "3" });
+  await run.command.action({ historyExamples: "3", model: "session-model" });
   assert.equal(run.resolutions(), 1);
   assert.deepEqual(run.historyReads, [{ cwd: root, limit: 3 }]);
   assert.equal(run.requests.length, 3);
   assert.equal(run.requests[1].options?.refinement?.feedback, "shorter");
   assert.equal(run.requests[2].diff, "updated diff");
   for (const request of run.requests) {
+    assert.equal(request.options?.model, "session-model");
     assert.equal(
       request.options?.conventions,
       run.requests[0].options?.conventions,

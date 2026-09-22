@@ -96,6 +96,9 @@ function setup({
       return responses.shift()!;
     },
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
+      getKey: () => "key",
       getAllKeys: () => ({ anthropic: "key" }),
       getPrompt: () => "Mention migrations",
     } as never,
