@@ -342,3 +342,102 @@ test("config flags match interactive equivalents", serial, async () => {
     normalizeConsoleEntries(interactiveLogs),
   );
 });
+
+test("prompt-only updates display the final injected prompt state with --show", async () => {
+  const logs: string[] = [];
+  const events: { type: string; message?: string }[] = [];
+  let savedPrompt = "Original instructions";
+  const command = createConfigCommand({
+    prompt: async () => assert.fail("Must not prompt"),
+    spinner: () => createSpinner(events) as never,
+    log: (...args: unknown[]) => logs.push(args.join(" ")),
+    promptConfig: {
+      getPrompt: () => savedPrompt,
+      setPrompt: (prompt) => {
+        savedPrompt = prompt;
+      },
+      clearPrompt: () => {
+        const cleared = Boolean(savedPrompt);
+        savedPrompt = "";
+        return { cleared };
+      },
+    },
+  });
+
+  await command.action({ addCustomPrompt: "Updated instructions", show: true });
+  assert.match(logs.join("\n"), /Updated instructions/);
+  assert.doesNotMatch(logs.join("\n"), /Original instructions/);
+  logs.length = 0;
+  await command.action({ clearCustomPrompt: true, show: true });
+  assert.match(logs.join("\n"), /No default prompt configured/);
+  logs.length = 0;
+  await command.action({ clearCustomPrompt: true, show: true });
+  assert.match(logs.join("\n"), /Default provider:/);
+  assert.equal(events.at(-1)?.type, "warn");
+});
+
+test("show honors injected provider getters without a snapshot API", async () => {
+  const logs: string[] = [];
+  const command = createConfigCommand({
+    config: {
+      getDefaultProvider: () => "custom",
+      getModel: (provider: string) =>
+        provider === "custom" ? "injected-model" : "",
+      getKey: () => "secret-injected-key",
+      getCustomBaseURL: () => "http://localhost:9876/v1",
+      getOpenAIAuthMode: () => "oauth",
+      getOpenAIOAuthTokens: () => null,
+    } as never,
+    promptConfig: {
+      getPrompt: () => "Injected instructions",
+      setPrompt: () => assert.fail("Must not save"),
+      clearPrompt: () => assert.fail("Must not clear"),
+    },
+    setExitCode: () => assert.fail("Must not fail"),
+    log: (...args: unknown[]) => logs.push(args.join(" ")),
+  });
+  await command.action({ show: true });
+  const text = logs.join("\n");
+  assert.match(text, /Default provider: custom/);
+  assert.match(text, /Injected instructions/);
+  assert.match(text, /model=injected-model \(saved\)/);
+  assert.match(text, /Endpoint: http:\/\/localhost:9876\/v1/);
+  assert.match(text, /ChatGPT OAuth/);
+  assert.doesNotMatch(text, /secret-/);
+});
+
+for (const options of [
+  { addCustomPrompt: "New instructions" },
+  { clearCustomPrompt: true },
+  { defaultProvider: "anthropic" },
+  { clearDefaultProvider: true },
+  { provider: "anthropic", model: "new-model" },
+  { provider: "anthropic", clearModel: true },
+  { provider: "custom", baseUrl: "http://localhost:1234/v1" },
+  { provider: "custom", apiKey: "secret-key" },
+  { provider: "custom", clearApiKey: true },
+  { clearCustomEndpoint: true },
+]) {
+  test(`show-effective rejects mutations before reads or writes: ${JSON.stringify(options)}`, async () => {
+    const events: { type: string; message?: string }[] = [];
+    let exitCode = 0;
+    const command = createConfigCommand({
+      config: {} as never,
+      spinner: () => createSpinner(events) as never,
+      promptConfig: {
+        getPrompt: () => assert.fail("Must reject before reading the prompt"),
+        setPrompt: () => assert.fail("Must not save the prompt"),
+        clearPrompt: () => assert.fail("Must not clear the prompt"),
+      },
+      loadEffectiveConventions: async () =>
+        assert.fail("Must not resolve conventions"),
+      setExitCode: (code) => {
+        exitCode = code;
+      },
+    });
+    await command.action({ ...options, showEffective: true });
+    assert.equal(exitCode, 1);
+    assert.match(events[0].message!, /--show-effective.*cannot be combined/i);
+    assert.doesNotMatch(events[0].message!, /secret-key/);
+  });
+}

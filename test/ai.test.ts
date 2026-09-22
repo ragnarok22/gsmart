@@ -383,6 +383,8 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
       streamText: () => ({
         fullStream: (async function* () {
           yield { type: "text-delta", text: "feat: oauth" };
+          yield { type: "raw", rawValue: { type: "response.completed" } };
+          yield { type: "finish", finishReason: "stop" };
         })(),
       }),
     },

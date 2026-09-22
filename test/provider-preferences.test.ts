@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import { beforeEach, afterEach, test } from "node:test";
 import { spawnSync } from "node:child_process";
 import { stripVTControlCharacters } from "node:util";
+import { PassThrough } from "node:stream";
+import fs from "node:fs";
+import { join } from "node:path";
+import prompts from "prompts";
 import config from "../src/utils/config.ts";
 import {
   providers,
@@ -185,6 +189,113 @@ test("config flags persist settings, inspect without secrets, and clear individu
   assert.equal(config.getCustomBaseURL(), "http://localhost:11434/v1");
 });
 
+test("config show reads the store twice and observes later writes and auth changes", async (t) => {
+  const capture = output();
+  const command = createConfigCommand({ ...capture, config });
+  const configPath = join(process.env.GSMART_CONFIG_DIR!, "config.json");
+  const readFileSync = fs.readFileSync;
+  let reads = 0;
+  t.mock.method(
+    fs,
+    "readFileSync",
+    (...args: Parameters<typeof readFileSync>) => {
+      if (String(args[0]) === configPath) reads++;
+      return readFileSync(...args);
+    },
+  );
+
+  await command.action({ show: true });
+  assert.equal(capture.exitCode(), 0, capture.text());
+  assert.equal(reads, 2, "one prompt read and one provider snapshot read");
+  assert.match(capture.text(), /Default provider: automatic selection/);
+  assert.match(
+    capture.text(),
+    /custom: model=not configured \(required\); authentication=none/,
+  );
+
+  config.setDefaultProvider("custom");
+  config.setPrompt("Fresh instructions");
+  config.setModel("custom", "fresh-model");
+  config.setCustomBaseURL("http://localhost:1234/v1");
+  config.setKey("custom", "secret-custom");
+  config.setKey("openai", "secret-hosted");
+  config.setOpenAIOAuthTokens({
+    accessToken: "secret-access",
+    refreshToken: "secret-refresh",
+    idToken: "secret-id",
+  });
+  reads = 0;
+  await command.action({ show: true });
+  assert.equal(reads, 2);
+  assert.match(capture.text(), /Default provider: custom/);
+  assert.match(capture.text(), /Fresh instructions/);
+  assert.match(
+    capture.text(),
+    /custom: model=fresh-model \(saved\); authentication=API key configured/,
+  );
+  assert.match(capture.text(), /Endpoint: http:\/\/localhost:1234\/v1/);
+  assert.match(
+    capture.text(),
+    /openai: model=gpt-5-codex \(built-in\); authentication=ChatGPT OAuth/,
+  );
+
+  config.setOpenAIAuthMode("api-key");
+  reads = 0;
+  await command.action({ show: true });
+  assert.equal(reads, 2);
+  assert.match(
+    capture.text(),
+    new RegExp(
+      `openai: model=${defaultModels.openai} \\(built-in\\); authentication=API key configured`,
+    ),
+  );
+  assert.doesNotMatch(capture.text(), /secret-/);
+});
+
+test("config saves combined provider and prompt updates before showing them", async () => {
+  const capture = output();
+  const command = createConfigCommand({ ...capture, config });
+  await command.action({
+    defaultProvider: "anthropic",
+    addCustomPrompt: "Use Spanish",
+    show: true,
+  });
+  assert.equal(capture.exitCode(), 0, capture.text());
+  assert.equal(config.getDefaultProvider(), "anthropic");
+  assert.equal(config.getPrompt(), "Use Spanish");
+  assert.match(capture.text(), /Use Spanish/);
+  assert.match(capture.text(), /Default provider: anthropic/);
+
+  await command.action({ clearDefaultProvider: true, clearCustomPrompt: true });
+  assert.equal(config.getDefaultProvider(), undefined);
+  assert.equal(config.getPrompt(), "");
+});
+
+test("conflicting prompt options fail before writing provider or prompt settings", async () => {
+  config.setPrompt("Original instructions");
+  const capture = output();
+  await createConfigCommand({ ...capture, config }).action({
+    defaultProvider: "anthropic",
+    addCustomPrompt: "New instructions",
+    clearCustomPrompt: true,
+  });
+  assert.equal(capture.exitCode(), 1);
+  assert.equal(config.getDefaultProvider(), undefined);
+  assert.equal(config.getPrompt(), "Original instructions");
+});
+
+test("invalid provider settings do not partially apply combined prompt changes", async () => {
+  config.setPrompt("Original instructions");
+  const capture = output();
+  await createConfigCommand({ ...capture, config }).action({
+    provider: "custom",
+    baseUrl: "invalid",
+    addCustomPrompt: "New instructions",
+  });
+  assert.equal(capture.exitCode(), 1);
+  assert.equal(config.getPrompt(), "Original instructions");
+});
+
 for (const options of [
   { defaultProvider: "unknown" },
   { provider: "custom", model: " " },
@@ -287,6 +398,42 @@ test("interactive provider and model preferences can be saved and cleared", asyn
   assert.equal(config.getModel("anthropic"), "");
   assert.equal(capture.exitCode(), 0);
 });
+
+for (const [input, expected] of [
+  ["\r", ""],
+  ["\x1b", "saved-model"],
+] as const) {
+  test(`real model prompt ${input === "\r" ? "clears on blank Enter" : "preserves on Escape"}`, async (t) => {
+    config.setModel("anthropic", "saved-model");
+    const capture = output();
+    const stdin = new PassThrough();
+    const stdout = new PassThrough();
+    t.after(() => {
+      stdin.destroy();
+      stdout.destroy();
+    });
+    const command = createConfigCommand({
+      ...capture,
+      config,
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        if (question.name === "action") return { action: "model" };
+        if (question.name === "provider") return { provider: "anthropic" };
+        assert.match(
+          String(question.message),
+          /saved-model/,
+          "show the current model without making it the input default",
+        );
+        const response = prompts({ ...question, stdin, stdout });
+        setImmediate(() => stdin.write(input));
+        return response;
+      },
+    });
+    await command.action({});
+    assert.equal(capture.exitCode(), 0, capture.text());
+    assert.equal(config.getModel("anthropic"), expected);
+  });
+}
 
 test("config can remove the custom endpoint while retaining unrelated provider defaults", async () => {
   config.setDefaultProvider("anthropic");

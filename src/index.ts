@@ -12,7 +12,7 @@ import info from "./build-info";
 import { createProgram } from "./program";
 import { checkForUpdates } from "./utils/version-check";
 import { showHolidayMessage } from "./utils/holiday";
-import { enableDebug, debugLog } from "./utils/debug";
+import { enableDebug, debugLog, redactCommandArgs } from "./utils/debug";
 import { showWelcomeOnce } from "./utils/welcome";
 import { dispatchInterrupt } from "./utils/interrupt";
 
@@ -33,7 +33,10 @@ async function main() {
     onDebug: () => {
       enableDebug();
       debugLog("cli", `version: ${info.version}`);
-      debugLog("cli", `command: ${process.argv.slice(2).join(" ")}`);
+      debugLog(
+        "cli",
+        `command: ${redactCommandArgs(process.argv.slice(2)).join(" ")}`,
+      );
     },
     beforeAction: () => {
       checkForUpdates({ name: info.name, version: info.version });

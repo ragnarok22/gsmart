@@ -267,6 +267,14 @@ gsmart config --clear-default-provider
 gsmart config --provider anthropic --clear-model
 ```
 
+Provider and prompt settings can be updated together. Add `--show` to inspect the saved result:
+
+```bash
+gsmart config --default-provider anthropic --add-custom-prompt "Use Spanish" --show
+```
+
+In the **Set preferred model** menu, the current model is displayed for reference. Submit blank input to clear it, or press Esc to keep it.
+
 Selection precedence is:
 
 | Setting  | First choice          | Second choice                         | Fallback                                                                                                   |
@@ -426,6 +434,8 @@ gsmart config --show-effective
 gsmart config --show-effective --language es --history-examples 0
 ```
 
+Run `--show-effective` separately from flags that save or clear settings. Conflicting update options are rejected before any settings are saved.
+
 Conventions guide AI generation; review the result for accuracy. Git hooks continue to enforce your project's validation. The shared `ResolvedConventions` and effective rule metadata provide the configuration interface for [message validation (#495)](https://github.com/ragnarok22/gsmart/issues/495).
 
 Repository configuration accepts no API keys, OAuth tokens, or provider credentials. Login continues to use the active user-level store selected by `GSMART_CONFIG_DIR`; `gsmart reset` clears that store. Repository files are maintained through Git.
@@ -486,6 +496,8 @@ GSMART_TIMEOUT=60000 gsmart
 ```
 
 Invalid or nonpositive timeout values fall back to 30 seconds. GSmart retries transient failures, including network errors, rate limits, and server errors, so a complete run can take longer than one timeout period.
+
+ChatGPT streaming responses must complete successfully before becoming commit candidates. Timeouts and interrupted connections discard partial text before retrying. Explicit cancellation stops retries; responses cut short by output limits or content filtering return an error.
 
 <details>
 <summary><strong>Where settings live, separate configurations, and resetting</strong></summary>

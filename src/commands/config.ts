@@ -210,7 +210,7 @@ const defaultDeps: ConfigCommandDeps = {
 };
 
 const displayProviderConfig = (deps: ConfigCommandDeps) => {
-  const store = deps.config;
+  const store = deps.config.getProviderSnapshot?.() ?? deps.config;
   deps.log(
     `Default provider: ${store.getDefaultProvider() ?? "automatic selection"}`,
   );
@@ -242,11 +242,8 @@ const displayProviderConfig = (deps: ConfigCommandDeps) => {
   }
 };
 
-const updateProviderConfig = (
-  options: ConfigOptions,
-  store: typeof config,
-): boolean => {
-  const hasOptions = [
+const hasProviderOptions = (options: ConfigOptions): boolean =>
+  [
     "provider",
     "defaultProvider",
     "clearDefaultProvider",
@@ -257,7 +254,12 @@ const updateProviderConfig = (
     "clearApiKey",
     "clearCustomEndpoint",
   ].some((key) => options[key as keyof ConfigOptions] !== undefined);
-  if (!hasOptions) return false;
+
+const updateProviderConfig = (
+  options: ConfigOptions,
+  store: typeof config,
+): boolean => {
+  if (!hasProviderOptions(options)) return false;
 
   for (const [set, clear] of [
     ["defaultProvider", "clearDefaultProvider"],
@@ -354,7 +356,17 @@ const configAction = async (
   options: ConfigOptions = {},
   deps: ConfigCommandDeps = defaultDeps,
 ) => {
+  const hasPromptOptions =
+    options.addCustomPrompt !== undefined || options.clearCustomPrompt;
+  if (options.addCustomPrompt !== undefined && options.clearCustomPrompt)
+    throw new Error(
+      "Cannot set and clear the default prompt in the same command.",
+    );
   if (options.showEffective) {
+    if (hasProviderOptions(options) || hasPromptOptions)
+      throw new Error(
+        "--show-effective cannot be combined with provider or prompt updates. Save the settings first, then inspect the effective conventions.",
+      );
     const savedPrompt = deps.promptConfig.getPrompt();
     const effective = await deps.loadEffectiveConventions({
       user: savedPrompt ? { instructions: savedPrompt } : {},
@@ -363,28 +375,20 @@ const configAction = async (
     deps.log(JSON.stringify(effective, null, 2));
     return;
   }
-  if (updateProviderConfig(options, deps.config)) {
+  const providerUpdated = updateProviderConfig(options, deps.config);
+  if (providerUpdated) {
     deps.spinner().succeed(chalk.green("Provider preferences saved"));
-    if (options.show) {
-      displayPrompt(deps.promptConfig.getPrompt(), deps.log);
-      displayProviderConfig(deps);
-    }
-    return;
   }
-  if (options.addCustomPrompt) {
+  if (options.addCustomPrompt !== undefined) {
     deps.promptConfig.setPrompt(options.addCustomPrompt);
     deps.spinner().succeed(chalk.green("Default prompt saved successfully"));
-    return;
-  }
-
-  if (options.clearCustomPrompt) {
+  } else if (options.clearCustomPrompt) {
     const { cleared } = deps.promptConfig.clearPrompt();
     if (!cleared) {
       deps.spinner().warn(chalk.yellow("No default prompt to clear"));
-      return;
+    } else {
+      deps.spinner().succeed(chalk.green("Default prompt cleared"));
     }
-    deps.spinner().succeed(chalk.green("Default prompt cleared"));
-    return;
   }
 
   if (options.show) {
@@ -392,6 +396,7 @@ const configAction = async (
     displayProviderConfig(deps);
     return;
   }
+  if (providerUpdated || hasPromptOptions) return;
 
   const { action } = (await deps.prompt({
     type: "select",
@@ -438,11 +443,11 @@ const configAction = async (
       });
       if (typeof provider !== "string") return;
       const selected = validateProvider(provider);
+      const currentModel = deps.config.getModel(selected);
       const { model } = await deps.prompt({
         type: "text",
         name: "model",
-        message: "Preferred model ID (blank clears the preference)",
-        initial: deps.config.getModel(selected),
+        message: `Preferred model ID${currentModel ? ` (current: ${currentModel})` : ""} (blank clears the preference)`,
       });
       if (typeof model !== "string") return;
       if (model.trim()) deps.config.setModel(selected, model);

@@ -61,7 +61,41 @@ const conf = new Conf({
   ...(configDirectory ? { cwd: configDirectory } : {}),
 });
 
+const completeOAuthTokens = (
+  tokens: OpenAIOAuthTokens | null | undefined,
+): OpenAIOAuthTokens | null =>
+  tokens?.accessToken && tokens.refreshToken && tokens.idToken ? tokens : null;
+
 class Config {
+  /** A fresh, read-only provider view for one operation; never cached. */
+  getProviderSnapshot() {
+    debugLog("config", "read provider preferences snapshot");
+    const values = conf.store as Partial<
+      Record<Provider, { key?: string; model?: string }>
+    > & {
+      defaultProvider?: string;
+      custom?: { baseURL?: string };
+      openai?: {
+        authMode?: "api-key" | "oauth";
+        oauth?: OpenAIOAuthTokens;
+      };
+    };
+
+    return {
+      getDefaultProvider: (): Provider | undefined =>
+        values.defaultProvider
+          ? validateProvider(values.defaultProvider)
+          : undefined,
+      getModel: (provider: Provider): string => values[provider]?.model ?? "",
+      getKey: (provider: Provider): string => values[provider]?.key ?? "",
+      getCustomBaseURL: (): string => values.custom?.baseURL ?? "",
+      getOpenAIAuthMode: (): "api-key" | "oauth" =>
+        values.openai?.authMode ?? "api-key",
+      getOpenAIOAuthTokens: (): OpenAIOAuthTokens | null =>
+        completeOAuthTokens(values.openai?.oauth),
+    };
+  }
+
   setDefaultProvider(provider: Provider): void {
     this.__set("defaultProvider", validateProvider(provider));
   }
@@ -135,9 +169,7 @@ class Config {
 
   getOpenAIOAuthTokens(): OpenAIOAuthTokens | null {
     const tokens = conf.get("openai.oauth", null) as OpenAIOAuthTokens | null;
-    return tokens?.accessToken && tokens.refreshToken && tokens.idToken
-      ? tokens
-      : null;
+    return completeOAuthTokens(tokens);
   }
 
   clearOpenAIOAuthTokens(): void {

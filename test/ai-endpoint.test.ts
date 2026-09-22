@@ -402,6 +402,8 @@ test("OAuth stream failures discard partial output, retry transient errors, and 
           calls++;
           if (calls === 2 && status === 500) {
             yield { type: "text-delta", text: "feat: recovered" };
+            yield { type: "raw", rawValue: { type: "response.completed" } };
+            yield { type: "finish", finishReason: "stop" };
           } else {
             yield { type: "text-delta", text: "partial must be discarded" };
             yield {
@@ -469,6 +471,346 @@ test("canceling OAuth streaming returns cancellation without a retry or partial 
   );
   assert.deepEqual(result, { error: "Generation canceled." });
 });
+
+function partialOAuthEvents(text = "feat: incomplete") {
+  return [
+    {
+      type: "response.created",
+      response: { ...responsesResponse, status: "in_progress", output: [] },
+    },
+    {
+      type: "response.output_item.added",
+      output_index: 0,
+      item: {
+        id: "msg_test",
+        type: "message",
+        role: "assistant",
+        content: [],
+        status: "in_progress",
+      },
+    },
+    {
+      type: "response.output_text.delta",
+      item_id: "msg_test",
+      output_index: 0,
+      content_index: 0,
+      delta: text,
+    },
+  ];
+}
+
+const encodeEvents = (events: unknown[]) =>
+  events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+
+function completedOAuthEvents(text: string) {
+  const item = {
+    ...responsesResponse.output[0],
+    content: [{ type: "output_text", text, annotations: [] }],
+  };
+  return [
+    ...partialOAuthEvents(text),
+    {
+      type: "response.output_text.done",
+      item_id: "msg_test",
+      output_index: 0,
+      content_index: 0,
+      text,
+    },
+    { type: "response.output_item.done", output_index: 0, item },
+    {
+      type: "response.completed",
+      response: { ...responsesResponse, output: [item] },
+    },
+  ];
+}
+
+async function oauthBuilder(fetch: typeof globalThis.fetch) {
+  config.setOpenAIOAuthTokens({
+    accessToken: "access",
+    refreshToken: "refresh",
+    idToken: "id",
+    expiresAt: Date.now() + 3_600_000,
+  });
+  const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+    "@ai-sdk/openai": {
+      createOpenAI: (options: Parameters<typeof createOpenAI>[0]) =>
+        createOpenAI({ ...options, fetch }),
+    },
+  });
+  return new MockAI("openai", "");
+}
+
+function streamingResponse(events: unknown[]) {
+  return new Response(encodeEvents(events), {
+    headers: { "content-type": "text/event-stream" },
+  });
+}
+
+function stalledOAuthResponse(signal: AbortSignal) {
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(encodeEvents(partialOAuthEvents())),
+        );
+        const abort = () => controller.error(signal.reason);
+        if (signal.aborted) abort();
+        else signal.addEventListener("abort", abort, { once: true });
+      },
+    }),
+    { headers: { "content-type": "text/event-stream" } },
+  );
+}
+
+for (const interruption of ["timeout", "eof", "disconnect"] as const) {
+  test(`real OAuth SDK recovers from ${interruption} without concatenating partial text`, async (t) => {
+    const previous = process.env.GSMART_TIMEOUT;
+    process.env.GSMART_TIMEOUT = "250";
+    const keepAlive = setInterval(() => {}, 1000);
+    t.after(() => {
+      clearInterval(keepAlive);
+      if (previous === undefined) delete process.env.GSMART_TIMEOUT;
+      else process.env.GSMART_TIMEOUT = previous;
+    });
+    let calls = 0;
+    const builder = await oauthBuilder(async (_url, init) => {
+      calls++;
+      if (calls > 1) {
+        return streamingResponse(completedOAuthEvents("fix: fully recovered"));
+      }
+      if (interruption === "eof") {
+        return streamingResponse(partialOAuthEvents());
+      }
+      assert.ok(init?.signal);
+      if (interruption === "timeout") {
+        return stalledOAuthResponse(init.signal);
+      }
+      return new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(encodeEvents(partialOAuthEvents())),
+            );
+            // Match Node fetch when the socket closes during the response body.
+            setImmediate(() =>
+              controller.error(
+                new TypeError("terminated", {
+                  cause: Object.assign(new Error("other side closed"), {
+                    code: "UND_ERR_SOCKET",
+                  }),
+                }),
+              ),
+            );
+          },
+        }),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    const retries: number[] = [];
+    const delays: number[] = [];
+    const result = await builder.generateCommitMessage("main", "diff", {
+      maxRetries: 2,
+      onRetry: (attempt: number) => retries.push(attempt),
+      delayFn: async (ms: number) => {
+        delays.push(ms);
+      },
+    });
+    assert.equal(result, "fix: fully recovered");
+    assert.equal(calls, 2);
+    assert.deepEqual(retries, [1]);
+    assert.deepEqual(delays, [1000]);
+  });
+}
+
+for (const reason of ["max_output_tokens", "content_filter", undefined]) {
+  test(`real OAuth SDK rejects incomplete response (${reason ?? "no reason"}) without retrying`, async () => {
+    let calls = 0;
+    const builder = await oauthBuilder(async () => {
+      calls++;
+      return streamingResponse([
+        ...partialOAuthEvents(),
+        {
+          type: "response.incomplete",
+          response: {
+            ...responsesResponse,
+            status: "incomplete",
+            ...(reason ? { incomplete_details: { reason } } : {}),
+          },
+        },
+      ]);
+    });
+    const result = await builder.generateCommitMessage("main", "diff", {
+      maxRetries: 2,
+      onRetry: () =>
+        assert.fail("An incomplete response must not retry unchanged"),
+      delayFn: async () => assert.fail("Unexpected retry delay"),
+    });
+    assert.equal(typeof result, "object", JSON.stringify(result));
+    assert.match(result.error, /incomplete/i);
+    assert.doesNotMatch(result.error, /feat: incomplete/);
+    assert.equal(calls, 1);
+  });
+}
+
+for (const reason of [undefined, new Error("Stop generation"), "cancel"]) {
+  test(`real OAuth SDK preserves explicit cancellation (${String(reason)}) during streaming`, async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const builder = await oauthBuilder(async (_url, init) => {
+      calls++;
+      assert.ok(init?.signal);
+      const response = stalledOAuthResponse(init.signal);
+      setImmediate(() => controller.abort(reason));
+      return response;
+    });
+    const result = await builder.generateCommitMessage("main", "diff", {
+      abortSignal: controller.signal,
+      maxRetries: 2,
+      onRetry: () => assert.fail("Canceled requests must not retry"),
+      delayFn: async () => assert.fail("Unexpected retry delay"),
+    });
+    assert.deepEqual(result, { error: "Generation canceled." });
+    assert.equal(calls, 1);
+  });
+}
+
+test("real OAuth SDK cancellation during interruption backoff prevents a second request", async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  const builder = await oauthBuilder(async () => {
+    calls++;
+    return streamingResponse(partialOAuthEvents());
+  });
+  const result = await builder.generateCommitMessage("main", "diff", {
+    abortSignal: controller.signal,
+    maxRetries: 2,
+    onRetry: () => controller.abort(),
+  });
+  assert.deepEqual(result, { error: "Generation canceled." });
+  assert.equal(calls, 1);
+});
+
+test("real OAuth SDK rejects a completed response with no commit message", async () => {
+  const builder = await oauthBuilder(async () =>
+    streamingResponse(completedOAuthEvents("")),
+  );
+  const result = await builder.generateCommitMessage("main", "diff", {
+    onRetry: () => assert.fail("Empty output must not retry unchanged"),
+  });
+  assert.equal(typeof result, "object", JSON.stringify(result));
+  assert.match(result.error, /response/i);
+});
+
+for (const partial of [false, true]) {
+  test(`real OAuth SDK timeout ${partial ? "after" : "before"} text retries and rejects incomplete output`, async (t) => {
+    config.setOpenAIOAuthTokens({
+      accessToken: "access",
+      refreshToken: "refresh",
+      idToken: "id",
+      expiresAt: Date.now() + 3_600_000,
+    });
+    const previous = process.env.GSMART_TIMEOUT;
+    process.env.GSMART_TIMEOUT = "250";
+    // AbortSignal.timeout does not keep the process alive on its own.
+    const keepAlive = setInterval(() => {}, 1000);
+    t.after(() => {
+      clearInterval(keepAlive);
+      if (previous === undefined) delete process.env.GSMART_TIMEOUT;
+      else process.env.GSMART_TIMEOUT = previous;
+    });
+    let calls = 0;
+    const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+      "@ai-sdk/openai": {
+        createOpenAI: (options: Parameters<typeof createOpenAI>[0]) =>
+          createOpenAI({
+            ...options,
+            fetch: async (_url, init) => {
+              calls++;
+              const signal = init?.signal;
+              assert.ok(signal);
+              return new Response(
+                new ReadableStream({
+                  start(controller) {
+                    controller.enqueue(
+                      new TextEncoder().encode(
+                        encodeEvents(
+                          partial
+                            ? partialOAuthEvents()
+                            : partialOAuthEvents().slice(0, 1),
+                        ),
+                      ),
+                    );
+                    const abort = () => controller.error(signal.reason);
+                    if (signal.aborted) abort();
+                    else
+                      signal.addEventListener("abort", abort, { once: true });
+                  },
+                }),
+                { headers: { "content-type": "text/event-stream" } },
+              );
+            },
+          }),
+      },
+    });
+    const retries: number[] = [];
+    const result = await new MockAI("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+      {
+        maxRetries: 2,
+        delayFn: async () => {},
+        onRetry: (attempt: number) => retries.push(attempt),
+      },
+    );
+    assert.equal(typeof result, "object", JSON.stringify(result));
+    assert.match(result.error, /timed out/i);
+    assert.equal(calls, 2);
+    assert.deepEqual(retries, [1]);
+    assert.doesNotMatch(result.error, /feat: incomplete/);
+  });
+}
+
+for (const ending of ["eof", "incomplete"] as const) {
+  test(`real OAuth SDK rejects partial output on ${ending}`, async () => {
+    config.setOpenAIOAuthTokens({
+      accessToken: "access",
+      refreshToken: "refresh",
+      idToken: "id",
+      expiresAt: Date.now() + 3_600_000,
+    });
+    const events: unknown[] = partialOAuthEvents();
+    if (ending === "incomplete") {
+      events.push({
+        type: "response.incomplete",
+        response: {
+          ...responsesResponse,
+          status: "incomplete",
+          incomplete_details: { reason: "max_output_tokens" },
+        },
+      });
+    }
+    const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+      "@ai-sdk/openai": {
+        createOpenAI: (options: Parameters<typeof createOpenAI>[0]) =>
+          createOpenAI({
+            ...options,
+            fetch: async () =>
+              new Response(encodeEvents(events), {
+                headers: { "content-type": "text/event-stream" },
+              }),
+          }),
+      },
+    });
+    const result = await new MockAI("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+      { maxRetries: 1 },
+    );
+    assert.equal(typeof result, "object", JSON.stringify(result));
+    assert.match(result.error, /stream|response/i);
+    assert.doesNotMatch(result.error, /feat: incomplete/);
+  });
+}
 
 test("CLI saves and inspects local settings, generates with keyless server, and honors --model", async (t) => {
   const server = await endpoint(t);

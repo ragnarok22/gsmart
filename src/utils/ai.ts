@@ -8,6 +8,7 @@ import {
   generateText,
   streamText,
   type LanguageModel,
+  type FinishReason,
   APICallError,
   NoSuchModelError,
   EmptyResponseBodyError,
@@ -33,6 +34,12 @@ import { resolveModel, validateModel, validateBaseURL } from "./providers";
 
 export { providers, getActiveProviders } from "./providers";
 
+class StreamInterruptedError extends Error {
+  constructor() {
+    super("Response stream ended before completion. Please try again.");
+  }
+}
+
 function classifyError(
   error: unknown,
   provider: string,
@@ -57,6 +64,9 @@ function classifyError(
     const status = error.statusCode;
 
     if (status != null && status >= 200 && status < 300) {
+      if (error.isRetryable) {
+        return `${provider} - Response stream was interrupted. Please try again.${endpointHint}`;
+      }
       return `${provider} - Unexpected response from ${provider}. Check the API response format.${endpointHint}`;
     }
 
@@ -144,6 +154,8 @@ function hasNetworkKeyword(msg: string): boolean {
 }
 
 function isRetryableError(error: unknown): boolean {
+  if (error instanceof StreamInterruptedError) return true;
+
   if (
     error instanceof Error &&
     ["AbortError", "TimeoutError"].includes(error.name)
@@ -151,6 +163,8 @@ function isRetryableError(error: unknown): boolean {
     return true;
 
   if (APICallError.isInstance(error)) {
+    // The SDK marks transport failures while reading an HTTP 200 body retryable.
+    if (error.isRetryable) return true;
     const status = error.statusCode;
     if (status === 429) return true;
     if (status != null && status >= 500) return true;
@@ -459,13 +473,46 @@ export class AIBuilder {
           const result = streamText({
             ...request,
             providerOptions: { openai: { store: false, instructions: system } },
+            includeRawChunks: true,
             onError: () => {}, // Errors are classified below, without logging credentials.
           });
           text = "";
+          let completed = false;
+          let finishReason: FinishReason | undefined;
           for await (const part of result.fullStream) {
             if (part.type === "error") throw part.error;
+            if (part.type === "abort") {
+              options?.abortSignal?.throwIfAborted();
+              // With no caller cancellation, the SDK's total timeout aborted.
+              throw new DOMException("Request timed out", "TimeoutError");
+            }
+            if (
+              part.type === "raw" &&
+              typeof part.rawValue === "object" &&
+              part.rawValue !== null &&
+              "type" in part.rawValue
+            ) {
+              // A bare EOF produces a finish event too, and response.incomplete
+              // without a reason can map to "stop". Require the wire completion.
+              if (part.rawValue.type === "response.incomplete") {
+                throw new Error(
+                  "Response was incomplete. Try a smaller diff or a different model.",
+                );
+              }
+              if (part.rawValue.type === "response.completed") completed = true;
+            }
             if (part.type === "text-delta") text += part.text;
+            if (part.type === "finish") finishReason = part.finishReason;
           }
+          if (!completed || finishReason === undefined) {
+            throw new StreamInterruptedError();
+          }
+          if (finishReason !== "stop") {
+            throw new Error(
+              "Response did not complete successfully. Please try again.",
+            );
+          }
+          if (!text.trim()) throw new NoContentGeneratedError();
         } else {
           ({ text } = await generateText({ ...request, system }));
         }

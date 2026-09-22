@@ -2,7 +2,14 @@ import "../test-support/setup-env";
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { it } from "node:test";
@@ -38,7 +45,13 @@ function runCLI(args: string[], cwd = process.cwd()) {
       },
     );
     assert.equal(result.error, undefined);
-    return result;
+    const configPath = join(directory, "config.json");
+    return {
+      ...result,
+      config: existsSync(configPath)
+        ? JSON.parse(readFileSync(configPath, "utf8"))
+        : undefined,
+    };
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -100,6 +113,53 @@ it("the hidden generate alias still has useful help", () => {
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /--provider/);
   assert.match(result.stdout, /--yes/);
+});
+
+for (const keyArgs of [
+  ["--api-key", "private-endpoint-token"],
+  ["--api-key=private-endpoint-token"],
+]) {
+  it(`debug output redacts endpoint credentials supplied as ${keyArgs[0]}`, () => {
+    const result = runCLI([
+      "config",
+      "--provider",
+      "custom",
+      ...keyArgs,
+      "--debug",
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /\[debug cli\].*command: config/);
+    assert.match(result.stderr, /--provider custom/);
+    assert.match(result.stderr, /--api-key[ =]\[REDACTED\].*--debug/);
+    assert.doesNotMatch(
+      result.stdout + result.stderr,
+      /private-endpoint-token/,
+    );
+    assert.equal(result.config?.custom?.key, "private-endpoint-token");
+  });
+}
+
+it("debug output redacts repeated endpoint credentials while storing the last token", () => {
+  const result = runCLI([
+    "config",
+    "--provider",
+    "custom",
+    "--api-key",
+    "first-placeholder-token",
+    "--api-key=second-placeholder-token",
+    "--api-key",
+    "-last-placeholder-token",
+    "--model",
+    "local-model",
+    "--debug",
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(
+    result.stderr,
+    /command: config --provider custom --api-key \[REDACTED\] --api-key=\[REDACTED\] --api-key \[REDACTED\] --model local-model --debug/,
+  );
+  assert.doesNotMatch(result.stdout + result.stderr, /placeholder-token/);
+  assert.equal(result.config?.custom?.key, "-last-placeholder-token");
 });
 
 for (const shell of ["bash", "zsh", "fish"]) {
