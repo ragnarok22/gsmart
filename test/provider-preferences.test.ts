@@ -136,6 +136,45 @@ test("model and endpoint validation accepts local URLs and rejects invalid opera
   }
 });
 
+for (const operation of ["chat/completions", "responses"]) {
+  test(`operation URLs for ${operation} are rejected with any number of trailing slashes`, async () => {
+    for (const suffix of ["", "/", "//", "////"]) {
+      assert.throws(
+        () => validateBaseURL(`http://localhost:1234/v1/${operation}${suffix}`),
+        /Use the API base URL/,
+        `must reject ${operation}${suffix}`,
+      );
+    }
+
+    config.setCustomBaseURL("http://localhost:11434/v1");
+    config.setModel("custom", "saved-model");
+    config.setKey("custom", "saved-key");
+    const capture = output();
+    await createConfigCommand({ ...capture, config }).action({
+      provider: "custom",
+      baseUrl: `http://localhost:1234/v1/${operation}//`,
+      model: "replacement-model",
+      apiKey: "replacement-key",
+      defaultProvider: "custom",
+    });
+    assert.equal(capture.exitCode(), 1, capture.text());
+    assert.match(capture.text(), /Use the API base URL/);
+    assert.equal(config.getCustomBaseURL(), "http://localhost:11434/v1");
+    assert.equal(config.getModel("custom"), "saved-model");
+    assert.equal(config.getKey("custom"), "saved-key");
+    assert.equal(config.getDefaultProvider(), undefined);
+  });
+}
+
+test("valid API base URLs still normalize repeated trailing slashes", () => {
+  for (const path of ["/v1", "/responses/v1", "/chat/completions-proxy/v1"]) {
+    assert.equal(
+      validateBaseURL(` https://localhost:1234${path}//// `),
+      `https://localhost:1234${path}`,
+    );
+  }
+});
+
 for (const suffix of ["?", "#", "?#"]) {
   test(`custom base URLs reject bare delimiters ${suffix} without changing saved settings`, async () => {
     const original = "http://localhost:11434/v1";

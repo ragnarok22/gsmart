@@ -164,6 +164,8 @@ for (const baseURL of [
   "",
   "ftp://localhost/v1",
   "http://localhost:1234/v1/chat/completions",
+  "http://localhost:1234/v1/chat/completions//",
+  "http://localhost:1234/v1/responses////",
 ]) {
   test(`invalid saved custom URL returns setup guidance before networking: ${baseURL || "missing"}`, async (t) => {
     config.setModel("custom", "local-model");

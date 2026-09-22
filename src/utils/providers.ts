@@ -114,7 +114,7 @@ export function validateBaseURL(value: string): string {
       "Endpoint must use HTTP or HTTPS without credentials, a query, or a fragment. Configure authentication separately.",
     );
   }
-  if (/\/(chat\/completions|responses)\/?$/.test(url.pathname)) {
+  if (/\/(chat\/completions|responses)\/*$/.test(url.pathname)) {
     throw new Error(
       "Use the API base URL (e.g. http://localhost:11434/v1), not the /chat/completions or /responses operation URL.",
     );
