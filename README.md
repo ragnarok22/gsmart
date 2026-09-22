@@ -23,7 +23,7 @@ GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Comm
 
 ## Quick start
 
-You'll need **Node.js 22+**, **Git**, and an account with one of the [supported providers](#providers). Run GSmart inside the Git repository you're working on.
+You'll need **Node.js 22.12.0+**, **Git**, and an account with one of the [supported providers](#providers). Run GSmart inside the Git repository you're working on.
 
 ### 1. Install
 
@@ -566,7 +566,7 @@ gsmart completions fish > ~/.config/fish/completions/gsmart.fish
 
 ## Development
 
-Use **Node.js 22+** (`.nvmrc` pins the development version) and the **pnpm version pinned in `package.json`**.
+Use **Node.js 22.12.0+** (`.nvmrc` pins the development version) and the **pnpm version pinned in `package.json`**.
 
 ```bash
 git clone https://github.com/ragnarok22/gsmart.git

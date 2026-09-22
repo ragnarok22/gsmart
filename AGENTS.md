@@ -2,7 +2,7 @@
 
 ## Setup and generated files
 
-- Single-package TypeScript/ESM CLI. Use Node.js >=22 (`.nvmrc` pins 22.14.0) and the pnpm version pinned in `package.json`.
+- Single-package TypeScript/ESM CLI. Use Node.js >=22.12.0 (`.nvmrc` pins 22.14.0) and the pnpm version pinned in `package.json`.
 - Install with `pnpm install --frozen-lockfile`. `pnpm-workspace.yaml` configures esbuild's build permission, not additional packages. The lockfile contains multiple YAML documents; let pnpm manage it.
 - `prebuild.js` generates ignored `src/build-info.ts` from `package.json`. Build and typecheck have pre-hooks; run `pnpm run prebuild` before `pnpm run dev` or direct source execution on a fresh checkout. Do not hand-edit build metadata or `dist/`.
 - `pnpm run dev` only watches the bundle. Run the CLI with `pnpm exec tsx src/index.ts <args>`, or `pnpm run build` then `node dist/index.js <args>`. Local login is `pnpm exec tsx src/index.ts login`; `pnpm login` authenticates to the package registry.
