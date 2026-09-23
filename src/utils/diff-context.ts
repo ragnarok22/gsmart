@@ -80,6 +80,13 @@ function gitPath(value: string): string {
   return Buffer.from(bytes).toString("utf8");
 }
 
+/** Spaces are unquoted in Git headers; equal path halves fix the delimiter. */
+function samePathFromHeader(header: string): string | undefined {
+  const quoted = header.match(/^diff --git "a\/((?:\\.|[^"])*)" "b\/\1"$/);
+  if (quoted) return gitPath(`"${quoted[1]}"`);
+  return header.match(/^diff --git a\/(.*) b\/\1$/)?.[1];
+}
+
 export function parseDiffFiles(
   diff: string,
   generated: string[] = [],
@@ -96,9 +103,8 @@ export function parseDiffFiles(
       const headers = lines.slice(0, headerEnd < 0 ? lines.length : headerEnd);
       const headerValue = (prefix: string) =>
         headers.find((line) => line.startsWith(prefix))?.slice(prefix.length);
-      const pair = lines[0].match(
-        /^diff --git ("(?:\\.|[^"])*"|a\/.*?) ("(?:\\.|[^"])*"|b\/.*)$/,
-      );
+      // Differing paths are supplied by content markers or rename/copy headers.
+      const headerPath = samePathFromHeader(lines[0]);
       const oldMarker = headerValue("--- ");
       const newMarker = headerValue("+++ ");
       const renameFrom =
@@ -109,18 +115,13 @@ export function parseDiffFiles(
           ? gitPath(renameFrom)
           : oldMarker && oldMarker !== "/dev/null"
             ? gitPath(oldMarker).replace(/^a\//, "")
-            : pair
-              ? gitPath(pair[1]).replace(/^a\//, "")
-              : undefined;
+            : headerPath;
       const path =
         renameTo !== undefined
           ? gitPath(renameTo)
           : newMarker && newMarker !== "/dev/null"
             ? gitPath(newMarker).replace(/^b\//, "")
-            : (oldPath ??
-              (pair
-                ? gitPath(pair[2]).replace(/^b\//, "")
-                : "(unparsed diff)"));
+            : (oldPath ?? "(unparsed diff)");
       const binary =
         headers.some((line) => line.startsWith("Binary files ")) ||
         patch.includes("\nGIT binary patch\n");
