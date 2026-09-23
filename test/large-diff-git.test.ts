@@ -45,6 +45,7 @@ test("multi-megabyte staged diffs are captured and preparation preserves index a
     diff.includes("item49999"),
     "capture must not return an empty or truncated diff",
   );
+  assert.equal(diff, raw);
   const snapshot = await getStagedSnapshot();
   assert.equal(snapshot.diff, raw);
   const result = await prepareContext({
@@ -57,7 +58,7 @@ test("multi-megabyte staged diffs are captured and preparation preserves index a
   });
   assert.match(result.prompt, /renamed from.txt/);
   assert.match(result.prompt, /deleted/);
-  assert.match(result.prompt, /binary/);
+  assert.match(result.prompt, /binary/i);
   assert.doesNotMatch(result.prompt, /Unstaged work/);
   const hash = (bytes: Buffer) =>
     createHash("sha256").update(bytes).digest("hex");

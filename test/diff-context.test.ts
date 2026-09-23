@@ -189,3 +189,26 @@ test("glob patterns and config overrides are validated and merged", () => {
     /context/,
   );
 });
+
+test("large single lines, lockfile-only changes and metadata-only commits have bounded useful context", async () => {
+  const budget = resolveContextBudget("custom", "local");
+  for (const diff of [
+    patch("bundle.js").replace('+export const value0 = "new behavior 界😀";', "+" + "界😀".repeat(100000)),
+    patch("pnpm-lock.yaml", 10000),
+    "diff --git a/old b/new\nsimilarity index 100%\nrename from old\nrename to new\n" + "diff --git a/a.bin b/a.bin\nnew file mode 100644\nBinary files /dev/null and b/a.bin differ\n",
+  ]) {
+    const result = await prepareContext({ diff, budget, buildPrompt });
+    assert.ok(result.report.inputTokens <= budget.input);
+    assert.ok(result.prompt.length > 100);
+    assert.ok(!result.prompt.includes("\ufffd"));
+  }
+});
+
+test("metadata overflow fails clearly, rename exclusions match original paths, and aborts are honored", async () => {
+  const budget = resolveContextBudget("custom", "local");
+  await assert.rejects(prepareContext({ diff: Array.from({ length: 1000 }, (_, i) => patch(`file-${i}.ts`)).join(""), budget, buildPrompt }), /metadata does not fit/);
+  await assert.rejects(prepareContext({ diff: "diff --git a/private.txt b/public.txt\nsimilarity index 100%\nrename from private.txt\nrename to public.txt\n", budget: resolveContextBudget("custom", "local", { exclude: ["private.txt"] }), buildPrompt }), /No usable/);
+  const controller = new AbortController();
+  controller.abort();
+  await assert.rejects(prepareContext({ diff: patch("x"), budget, buildPrompt, signal: controller.signal }), /aborted/);
+});

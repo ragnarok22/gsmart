@@ -9,6 +9,7 @@ import { createConfigCommand } from "../src/commands/config.ts";
 import { loadEffectiveConventions } from "../src/utils/repository-config.ts";
 import type { GenerationOptions } from "../src/utils/ai.ts";
 import { repository } from "../test-support/repository.ts";
+import { createProgram } from "../src/program.ts";
 
 function setup(cwd: string, responses: Record<string, unknown>[] = []) {
   const requests: {
@@ -111,6 +112,33 @@ function setup(cwd: string, responses: Record<string, unknown>[] = []) {
     output: () => stripVTControlCharacters(events.join("\n")),
   };
 }
+
+test("context flags preserve repository opt-in unless explicitly overridden", async (t) => {
+  const root = repository(t);
+  writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context: { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] } }));
+  for (const [args, expected] of [
+    [[], { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] }],
+    [["--no-summarize", "--context-budget", "16000", "--context-exclude", "vendor/**"], { summarize: false, budgetTokens: 16000, exclude: ["vendor/**"] }],
+  ] as const) {
+    const run = setup(root);
+    const program = createProgram({ commands: [run.command], metadata: { name: "gsmart", version: "test", description: "test" } });
+    await program.parseAsync(["--dry-run", ...args], { from: "user" });
+    const context = run.requests[0].options?.conventions?.context;
+    assert.equal(context?.summarize, expected.summarize);
+    assert.equal(context?.budgetTokens, expected.budgetTokens);
+    assert.deepEqual(context?.exclude, expected.exclude);
+  }
+});
+
+test("invalid context budget relationships fail before selecting or staging files", async (t) => {
+  const root = repository(t);
+  writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context: { budgetTokens: 2048, outputTokens: 2048 } }));
+  const run = setup(root);
+  await run.command.action({ yes: true });
+  assert.equal(run.retrievals(), 0);
+  assert.equal(run.exitCode(), 1);
+  assert.match(run.output(), /leave room for input/);
+});
 
 test("generation selects repository instructions above user prompt and propagates CLI language", async (t) => {
   const root = repository(t);
