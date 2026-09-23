@@ -30,6 +30,7 @@ import { editMessage } from "../utils/editor";
 import { withInterruptHandler } from "../utils/interrupt";
 import { loadEffectiveConventions } from "../utils/repository-config";
 import { contextOptions } from "../utils/context-options";
+import { resolveContextBudget } from "../utils/context-budget";
 import {
   conventionsFromOptions,
   type ConventionOptions,
@@ -166,6 +167,8 @@ const mainAction = async (
   let effective: EffectiveConventions;
   let historyExamples: string[] = [];
   let requestedProvider: string | undefined;
+  let selectedProvider: IProvider;
+  let model: string;
   try {
     requestedProvider =
       options.provider !== undefined
@@ -198,6 +201,35 @@ const mainAction = async (
         history.limit,
       );
     }
+
+    // Resolve configuration before file selection can mutate the index.
+    spinner.stop();
+    const selection = await getProvider(
+      requestedProvider ?? "",
+      Boolean(options.yes),
+      deps,
+      options.model,
+    );
+    if (selection.status === "canceled") return;
+    if (selection.status !== "selected") {
+      throw new Error(
+        selection.status === "unavailable"
+          ? "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`."
+          : "No valid provider found. Please check your API keys.",
+      );
+    }
+    selectedProvider = selection.provider;
+    model = resolveModel(
+      selectedProvider.value,
+      options.model,
+      deps.config.getModel(selectedProvider.value),
+      selectedProvider.value === "openai" && usesOpenAIOAuth(deps.config),
+    );
+    resolveContextBudget(
+      selectedProvider.value,
+      model,
+      effective.conventions.context,
+    );
   } catch (error) {
     spinner.fail(
       chalk.red(error instanceof Error ? error.message : String(error)),
@@ -207,11 +239,20 @@ const mainAction = async (
   }
   let changes: string | null;
   let branch: string;
+  let capturedSnapshot: StagedSnapshot | undefined;
   try {
+    spinner.start();
     [changes, branch] = await Promise.all([
       deps.retrieveFilesToCommit(spinner, {
         autoStage: Boolean(options.yes),
         dryRun: Boolean(options.dryRun),
+        ...(!options.dryRun
+          ? {
+              onSnapshot: (snapshot: StagedSnapshot) => {
+                capturedSnapshot = snapshot;
+              },
+            }
+          : {}),
       }),
       deps.getGitBranch(),
     ]);
@@ -231,30 +272,24 @@ const mainAction = async (
   }
 
   spinner.stop();
-  const selection = await getProvider(
-    requestedProvider ?? "",
-    Boolean(options.yes),
-    deps,
-    options.model,
-  );
-
-  if (selection.status === "canceled") return;
-  if (selection.status !== "selected") {
+  try {
+    // Credentials may change during interactive file selection.
+    if (!isProviderConfigured(selectedProvider.value, deps.config, model)) {
+      throw new Error("No valid provider found. Please check your API keys.");
+    }
+  } catch (error) {
     spinner.fail(
-      chalk.red(
-        selection.status === "unavailable"
-          ? "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`."
-          : "No valid provider found. Please check your API keys.",
-      ),
+      chalk.red(error instanceof Error ? error.message : String(error)),
     );
     deps.setExitCode(1);
     return;
   }
-  const selectedProvider = selection.provider;
 
-  const readSnapshot = async (): Promise<StagedSnapshot | null> => {
+  const readSnapshot = async (
+    previous?: StagedSnapshot,
+  ): Promise<StagedSnapshot | null> => {
     try {
-      const snapshot = await deps.getStagedSnapshot();
+      const snapshot = await deps.getStagedSnapshot(previous);
       if (!snapshot.diff) {
         spinner.warn(
           chalk.yellow(
@@ -278,7 +313,7 @@ const mainAction = async (
   // diff; committing sessions instead capture a coherent index/base snapshot.
   const snapshot = options.dryRun
     ? { branch, diff: changes, fingerprint: "dry-run" }
-    : await readSnapshot();
+    : (capturedSnapshot ?? (await readSnapshot()));
   if (!snapshot) {
     deps.setExitCode(1);
     return;
@@ -288,21 +323,6 @@ const mainAction = async (
   if (options.provider)
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   const prompt = effective.conventions.instructions;
-  let model: string;
-  try {
-    model = resolveModel(
-      selectedProvider.value,
-      options.model,
-      deps.config.getModel(selectedProvider.value),
-      selectedProvider.value === "openai" && usesOpenAIOAuth(deps.config),
-    );
-  } catch (error) {
-    spinner.fail(
-      chalk.red(error instanceof Error ? error.message : String(error)),
-    );
-    deps.setExitCode(1);
-    return;
-  }
   const ai = new deps.AIBuilder(selectedProvider.value, prompt);
 
   const generate = async (
@@ -359,7 +379,6 @@ const mainAction = async (
         if (controller.signal.aborted) return null;
         if (typeof message === "object") {
           spinner.fail(chalk.red(message.error));
-          if (!cancellable) deps.setExitCode(1);
           return null;
         }
         if (!message.trim()) {
@@ -396,7 +415,10 @@ const mainAction = async (
   };
 
   const message = await generate(snapshot);
-  if (message === null) return;
+  if (message === null) {
+    deps.setExitCode(1);
+    return;
+  }
 
   if (options.dryRun) {
     deps.log(chalk.green(message));
@@ -417,17 +439,29 @@ const mainAction = async (
     }
   };
   const commit = async (text: string) => {
-    if (await deps.commitChanges(text)) {
+    let detail: string | undefined;
+    if (
+      await deps.commitChanges(text, (error) => {
+        detail = error.message;
+      })
+    ) {
       spinner.succeed(chalk.green("Changes committed successfully"));
     } else {
-      spinner.fail(chalk.red("Failed to commit changes."));
+      spinner.fail(
+        chalk.red(
+          detail
+            ? `Failed to commit changes: ${detail}`
+            : "Failed to commit changes.",
+        ),
+      );
+      deps.setExitCode(1);
       await copy(text);
     }
   };
 
   if (options.yes) {
     deps.log(chalk.green(message));
-    const latest = await readSnapshot();
+    const latest = await readSnapshot(snapshot);
     if (!latest || latest.fingerprint !== snapshot.fingerprint) {
       spinner.fail(
         chalk.red(
@@ -475,7 +509,7 @@ const mainAction = async (
 
     switch (action) {
       case "commit": {
-        const latest = await readSnapshot();
+        const latest = await readSnapshot(current.snapshot);
         if (!latest) continue;
         latestFingerprint = latest.fingerprint;
         if (latest.fingerprint !== current.snapshot.fingerprint) {
@@ -492,7 +526,7 @@ const mainAction = async (
           });
           if (refresh !== true) continue;
           // Staging may change while the user is deciding whether to refresh.
-          const refreshed = await readSnapshot();
+          const refreshed = await readSnapshot(latest);
           if (!refreshed) continue;
           latestFingerprint = refreshed.fingerprint;
           const next = await generate(refreshed, undefined, true);

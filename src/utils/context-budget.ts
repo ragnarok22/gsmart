@@ -109,8 +109,11 @@ export function assertRequestFits(
 /** A byte-limited prefix that never splits a Unicode code point. */
 export function bytePrefix(text: string, bytes: number): string {
   if (bytes <= 0) return "";
-  const buffer = Buffer.from(text);
-  if (buffer.length <= bytes) return text;
+  // A UTF-8 prefix of N bytes cannot contain more than N UTF-16 code units.
+  // Bound the conversion first, so a short excerpt never copies a huge line.
+  const prefix = text.slice(0, bytes);
+  const buffer = Buffer.from(prefix);
+  if (buffer.length <= bytes) return prefix;
   let end = bytes;
   while (end > 0 && (buffer[end] & 0xc0) === 0x80) end--;
   return buffer.subarray(0, end).toString("utf8");

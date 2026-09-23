@@ -212,6 +212,34 @@ test("large single lines, lockfile-only changes and metadata-only commits have b
   }
 });
 
+test("representative excerpts retain the first and last changes across a large patch", async () => {
+  const diff = [
+    "diff --git a/source.ts b/source.ts",
+    "--- a/source.ts",
+    "+++ b/source.ts",
+    "@@ -1 +1,10002 @@ firstChange()",
+    "-old behavior",
+    ...Array.from({ length: 10000 }, () => "+intermediate change"),
+    "+export const lastChange = true;",
+    "",
+  ].join("\n");
+  const result = await prepareContext({
+    diff,
+    budget: resolveContextBudget("custom", "local"),
+    buildPrompt,
+  });
+  assert.match(result.prompt, /firstChange\(\)/);
+  assert.match(result.prompt, /lastChange = true/);
+  assert.match(result.prompt, /\+10001 -1/);
+  assert.equal(result.report.files[0].treatment, "condensed");
+  assert.ok(
+    result.report.inputTokens +
+      result.report.outputTokens +
+      result.report.overheadTokens <=
+      result.report.budgetTokens,
+  );
+});
+
 test("metadata overflow fails clearly, rename exclusions match original paths, and aborts are honored", async () => {
   const budget = resolveContextBudget("custom", "local");
   await assert.rejects(

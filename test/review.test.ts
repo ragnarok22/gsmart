@@ -284,6 +284,7 @@ for (const failure of [
     });
     await run.command.action({});
     assert.deepEqual(run.committed, [original]);
+    assert.equal(run.exitCode(), 0);
   });
 }
 
@@ -306,6 +307,7 @@ test("interrupting an in-flight refinement preserves the current candidate", asy
   assert.deepEqual(run.committed, []);
   assert.deepEqual(run.copied, [original]);
   assert.match(run.output(), /cancel.*candidate kept/i);
+  assert.equal(run.exitCode(), 0);
   assert.equal(dispatchInterrupt("SIGINT"), false);
 });
 
@@ -334,6 +336,7 @@ test("review preserves original when refreshed generation fails", async () => {
   await run.command.action({});
   assert.deepEqual(run.committed, []);
   assert.deepEqual(run.copied, [original]);
+  assert.equal(run.exitCode(), 0);
 });
 
 test("restoring and editing an outdated candidate cannot bypass refreshed review", async () => {

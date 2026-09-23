@@ -1,5 +1,5 @@
 import Conf from "conf";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
 import {
@@ -41,25 +41,28 @@ export function validateApiKey(provider: Provider, key: string): string | null {
   return null;
 }
 
-const resolveConfigDirectory = (): string | undefined => {
-  const override = process.env.GSMART_CONFIG_DIR;
-  if (!override) {
-    return undefined;
-  }
+const createConfigStore = (): Conf => {
+  const originalUmask = process.umask();
+  try {
+    // Conf creates directories synchronously, including its platform-default path.
+    // Restrict only newly created directories; existing directories keep their mode.
+    process.umask(originalUmask | 0o077);
+    const override = process.env.GSMART_CONFIG_DIR;
+    const store = new Conf({
+      projectName: "gsmart",
+      configFileMode: 0o600,
+      ...(override ? { cwd: path.resolve(override) } : {}),
+    });
 
-  if (!existsSync(override)) {
-    mkdirSync(override, { recursive: true });
+    // configFileMode applies to writes, so also protect credentials on read-only startup.
+    if (existsSync(store.path)) chmodSync(store.path, 0o600);
+    return store;
+  } finally {
+    process.umask(originalUmask);
   }
-
-  return path.resolve(override);
 };
 
-const configDirectory = resolveConfigDirectory();
-
-const conf = new Conf({
-  projectName: "gsmart",
-  ...(configDirectory ? { cwd: configDirectory } : {}),
-});
+const conf = createConfigStore();
 
 const completeOAuthTokens = (
   tokens: OpenAIOAuthTokens | null | undefined,

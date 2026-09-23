@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { stripVTControlCharacters } from "node:util";
 import type { GitStatus } from "../definitions";
 import { debugLog, debugTime } from "./debug";
+import { parseDiffFiles } from "./diff-context";
 
 type RunGitOptions = SpawnSyncOptions & { trim?: boolean };
 
@@ -301,8 +302,10 @@ const getStagedIndexFingerprint = async (cwd: string): Promise<string> => {
   }
 };
 
-/** Capture the diff and its index/base identity, including binary and mode changes. */
-export const getStagedSnapshot = async (): Promise<StagedSnapshot> => {
+/** Capture a coherent diff and index/base identity, reusing a verified patch when possible. */
+export const getStagedSnapshot = async (
+  previous?: StagedSnapshot,
+): Promise<StagedSnapshot> => {
   const cwd = runGit(["rev-parse", "--show-toplevel"]);
   const identity = async () => {
     const branch = runGit(["branch", "--show-current"], { cwd });
@@ -317,7 +320,12 @@ export const getStagedSnapshot = async (): Promise<StagedSnapshot> => {
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = await identity();
-    const diff = await readStagedDiff(cwd);
+    const diff =
+      before.fingerprint === previous?.fingerprint
+        ? previous.diff
+        : await readStagedDiff(cwd);
+    // Even when reusing a patch, retain both identity checks to detect staging
+    // or base changes while the index is being inspected.
     const after = await identity();
     if (before.fingerprint === after.fingerprint) return { ...after, diff };
   }
@@ -326,19 +334,17 @@ export const getStagedSnapshot = async (): Promise<StagedSnapshot> => {
   );
 };
 
-export const commitChanges = async (message: string): Promise<boolean> => {
+export const commitChanges = async (
+  message: string,
+  onError?: (error: Error) => void,
+): Promise<boolean> => {
   try {
     runGit(["commit", "-m", message]);
     return true;
-  } catch {
+  } catch (error) {
+    onError?.(error instanceof Error ? error : new Error(String(error)));
     return false;
   }
-};
-
-const needsSecondaryPath = (statusCode: string): boolean => {
-  const normalized = statusCode.replace(/\s/g, "");
-  const firstStatus = normalized[0] ?? "";
-  return firstStatus === "R" || firstStatus === "C";
 };
 
 export const parseGitStatusEntries = (status: string): GitStatus[] => {
@@ -346,33 +352,32 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
     return [];
   }
 
-  const entries = status.split("\0").filter((line) => line.length > 0);
+  const entries = status.split("\0");
   const changedFiles: GitStatus[] = [];
 
   for (let index = 0; index < entries.length; index += 1) {
     const entry = entries[index];
-    const match = entry.match(/^(.{2,4})\s+(.+)$/);
-
-    if (!match) {
+    // Porcelain v1 has exactly two status columns followed by one space.
+    // In -z mode all remaining characters belong to the unquoted path.
+    if (entry.length <= 3 || !/^[ MADRCUT?!]{2} /.test(entry)) {
       continue;
     }
 
-    const [, rawStatus, filePath] = match;
-    const statusCode = rawStatus;
-    const statusCodeXY = statusCode.slice(0, 2);
-    let currentPath = filePath;
+    const statusCode = entry.slice(0, 2);
+    const filePath = entry.slice(3);
     let originalPath: string | undefined;
 
-    if (needsSecondaryPath(statusCodeXY) && index + 1 < entries.length) {
+    // Renames/copies in either column have a second NUL-delimited path;
+    // -z reports the destination first, followed by the original path.
+    if (/[RC]/.test(statusCode) && index + 1 < entries.length) {
       originalPath = entries[index + 1];
-      currentPath = filePath;
       index += 1;
     }
 
     changedFiles.push({
       status: statusCode,
-      file_name: path.basename(currentPath),
-      file_path: currentPath,
+      file_name: path.basename(filePath),
+      file_path: filePath,
       ...(originalPath ? { original_path: originalPath } : {}),
     });
   }
@@ -381,7 +386,7 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
 };
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {
-  const status = runGit(["status", "--porcelain", "-z"], { trim: false });
+  const status = runGit(["status", "--porcelain=v1", "-z"], { trim: false });
   return parseGitStatusEntries(status);
 };
 
@@ -398,7 +403,9 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
       new Set(files.map((candidate) => path.resolve(repoRoot, candidate))),
     );
 
-    runGit(["add", "--", ...absolutePaths], { cwd: repoRoot });
+    runGit(["--literal-pathspecs", "add", "--", ...absolutePaths], {
+      cwd: repoRoot,
+    });
     return true;
   } catch {
     return false;
@@ -420,7 +427,9 @@ export const unstageFiles = async (
       new Set(paths.map((candidate) => path.resolve(repoRoot, candidate))),
     );
 
-    runGit(["reset", "HEAD", "--", ...absolutePaths], { cwd: repoRoot });
+    runGit(["--literal-pathspecs", "reset", "HEAD", "--", ...absolutePaths], {
+      cwd: repoRoot,
+    });
     return true;
   } catch {
     return false;
@@ -429,22 +438,18 @@ export const unstageFiles = async (
 
 export const getStagedFileNames = async (): Promise<string[]> => {
   try {
-    const output = runGit(["diff", "--cached", "--name-only"]);
+    const output = runGit(["diff", "--cached", "--name-only", "-z"], {
+      trim: false,
+    });
     if (!output) return [];
-    return output.split("\n").filter((line) => line.length > 0);
+    return output.split("\0").filter((file) => file.length > 0);
   } catch {
     return [];
   }
 };
 
 export const parseDiffFileNames = (diff: string): string[] => {
-  const regex = /^diff --git a\/.+ b\/(.+)$/gm;
-  const names: string[] = [];
-  let match;
-  while ((match = regex.exec(diff)) !== null) {
-    names.push(match[1]);
-  }
-  return Array.from(new Set(names));
+  return Array.from(new Set(parseDiffFiles(diff).map((file) => file.path)));
 };
 
 export const getGitInfo = async (): Promise<[string, string]> => {

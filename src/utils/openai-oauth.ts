@@ -238,11 +238,28 @@ const openUrl = (url: string): void => {
         : "xdg-open";
   const args = process.platform === "win32" ? ["/c", "start", "", url] : [url];
 
-  const child = spawn(command, args, {
-    detached: true,
-    stdio: "ignore",
-  });
-  child.unref();
+  let warned = false;
+  const warnManualAuthorization = (): void => {
+    if (warned) return;
+    warned = true;
+    console.warn(
+      "Unable to open the browser automatically. Open the URL above to continue authorization manually.",
+    );
+  };
+
+  try {
+    const child = spawn(command, args, {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.once("error", warnManualAuthorization);
+    child.once("exit", (code) => {
+      if (code !== 0) warnManualAuthorization();
+    });
+    child.unref();
+  } catch {
+    warnManualAuthorization();
+  }
 };
 
 const listen = (server: Server, port: number): Promise<number> =>

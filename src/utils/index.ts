@@ -1,7 +1,14 @@
 import clipboard from "clipboardy";
 import chalk from "chalk";
 import prompts from "prompts";
-import { getGitChanges, getGitStatus, stageFile, unstageFiles } from "./git";
+import {
+  getGitChanges,
+  getGitStatus,
+  getStagedSnapshot,
+  stageFile,
+  unstageFiles,
+  type StagedSnapshot,
+} from "./git";
 import type { GitStatus } from "../definitions";
 import { Ora } from "ora";
 import { debugLog } from "./debug";
@@ -11,6 +18,8 @@ export { checkForUpdates } from "./version-check";
 type RetrieveFilesOptions = {
   autoStage?: boolean;
   dryRun?: boolean;
+  /** Capture a coherent commit snapshot with the diff; unused for temporary dry-run staging. */
+  onSnapshot?: (snapshot: StagedSnapshot) => void;
 };
 
 const normalizeStatus = (status: string): string => status.replace(/\s/g, "");
@@ -65,8 +74,16 @@ export const retrieveFilesToCommit = async (
   spinner: Ora,
   options: RetrieveFilesOptions = {},
 ): Promise<string | null> => {
-  const { autoStage = false, dryRun = false } = options;
-  let changes = await getGitChanges();
+  const { autoStage = false, dryRun = false, onSnapshot } = options;
+  const readChanges = async () => {
+    if (!dryRun && onSnapshot) {
+      const snapshot = await getStagedSnapshot();
+      onSnapshot(snapshot);
+      return snapshot.diff;
+    }
+    return getGitChanges();
+  };
+  let changes = await readChanges();
 
   if (changes.length > 0) {
     return changes;
@@ -151,7 +168,7 @@ export const retrieveFilesToCommit = async (
     const staged = await stageFile(pathsToStage);
     if (staged) {
       spinner.succeed(chalk.grey("Files staged successfully"));
-      changes = await getGitChanges();
+      changes = await readChanges();
     } else {
       spinner.fail(chalk.red("Failed to stage files"));
       return null;

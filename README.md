@@ -58,7 +58,7 @@ Select a provider, then follow its sign-in flow:
 - **Other hosted providers:** paste an API key when prompted. See the [provider table](#providers) for links.
 - **Custom (OpenAI-compatible):** enter your API base URL and model ID. Leave the key blank for a keyless local server.
 
-Credentials are saved locally for future runs. You can run `gsmart login` again to add another provider or update your authentication.
+Credentials are saved locally for future runs. On macOS/Linux, credential files are restricted to your user (`0600`), including existing files when GSmart starts. You can run `gsmart login` again to add another provider or update your authentication. If GSmart cannot open a browser for ChatGPT login, open the printed authorization URL manually.
 
 ### 3. Generate and review
 
@@ -211,9 +211,11 @@ Use `--yes` when you're ready to generate and commit in one step:
 gsmart --yes --provider openai
 ```
 
-A hosted login or custom endpoint must already be configured. GSmart uses an explicit `--provider`, then your saved default provider, then the first configured provider in the [table's order](#providers).
+A hosted login or custom endpoint must already be configured. GSmart uses an explicit `--provider`, then your saved default provider, then the first configured provider in the [table's order](#providers). Provider selection, model resolution, and model-specific context-budget validation happen before file selection or auto-staging.
 
 `--yes` skips message review and editing. If staged content changes before its commit or cannot be verified, it stops with exit status `1` and asks you to rerun GSmart.
+
+Initial generation failures and failed commits also exit with status `1`, so automation can detect them. A failed commit displays Git's diagnostic (including hook failures) and attempts to copy the generated message to the clipboard; if copying fails, it prints the message for recovery.
 
 | Command                  | If a staged diff exists | If nothing is staged                          | Creates a commit? |
 | ------------------------ | ----------------------- | --------------------------------------------- | ----------------- |

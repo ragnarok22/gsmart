@@ -1,6 +1,6 @@
 import "../test-support/setup-env";
 
-import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execSync } from "child_process";
@@ -20,6 +20,7 @@ import {
   parseDiffFileNames,
 } from "../src/utils/git.ts";
 import { retrieveFilesToCommit } from "../src/utils/index.ts";
+import { git, repository } from "../test-support/repository.ts";
 
 test("git utils basic flow", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
@@ -37,7 +38,12 @@ test("git utils basic flow", async () => {
     const diff = await getGitChanges();
     assert(diff.includes("hello"));
 
-    assert.equal(await commitChanges("test commit"), true);
+    const errors: Error[] = [];
+    assert.equal(
+      await commitChanges("test commit", (error) => errors.push(error)),
+      true,
+    );
+    assert.deepEqual(errors, []);
     assert.equal(await getGitChanges(), "");
 
     assert.deepEqual(await getGitInfo(), ["main", ""]);
@@ -155,20 +161,50 @@ test("getGitStatus handles malformed status lines", async () => {
   }
 });
 
-test("parseGitStatusEntries handles rename/copy scores", () => {
+test("parseGitStatusEntries handles porcelain v1 rename/copy records", () => {
+  // Porcelain v1 uses fixed XY status columns, not diff's R100/C100 scores.
   const statusOutput =
-    "R100 renamed.txt\0original.txt\0C100 copied.txt\0source.txt\0";
+    "R  renamed.txt\0original.txt\0C  copied.txt\0source.txt\0";
   const parsed = parseGitStatusEntries(statusOutput);
 
   assert.equal(parsed.length, 2);
-  assert.equal(parsed[0].status, "R100");
+  assert.equal(parsed[0].status, "R ");
   assert.equal(parsed[0].file_name, "renamed.txt");
   assert.equal(parsed[0].file_path, "renamed.txt");
   assert.equal(parsed[0].original_path, "original.txt");
-  assert.equal(parsed[1].status, "C100");
+  assert.equal(parsed[1].status, "C ");
   assert.equal(parsed[1].file_name, "copied.txt");
   assert.equal(parsed[1].file_path, "copied.txt");
   assert.equal(parsed[1].original_path, "source.txt");
+});
+
+test("parseGitStatusEntries preserves both paths and either rename/copy status column", () => {
+  for (const status of ["R ", "RM", " R", "MR", "C ", "CM", " C", "MC"]) {
+    const destination = "nested/ leading\nname\t ";
+    const source = "?? original\nname\t ";
+    assert.deepEqual(
+      parseGitStatusEntries(
+        `${status} ${destination}\0${source}\0?? next.txt\0`,
+      ),
+      [
+        {
+          status,
+          file_name: " leading\nname\t ",
+          file_path: destination,
+          original_path: source,
+        },
+        { status: "??", file_name: "next.txt", file_path: "next.txt" },
+      ],
+    );
+  }
+});
+
+test("parseGitStatusEntries ignores empty and malformed records", () => {
+  assert.deepEqual(parseGitStatusEntries(""), []);
+  assert.deepEqual(
+    parseGitStatusEntries("bad record\0?\0?? \0R100 invalid.txt\0"),
+    [],
+  );
 });
 
 test("git commands work in non-git directory", async () => {
@@ -194,6 +230,43 @@ test("commitChanges fails gracefully", async () => {
   } finally {
     process.chdir(cwd);
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("commitChanges reports a failing hook's diagnostic and preserves staged changes", async (t) => {
+  const root = repository(t);
+  const hooks = join(root, ".git", "test-hooks");
+  mkdirSync(hooks);
+  git(root, "config", "core.hooksPath", hooks);
+  git(root, "config", "user.name", "Test");
+  git(root, "config", "user.email", "test@example.com");
+  git(root, "config", "commit.gpgsign", "false");
+  writeFileSync(
+    join(hooks, "pre-commit"),
+    '#!/bin/sh\nprintf "Commit rejected: fixture hook failed\\n" >&2\nexit 1\n',
+    { mode: 0o755 },
+  );
+  writeFileSync(join(root, "file.txt"), "staged content");
+  git(root, "add", "file.txt");
+  const cwd = process.cwd();
+  process.chdir(root);
+  try {
+    const errors: Error[] = [];
+    assert.equal(
+      await commitChanges("rejected commit", (error) => errors.push(error)),
+      false,
+    );
+    assert.equal(errors.length, 1);
+    assert.ok(errors[0] instanceof Error);
+    assert.match(errors[0].message, /Commit rejected: fixture hook failed/);
+    assert.equal(git(root, "rev-parse", "--revs-only", "HEAD"), "");
+    assert.match(await getGitChanges(), /staged content/);
+    assert.equal(
+      await commitChanges("also rejected without a callback"),
+      false,
+    );
+  } finally {
+    process.chdir(cwd);
   }
 });
 

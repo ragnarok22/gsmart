@@ -910,6 +910,112 @@ test("no saved default preserves interactive selection and --yes fallback", asyn
   assert.deepEqual(run.questions, ["value"]);
 });
 
+for (const provider of ["openai", "anthropic"] as const) {
+  test(`context validation uses the provider chosen in the picker: ${provider}`, async () => {
+    config.setKey("openai", "sk-hosted-key");
+    config.setKey("anthropic", "sk-ant-hosted-key");
+    config.setModel("openai", "gpt-4o");
+    config.setModel("anthropic", "gpt-4o");
+    let selections = 0;
+    const run = mainRun({
+      loadEffectiveConventions: async () =>
+        resolveConventions([
+          {
+            source: "repository",
+            settings: { context: { outputTokens: 8192 } },
+          },
+        ]),
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        assert.equal(question.name, "value");
+        assert.equal(run.retrievals(), 0);
+        selections++;
+        return { value: provider };
+      },
+    });
+    await run.command.action({ dryRun: true });
+    assert.equal(selections, 1);
+    if (provider === "openai") {
+      assert.equal(run.exitCode(), 0, run.text());
+      assert.equal(run.retrievals(), 1);
+      assert.equal(run.requests[0].provider, provider);
+      assert.equal(run.requests[0].options?.model, "gpt-4o");
+    } else {
+      assert.equal(run.exitCode(), 1, run.text());
+      assert.equal(run.retrievals(), 0);
+      assert.deepEqual(run.requests, []);
+      assert.match(run.text(), /leave room for input/);
+    }
+  });
+}
+
+for (const model of ["gpt-4o", "private-model"]) {
+  test(`context validation uses the invocation model rather than the saved model: ${model}`, async () => {
+    config.setKey("openai", "sk-hosted-key");
+    config.setModel("openai", model === "gpt-4o" ? "private-model" : "gpt-4o");
+    const run = mainRun({
+      loadEffectiveConventions: async () =>
+        resolveConventions([
+          {
+            source: "repository",
+            settings: { context: { outputTokens: 8192 } },
+          },
+        ]),
+    });
+    await run.command.action({ dryRun: true, yes: true, model });
+    assert.deepEqual(run.questions, []);
+    if (model === "gpt-4o") {
+      assert.equal(run.exitCode(), 0, run.text());
+      assert.equal(run.retrievals(), 1);
+      assert.equal(run.requests[0].options?.model, model);
+    } else {
+      assert.equal(run.exitCode(), 1, run.text());
+      assert.equal(run.retrievals(), 0);
+      assert.deepEqual(run.requests, []);
+      assert.match(run.text(), /leave room for input/);
+    }
+  });
+}
+
+test("context budgets exceeding a known model window fail before staging", async () => {
+  config.setKey("openai", "sk-hosted-key");
+  config.setModel("openai", "gpt-4o");
+  const run = mainRun({
+    loadEffectiveConventions: async () =>
+      resolveConventions([
+        {
+          source: "repository",
+          settings: { context: { budgetTokens: 200000 } },
+        },
+      ]),
+  });
+  await run.command.action({ yes: true });
+  assert.equal(run.exitCode(), 1, run.text());
+  assert.equal(run.retrievals(), 0);
+  assert.deepEqual(run.requests, []);
+  assert.match(run.text(), /exceeds the known gpt-4o context window/);
+});
+
+test("invalid conventions fail before opening the provider picker or staging", async () => {
+  config.setKey("openai", "sk-hosted-key");
+  config.setKey("anthropic", "sk-ant-hosted-key");
+  const run = mainRun({
+    loadEffectiveConventions: async () =>
+      resolveConventions([
+        {
+          source: "repository",
+          settings: { context: { outputTokens: 32768 } },
+        },
+      ]),
+  });
+  await run.command.action({});
+  assert.equal(run.exitCode(), 1, run.text());
+  assert.equal(run.retrievals(), 0);
+  assert.deepEqual(run.questions, []);
+  assert.deepEqual(run.requests, []);
+  assert.match(run.text(), /leave room for input/);
+});
+
 test("keyless custom default works without hosted login, including one-off model", async () => {
   config.setDefaultProvider("custom");
   config.setCustomBaseURL("http://localhost:11434/v1");
@@ -1005,6 +1111,7 @@ for (const failure of [
     assert.ok(
       run.text().includes(failure instanceof Error ? failure.message : failure),
     );
+    assert.equal(run.retrievals(), 0);
     assert.deepEqual(run.requests, []);
     assert.deepEqual(run.questions, []);
   });

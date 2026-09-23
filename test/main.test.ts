@@ -218,6 +218,10 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
   const changesPromise = new Promise<string>((resolve) => {
     resolveChanges = resolve;
   });
+  let retrievalStarted!: () => void;
+  const retrievalReady = new Promise<void>((resolve) => {
+    retrievalStarted = resolve;
+  });
   let branchRequested = false;
   const spinnerFactory = createSpinnerFactory();
 
@@ -242,7 +246,10 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
     } as never,
     AIBuilder: FakeAIBuilder as never,
     getActiveProviders: () => [activeProviders[0]] as never,
-    retrieveFilesToCommit: async () => changesPromise,
+    retrieveFilesToCommit: async () => {
+      retrievalStarted();
+      return changesPromise;
+    },
     getStagedSnapshot: async () => ({
       diff: "diff content",
       branch: "main",
@@ -261,7 +268,7 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
   });
 
   const actionPromise = MainCommand.action({ yes: true });
-  await Promise.resolve();
+  await retrievalReady;
 
   try {
     assert.equal(branchRequested, true);
@@ -540,6 +547,7 @@ test("main prompts for provider when multiple are configured", async () => {
 
 for (const dryRun of [false, true]) {
   test(`main exits normally when the provider prompt is canceled (dryRun=${dryRun})`, async () => {
+    let retrievals = 0;
     const {
       MainCommand,
       getCommittedMessage,
@@ -551,11 +559,16 @@ for (const dryRun of [false, true]) {
     } = buildMainCommand({
       allKeys: { openai: "sk-key", anthropic: "ak-key" },
       promptsResponses: {},
+      retrieve: async () => {
+        retrievals++;
+        return "diff content";
+      },
     });
 
     await MainCommand.action({ dryRun });
 
     assert.deepEqual(questions, ["value"]);
+    assert.equal(retrievals, 0, "provider cancellation must not stage files");
     assert.deepEqual(exitCodes, [], "cancellation must not signal a failure");
     assert.deepEqual(aiCalls, []);
     assert.equal(getCommittedMessage(), "");
@@ -612,6 +625,31 @@ for (const dryRun of [false, true]) {
     },
   );
 }
+
+test("main stops the spinner for the provider picker before retrieving files", async () => {
+  let providerSelected = false;
+  let retrievals = 0;
+  const run = buildMainCommand({
+    allKeys: { openai: "sk-key", anthropic: "ak-key" },
+    prompt: async (question) => {
+      assert.ok(!Array.isArray(question));
+      assert.equal(question.name, "value");
+      assert.equal(run.events.at(-1)?.type, "stop");
+      assert.equal(retrievals, 0);
+      providerSelected = true;
+      return { value: "anthropic" };
+    },
+    retrieve: async () => {
+      assert.equal(providerSelected, true);
+      retrievals++;
+      return "diff content";
+    },
+  });
+  await run.MainCommand.action({ dryRun: true });
+  assert.deepEqual(run.exitCodes, []);
+  assert.equal(retrievals, 1);
+  assert.equal(run.aiCalls[0].provider, "anthropic");
+});
 
 test("main treats an explicitly undefined provider answer as cancellation", async () => {
   const { MainCommand, exitCodes, aiCalls, events, questions } =

@@ -87,6 +87,31 @@ function samePathFromHeader(header: string): string | undefined {
   return header.match(/^diff --git a\/(.*) b\/\1$/)?.[1];
 }
 
+/** Walk lines without retaining an array proportional to the size of a patch. */
+function* patchLines(patch: string): Generator<string> {
+  let start = 0;
+  while (true) {
+    const end = patch.indexOf("\n", start);
+    if (end === -1) {
+      yield patch.slice(start);
+      return;
+    }
+    yield patch.slice(start, end);
+    start = end + 1;
+  }
+}
+
+const HEADER_PREFIXES = [
+  "--- ",
+  "+++ ",
+  "rename from ",
+  "rename to ",
+  "copy from ",
+  "copy to ",
+  "deleted file mode ",
+  "new file mode ",
+];
+
 export function parseDiffFiles(
   diff: string,
   generated: string[] = [],
@@ -96,15 +121,38 @@ export function parseDiffFiles(
     .split(/(?=^diff --git )/m)
     .filter(Boolean)
     .map((patch) => {
-      const lines = patch.split("\n");
-      const headerEnd = lines.findIndex(
-        (line) => line.startsWith("@@") || line === "GIT binary patch",
-      );
-      const headers = lines.slice(0, headerEnd < 0 ? lines.length : headerEnd);
-      const headerValue = (prefix: string) =>
-        headers.find((line) => line.startsWith(prefix))?.slice(prefix.length);
+      const headers = new Map<string, string>();
+      const modes: string[] = [];
+      let body = false;
+      let binary = false;
+      let added = 0;
+      let removed = 0;
+      for (const line of patchLines(patch)) {
+        if (line === "GIT binary patch") binary = true;
+        if (line.startsWith("@@") || line === "GIT binary patch") body = true;
+        if (body) {
+          if (line.startsWith("+")) added++;
+          else if (line.startsWith("-")) removed++;
+          continue;
+        }
+        if (line.startsWith("Binary files ")) binary = true;
+        for (const prefix of HEADER_PREFIXES) {
+          if (line.startsWith(prefix) && !headers.has(prefix))
+            headers.set(prefix, line.slice(prefix.length));
+        }
+        if (
+          /^(old mode|new mode|new file mode|deleted file mode|similarity index) /.test(
+            line,
+          )
+        )
+          modes.push(line);
+      }
+      const headerValue = (prefix: string) => headers.get(prefix);
       // Differing paths are supplied by content markers or rename/copy headers.
-      const headerPath = samePathFromHeader(lines[0]);
+      const firstLineEnd = patch.indexOf("\n");
+      const headerPath = samePathFromHeader(
+        firstLineEnd < 0 ? patch : patch.slice(0, firstLineEnd),
+      );
       const oldMarker = headerValue("--- ");
       const newMarker = headerValue("+++ ");
       const renameFrom =
@@ -122,9 +170,6 @@ export function parseDiffFiles(
           : newMarker && newMarker !== "/dev/null"
             ? gitPath(newMarker).replace(/^b\//, "")
             : (oldPath ?? "(unparsed diff)");
-      const binary =
-        headers.some((line) => line.startsWith("Binary files ")) ||
-        patch.includes("\nGIT binary patch\n");
       const status = headerValue("deleted file mode ")
         ? "deleted"
         : headerValue("new file mode ")
@@ -134,14 +179,6 @@ export function parseDiffFiles(
             : headerValue("copy from ") !== undefined
               ? "copied"
               : "modified";
-      const body = headerEnd < 0 ? [] : lines.slice(headerEnd);
-      const added = body.filter((line) => line.startsWith("+")).length;
-      const removed = body.filter((line) => line.startsWith("-")).length;
-      const modes = headers.filter((line) =>
-        /^(old mode|new mode|new file mode|deleted file mode|similarity index) /.test(
-          line,
-        ),
-      );
       const kind = binary
         ? "binary"
         : LOCKFILES.has(path.split("/").at(-1)!)
@@ -196,40 +233,42 @@ const SUMMARY_SYSTEM =
 function excerpts(patch: string, capacity: number): string {
   if (capacity < 64) return "";
   // Include changed lines and hunk headings; skip bulky lockfile hashes/URLs.
-  const lines = patch
-    .split("\n")
-    .filter(
-      (line) =>
-        /^(?:@@|[+-](?![+-]))/.test(line) &&
-        !/^[+-]\s*(?:["']?(?:integrity|checksum|resolved)["']?[\s:]|resolution:.*integrity)/i.test(
-          line,
-        ),
+  const isCandidate = (line: string) =>
+    /^(?:@@|[+-](?![+-]))/.test(line) &&
+    !/^[+-]\s*(?:["']?(?:integrity|checksum|resolved)["']?[\s:]|resolution:.*integrity)/i.test(
+      line,
     );
-  const candidates = lines.length ? lines : patch.split("\n");
+  let changedLines = 0;
+  let totalLines = 0;
+  for (const line of patchLines(patch)) {
+    totalLines++;
+    if (isCandidate(line)) changedLines++;
+  }
+  const candidates = changedLines || totalLines;
   const count = Math.min(
-    candidates.length,
+    candidates,
     Math.max(1, Math.floor(capacity / 160)),
     32,
   );
-  const selected = Array.from(
-    { length: count },
-    (_, i) =>
-      candidates[
-        count === 1
-          ? 0
-          : Math.floor((i * (candidates.length - 1)) / (count - 1))
-      ],
-  );
   const perLine = Math.max(0, Math.floor((capacity - 40) / count) - 5);
+  const selected: string[] = [];
+  let index = 0;
+  // A second pass retains only the bounded, evenly spaced excerpts. In
+  // particular, minified lines are truncated before entering the selection.
+  for (const line of patchLines(patch)) {
+    if (changedLines && !isCandidate(line)) continue;
+    const next =
+      count === 1
+        ? 0
+        : Math.floor((selected.length * (candidates - 1)) / (count - 1));
+    if (index++ !== next) continue;
+    selected.push(
+      estimateTokens(line) > perLine ? bytePrefix(line, perLine) + " …" : line,
+    );
+    if (selected.length === count) break;
+  }
   return bytePrefix(
-    "\nPartial diff excerpts:\n" +
-      selected
-        .map((line) =>
-          estimateTokens(line) > perLine
-            ? bytePrefix(line, perLine) + " …"
-            : line,
-        )
-        .join("\n"),
+    "\nPartial diff excerpts:\n" + selected.join("\n"),
     capacity,
   );
 }
