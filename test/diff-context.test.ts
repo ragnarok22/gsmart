@@ -246,3 +246,162 @@ test("metadata overflow fails clearly, rename exclusions match original paths, a
     /aborted/,
   );
 });
+
+test("quoted copies decode tabs, newlines, quotes, backslashes and Unicode before applying exclusions", async () => {
+  const original = 'source/line\nbreak\t"quoted"\\界😀.txt';
+  const destination = 'target/line\nbreak\t"quoted"\\界😀.txt';
+  const diff = [
+    `diff --git ${JSON.stringify(`a/${original}`)} ${JSON.stringify(`b/${destination}`)}`,
+    "similarity index 100%",
+    `copy from ${JSON.stringify(original)}`,
+    `copy to ${JSON.stringify(destination)}`,
+    "",
+  ].join("\n");
+  const [file] = parseDiffFiles(diff);
+  assert.equal(file.path, destination);
+  assert.equal(file.originalPath, original);
+  assert.match(file.metadata, /Change: copied; \+0 -0/);
+  assert.ok(file.metadata.includes(JSON.stringify(destination)));
+  assert.ok(
+    !file.metadata.includes("\t"),
+    "metadata should escape terminal controls",
+  );
+  await assert.rejects(
+    prepareContext({
+      diff,
+      budget: resolveContextBudget("custom", "local", { exclude: [original] }),
+      buildPrompt,
+    }),
+    /No usable AI context/,
+  );
+});
+
+test("tight input budgets retain file metadata or a short excerpt without requesting summaries", async () => {
+  const diff = patch("src/tight.ts", 1000);
+  for (const [instructions, hasExcerpt] of [
+    [6400, false],
+    [6330, true],
+  ] as const) {
+    const result = await prepareContext({
+      diff,
+      budget: resolveContextBudget("custom", "local", { summarize: true }),
+      buildPrompt: (changes) => ({
+        system: "x".repeat(instructions),
+        prompt: changes,
+      }),
+      summarize: async () =>
+        assert.fail("insufficient summary space must use local reduction"),
+    });
+    assert.match(result.prompt, /File: "src\/tight.ts"/);
+    assert.match(result.prompt, /\+1000 -1/);
+    assert.equal(result.prompt.includes("Partial diff excerpts"), hasExcerpt);
+    assert.equal(result.report.files[0].treatment, "condensed");
+    assert.equal(result.report.summaryRequests, 0);
+    assert.ok(
+      result.report.inputTokens +
+        result.report.outputTokens +
+        result.report.overheadTokens <=
+        result.report.budgetTokens,
+    );
+  }
+});
+
+test("oversized binary patches without text hunks retain file kind and bounded metadata", async () => {
+  const diff =
+    "diff --git a/image.bin b/image.bin\nnew file mode 100644\nGIT binary patch\nliteral 20000\n" +
+    "z".repeat(20000) +
+    "\n";
+  const result = await prepareContext({
+    diff,
+    budget: resolveContextBudget("custom", "local"),
+    buildPrompt,
+  });
+  assert.match(result.prompt, /added; \+0 -0; binary/);
+  assert.equal(result.report.files[0].kind, "binary");
+  assert.equal(result.report.files[0].treatment, "condensed");
+  assert.doesNotMatch(result.prompt, /z{20000}/);
+  assert.ok(result.report.inputTokens <= 6656);
+});
+
+test("complete summarization preserves every chunk across Unicode boundaries and reports full coverage", async () => {
+  const diff = patch("src/unicode.ts", 300).replaceAll(
+    "new behavior 界😀",
+    "😀界é".repeat(10),
+  );
+  const chunks: string[] = [];
+  const summaries: string[] = [];
+  const budget = resolveContextBudget("custom", "local", {
+    summarize: true,
+    maxSummaryRequests: 16,
+  });
+  const result = await prepareContext({
+    diff,
+    budget,
+    buildPrompt,
+    summarize: async ({ prompt, system }, beforeAttempt) => {
+      beforeAttempt();
+      const separator = "not necessarily the whole change:\n";
+      chunks.push(prompt.slice(prompt.indexOf(separator) + separator.length));
+      assert.ok(
+        estimateTokens(prompt) + estimateTokens(system) <= budget.input,
+      );
+      const summary = `Updated constants in section ${chunks.length}.`;
+      summaries.push(summary);
+      return summary;
+    },
+  });
+  assert.ok(chunks.length > 1);
+  assert.equal(
+    chunks.join(""),
+    diff,
+    "all source bytes must survive chunk boundaries",
+  );
+  assert.equal(result.report.summaryRequests, chunks.length);
+  assert.equal(result.report.files[0].partial, false);
+  assert.equal(result.report.files[0].reason, "AI summary of all chunks");
+  for (const summary of summaries) assert.ok(result.prompt.includes(summary));
+});
+
+test("long summaries are bounded in the final request and reported as partial", async () => {
+  const budget = resolveContextBudget("custom", "local", {
+    summarize: true,
+    maxSummaryRequests: 8,
+  });
+  const summary = "Changes include " + "界😀".repeat(2000) + " LAST_NOTE";
+  const result = await prepareContext({
+    diff: patch("src/complete.ts", 200),
+    budget,
+    buildPrompt,
+    summarize: async (_request, beforeAttempt) => {
+      beforeAttempt();
+      return summary;
+    },
+  });
+  assert.ok(result.report.summaryRequests > 1);
+  assert.ok(
+    result.report.summaryRequests < 8,
+    "all input chunks fit below the request cap",
+  );
+  assert.equal(result.report.files[0].partial, true);
+  assert.equal(result.report.files[0].treatment, "summarized");
+  assert.match(result.prompt, /Changes include/);
+  assert.doesNotMatch(result.prompt, /LAST_NOTE|\ufffd/);
+  assert.ok(result.report.inputTokens <= budget.input);
+});
+
+test("a budget that fits local metadata but not summary instructions fails before a provider call", async () => {
+  await assert.rejects(
+    prepareContext({
+      diff: patch("src/file.ts", 1000),
+      budget: resolveContextBudget("custom", "local", {
+        budgetTokens: 1250,
+        outputTokens: 256,
+        summarize: true,
+      }),
+      buildPrompt: (changes) => ({ system: "", prompt: changes }),
+      summarize: async () =>
+        assert.fail("oversized summary instructions must not be sent"),
+    }),
+    /too small for a summarization request/,
+  );
+});

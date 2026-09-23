@@ -302,12 +302,19 @@ test("show-effective reports resolved settings, sources and diagnostics without 
     showEffective: true,
     language: "pt",
     prompt: "CLI style",
+    contextBudget: "16384",
+    contextExclude: ["vendor/**"],
+    summarize: false,
   });
   const effective = JSON.parse(output[0]);
   assert.equal(effective.conventions.instructions, "CLI style");
   assert.equal(effective.conventions.language, "pt");
   assert.equal(effective.conventions.headerMaxLength, 72);
   assert.equal(effective.sources.language, "CLI");
+  assert.equal(effective.conventions.context.budgetTokens, 16384);
+  assert.deepEqual(effective.conventions.context.exclude, ["vendor/**"]);
+  assert.equal(effective.conventions.context.summarize, false);
+  assert.equal(effective.sources["context.budgetTokens"], "CLI");
   assert.equal(effective.ruleMetadata.headerMaxLength.severity, 1);
   assert.equal(effective.diagnostics.length, 1);
   assert.doesNotMatch(output[0], /apiKey|accessToken|refreshToken|private-key/);

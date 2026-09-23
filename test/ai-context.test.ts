@@ -174,3 +174,25 @@ test("empty, excluded and instruction-only oversized requests do not call the pr
   }
   assert.equal(requests.length, 0);
 });
+
+test("context report failures are returned clearly before sending the final request", async () => {
+  for (const failure of [
+    new Error("context report output failed"),
+    "context report output failed",
+  ]) {
+    const { ai, requests } = await builder();
+    const result = await ai.generateCommitMessage(
+      "main",
+      sourceDiff("small.ts", 1),
+      {
+        onContextPrepared: () => {
+          throw failure;
+        },
+      },
+    );
+    assert.deepEqual(result, {
+      error: "Context preparation failed: context report output failed",
+    });
+    assert.equal(requests.length, 0);
+  }
+});

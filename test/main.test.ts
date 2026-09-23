@@ -8,6 +8,8 @@ import prompts from "prompts";
 import { createMainCommand } from "../src/commands/main.ts";
 import { parseDiffFileNames } from "../src/utils/git.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
+import type { GenerationOptions } from "../src/utils/ai.ts";
+import type { ContextReport } from "../src/utils/diff-context.ts";
 
 const normalizeMessage = (message?: string) =>
   message === undefined ? undefined : stripVTControlCharacters(message);
@@ -72,6 +74,8 @@ function buildMainCommand(
     hasOpenAIOAuthTokens?: boolean;
     configuredPrompt?: string;
     aiResult?: string | { error: string };
+    contextReport?: ContextReport;
+    retrieve?: () => Promise<string | null>;
     promptsResponses?: Record<string, unknown>;
     prompt?: (
       question: Parameters<typeof prompts>[0],
@@ -111,12 +115,18 @@ function buildMainCommand(
       private readonly prompt: string,
     ) {}
 
-    generateCommitMessage(branchName: string) {
+    generateCommitMessage(
+      branchName: string,
+      _changes: string,
+      options?: GenerationOptions,
+    ) {
       aiCalls.push({
         provider: this.provider,
         prompt: this.prompt,
         branch: branchName,
       });
+      if (overrides.contextReport)
+        options?.onContextPrepared?.(overrides.contextReport);
       return Promise.resolve(aiResult);
     }
   }
@@ -155,7 +165,7 @@ function buildMainCommand(
     } as never,
     AIBuilder: FakeAIBuilder as never,
     getActiveProviders: () => providers as never,
-    retrieveFilesToCommit: async () => changes,
+    retrieveFilesToCommit: overrides.retrieve ?? (async () => changes),
     getStagedSnapshot: async () => ({
       diff: changes ?? "",
       branch,
@@ -669,4 +679,118 @@ test("main --dry-run lists staged file names from diff headers", async () => {
 
   assert.ok(logs.some((line) => line.includes("src/foo.ts")));
   assert.ok(logs.some((line) => line.includes("src/bar.ts")));
+});
+
+for (const failure of [
+  new Error("Staged diff exceeds the 64 MiB capture limit"),
+  "Git index could not be read",
+]) {
+  test(`staged diff read failures stop automation before generation or committing: ${String(failure)}`, async () => {
+    const run = buildMainCommand({
+      retrieve: async () => {
+        throw failure;
+      },
+    });
+    await run.MainCommand.action({ yes: true });
+    assert.deepEqual(run.exitCodes, [1]);
+    assert.deepEqual(run.aiCalls, []);
+    assert.deepEqual(run.questions, []);
+    assert.equal(run.getCommittedMessage(), "");
+    assert.equal(run.getClipboardText(), "");
+    assert.ok(
+      run.events.some(
+        (event) =>
+          event.type === "fail" &&
+          event.message ===
+            `Could not read staged changes: ${failure instanceof Error ? failure.message : failure}`,
+      ),
+    );
+  });
+}
+
+test("context inspection reports file treatments while dry-run still lists every staged file", async () => {
+  const report: ContextReport = {
+    budgetTokens: 8192,
+    budgetSource: "override",
+    inputTokens: 3000,
+    outputTokens: 1024,
+    overheadTokens: 512,
+    summaryRequests: 0,
+    files: [
+      {
+        path: "source.ts",
+        kind: "source",
+        treatment: "condensed",
+        reason: "input budget; representative excerpts",
+        originalBytes: 20000,
+        contextBytes: 1000,
+        partial: true,
+      },
+      {
+        path: "excluded.txt",
+        kind: "source",
+        treatment: "excluded",
+        reason: "context exclusion pattern",
+        originalBytes: 500,
+        contextBytes: 0,
+        partial: true,
+      },
+    ],
+  };
+  for (const showContext of [false, true]) {
+    const run = buildMainCommand({
+      changes:
+        "diff --git a/source.ts b/source.ts\n+change\ndiff --git a/excluded.txt b/excluded.txt\n+excluded\n",
+      contextReport: report,
+    });
+    await run.MainCommand.action({ dryRun: true, showContext });
+    assert.deepEqual(run.exitCodes, []);
+    assert.equal(run.getCommittedMessage(), "");
+    assert.ok(
+      run.events.some(
+        (event) =>
+          event.type === "info" &&
+          /AI context reduced for 2 file\(s\); staged changes preserved/.test(
+            event.message ?? "",
+          ),
+      ),
+    );
+    const details = run.logs.find((line) => line.startsWith("{"));
+    if (showContext)
+      assert.deepEqual(JSON.parse(details!), { context: report });
+    else assert.equal(details, undefined);
+    assert.ok(run.logs.some((line) => line.includes("feat: test commit")));
+    assert.ok(run.logs.some((line) => line.includes("source.ts")));
+    assert.ok(run.logs.some((line) => line.includes("excluded.txt")));
+  }
+});
+
+test("full-context inspection reports the original coverage without a reduction notice", async () => {
+  const report: ContextReport = {
+    budgetTokens: 8192,
+    budgetSource: "fallback",
+    inputTokens: 2000,
+    outputTokens: 1024,
+    overheadTokens: 512,
+    summaryRequests: 0,
+    files: [
+      {
+        path: "small.ts",
+        kind: "source",
+        treatment: "full",
+        reason: "fits budget",
+        originalBytes: 100,
+        contextBytes: 100,
+        partial: false,
+      },
+    ],
+  };
+  const run = buildMainCommand({ contextReport: report });
+  await run.MainCommand.action({ dryRun: true, showContext: true });
+  assert.deepEqual(JSON.parse(run.logs.find((line) => line.startsWith("{"))!), {
+    context: report,
+  });
+  assert.ok(
+    !run.events.some((event) => event.message?.includes("AI context reduced")),
+  );
 });

@@ -128,6 +128,33 @@ test("staged diff capture reports signal termination even without stderr", async
   await assert.rejects(reader.getGitChanges, /SIGTERM/);
 });
 
+test("staged diff capture reports the exit code when Git fails without stderr", async (t) => {
+  const reader = await mockDiff(t, (child) => {
+    child.stdout.write("partial patch must not be returned");
+    child.emit("close", 2);
+  });
+  await assert.rejects(
+    reader.getGitChanges,
+    /Failed to read staged Git diff: git exited with code 2/,
+  );
+});
+
+test("multiple stream errors preserve the original failure and terminate the child once", async (t) => {
+  const failure = new Error("stdout read failure");
+  const children: ReturnType<typeof diffProcess>[] = [];
+  const reader = await mockDiff(t, (child) => {
+    children.push(child);
+    child.stdout.write("partial patch");
+    child.stdout.emit("error", failure);
+    child.stderr.emit("error", new Error("secondary stderr failure"));
+    child.emit("error", new Error("secondary process failure"));
+    child.stdout.write("output arriving after failure");
+  });
+  await assert.rejects(reader.getGitChanges, (error) => error === failure);
+  await assert.rejects(reader.getStagedSnapshot, (error) => error === failure);
+  assert.ok(children.every((child) => child.kill.mock.callCount() === 1));
+});
+
 test("staged diff capture propagates process launch errors", async (t) => {
   const failure = new Error("spawn git ENOENT");
   const reader = await mockDiff(t, (child) => {
