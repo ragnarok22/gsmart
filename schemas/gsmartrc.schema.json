@@ -104,6 +104,33 @@
         "instructions": { "type": "string", "maxLength": 10000 }
       }
     },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "budgetTokens": {
+          "type": ["integer", "null"],
+          "minimum": 1024,
+          "maximum": 1048576,
+          "default": null
+        },
+        "outputTokens": {
+          "type": "integer",
+          "minimum": 256,
+          "maximum": 32768,
+          "default": 1024
+        },
+        "summarize": { "type": "boolean", "default": false },
+        "maxSummaryRequests": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64,
+          "default": 8
+        },
+        "exclude": { "$ref": "#/definitions/patterns" },
+        "generated": { "$ref": "#/definitions/patterns" }
+      }
+    },
     "commitlint": { "type": "boolean", "default": true },
     "history": {
       "type": "object",
@@ -120,6 +147,13 @@
     }
   },
   "definitions": {
+    "patterns": {
+      "description": "Repository-relative paths with *, ** and ? wildcards; arrays replace defaults.",
+      "type": "array",
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+    },
     "names": {
       "type": "array",
       "minItems": 1,

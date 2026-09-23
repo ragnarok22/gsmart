@@ -472,6 +472,18 @@ test("getGitChanges returns empty string when nothing is staged", async () => {
   }
 });
 
+test("getGitChanges rejects failed reads instead of reporting an empty index", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsmart-nogit-"));
+  const cwd = process.cwd();
+  process.chdir(dir);
+  try {
+    await assert.rejects(getGitChanges);
+  } finally {
+    process.chdir(cwd);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("getGitInfo returns branch and changes together", async () => {
   const repo = mkdtempSync(join(tmpdir(), "gsmart-git-"));
   execSync("git init -b develop", { cwd: repo });

@@ -14,6 +14,7 @@ import { usesOpenAIOAuth } from "../utils/provider-config";
 import { configureCustomEndpoint } from "../utils/custom-endpoint";
 import { setPrompt, getPrompt, clearPrompt } from "../utils/prompt-config";
 import { loadEffectiveConventions } from "../utils/repository-config";
+import { contextOptions } from "../utils/context-options";
 import {
   conventionsFromOptions,
   type ConventionOptions,
@@ -519,6 +520,7 @@ export const createConfigCommand = (
     description:
       "Manage prompts, default provider, models, and local endpoints",
     options: [
+      ...contextOptions,
       {
         flags: "--default-provider <provider>",
         description: "Save the default AI provider",

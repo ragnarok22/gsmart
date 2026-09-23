@@ -1,5 +1,6 @@
 import ora from "ora";
 import chalk from "chalk";
+import { stripVTControlCharacters } from "node:util";
 import prompts from "prompts";
 import { ICommand, IProvider, type EffectiveConventions } from "../definitions";
 import {
@@ -28,6 +29,8 @@ import { debugLog, debugTime } from "../utils/debug";
 import { editMessage } from "../utils/editor";
 import { withInterruptHandler } from "../utils/interrupt";
 import { loadEffectiveConventions } from "../utils/repository-config";
+import { contextOptions } from "../utils/context-options";
+import { resolveContextBudget } from "../utils/context-budget";
 import {
   conventionsFromOptions,
   type ConventionOptions,
@@ -38,6 +41,7 @@ type MainCommandOptions = ConventionOptions & {
   model?: string;
   yes?: boolean;
   dryRun?: boolean;
+  showContext?: boolean;
 };
 
 type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
@@ -186,6 +190,8 @@ const mainAction = async (
       user: savedPrompt ? { instructions: savedPrompt } : {},
       cli: conventionsFromOptions(options),
     });
+    // Validate numeric relationships before auto-staging, even before selection.
+    resolveContextBudget("custom", "", effective.conventions.context);
     for (const diagnostic of effective.diagnostics)
       deps.debugLog("config", diagnostic);
     const history = effective.conventions.history;
@@ -202,13 +208,25 @@ const mainAction = async (
     deps.setExitCode(1);
     return;
   }
-  const [changes, branch] = await Promise.all([
-    deps.retrieveFilesToCommit(spinner, {
-      autoStage: Boolean(options.yes),
-      dryRun: Boolean(options.dryRun),
-    }),
-    deps.getGitBranch(),
-  ]);
+  let changes: string | null;
+  let branch: string;
+  try {
+    [changes, branch] = await Promise.all([
+      deps.retrieveFilesToCommit(spinner, {
+        autoStage: Boolean(options.yes),
+        dryRun: Boolean(options.dryRun),
+      }),
+      deps.getGitBranch(),
+    ]);
+  } catch (error) {
+    spinner.fail(
+      chalk.red(
+        `Could not read staged changes: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+    deps.setExitCode(1);
+    return;
+  }
 
   if (!changes) {
     spinner.stop();
@@ -309,6 +327,29 @@ const mainAction = async (
             model,
             conventions: effective.conventions,
             historyExamples,
+            onContextPrepared: (report) => {
+              const reduced = report.files.filter(
+                (file) => file.treatment !== "full",
+              );
+              if (reduced.length) {
+                spinner.info(
+                  chalk.cyan(
+                    `AI context reduced for ${reduced.length} file(s); staged changes preserved. Use --show-context for details.`,
+                  ),
+                );
+                spinner.start("Generating commit message...");
+              }
+              if (options.showContext) {
+                spinner.stop();
+                // JSON quoting prevents paths from injecting terminal controls.
+                deps.log(
+                  stripVTControlCharacters(
+                    JSON.stringify({ context: report }, null, 2),
+                  ),
+                );
+                spinner.start("Generating commit message...");
+              }
+            },
             ...(refinement ? { refinement } : {}),
             ...(cancellable ? { abortSignal: controller.signal } : {}),
             onRetry: (attempt, maxRetries) => {
@@ -547,6 +588,12 @@ export const createMainCommand = (
     description:
       "Generate a commit message based on the changes in the staging area",
     options: [
+      ...contextOptions,
+      {
+        flags: "--show-context",
+        description:
+          "Show per-file AI context treatment and request budget accounting",
+      },
       {
         flags: "-p, --prompt <prompt>",
         default: "",

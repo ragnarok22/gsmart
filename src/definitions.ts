@@ -48,6 +48,15 @@ export type GitStatus = {
   original_path?: string;
 };
 
+export type ContextSettings = {
+  budgetTokens?: number | null;
+  outputTokens?: number;
+  summarize?: boolean;
+  maxSummaryRequests?: number;
+  exclude?: string[];
+  generated?: string[];
+};
+
 /** Serializable conventions shared by generation and message validation. */
 export type CommitConventions = {
   types?: string[] | null;
@@ -73,12 +82,13 @@ export type CommitConventions = {
   breakingChanges?: { requireFooter?: boolean; instructions?: string };
   commitlint?: boolean;
   history?: { enabled?: boolean; limit?: number };
+  context?: ContextSettings;
 };
 
 export type ResolvedConventions = Required<
   Omit<
     CommitConventions,
-    "tickets" | "body" | "footer" | "breakingChanges" | "history"
+    "tickets" | "body" | "footer" | "breakingChanges" | "history" | "context"
   >
 > & {
   tickets: Required<NonNullable<CommitConventions["tickets"]>>;
@@ -86,6 +96,7 @@ export type ResolvedConventions = Required<
   footer: Required<NonNullable<CommitConventions["footer"]>>;
   breakingChanges: Required<NonNullable<CommitConventions["breakingChanges"]>>;
   history: Required<NonNullable<CommitConventions["history"]>>;
+  context: Required<ContextSettings>;
 };
 
 export type ConventionRuleMetadata = {
