@@ -30,7 +30,6 @@ import { editMessage } from "../utils/editor";
 import { withInterruptHandler } from "../utils/interrupt";
 import { loadEffectiveConventions } from "../utils/repository-config";
 import { contextOptions } from "../utils/context-options";
-import { resolveContextBudget } from "../utils/context-budget";
 import {
   conventionsFromOptions,
   type ConventionOptions,
@@ -190,8 +189,6 @@ const mainAction = async (
       user: savedPrompt ? { instructions: savedPrompt } : {},
       cli: conventionsFromOptions(options),
     });
-    // Validate numeric relationships before auto-staging, even before selection.
-    resolveContextBudget("custom", "", effective.conventions.context);
     for (const diagnostic of effective.diagnostics)
       deps.debugLog("config", diagnostic);
     const history = effective.conventions.history;

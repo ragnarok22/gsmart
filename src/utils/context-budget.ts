@@ -41,7 +41,9 @@ export function resolveContextBudget(
   settings: ContextSettings = {},
 ) {
   const resolved = { ...DEFAULT_CONTEXT, ...settings };
-  const window = MODEL_WINDOWS[provider]?.[model];
+  const models = MODEL_WINDOWS[provider];
+  const window =
+    models && Object.hasOwn(models, model) ? models[model] : undefined;
   const total =
     resolved.budgetTokens ??
     (window ? Math.min(window, 32_768) : FALLBACK_BUDGET);
@@ -79,7 +81,7 @@ export function resolveContextBudget(
     output: resolved.outputTokens,
     overhead: REQUEST_OVERHEAD,
     source:
-      resolved.budgetTokens !== null
+      resolved.budgetTokens != null
         ? "override"
         : window
           ? "model"

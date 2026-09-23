@@ -47,18 +47,26 @@ async function mockGit(script: (child: GitChild) => void, spawnError?: Error) {
           assert.equal(options.cwd, "/repository");
           if (args[0] === "branch") stdout = `${state.branch}\n`;
           else if (args[0] === "rev-parse") stdout = `${state.head}\n`;
-          else {
-            assert.equal(args[0], "diff");
-            stdout = "tiny diff\n";
-          }
+          else
+            assert.fail(
+              `Unexpected synchronous Git command: ${args.join(" ")}`,
+            );
         }
         return { status: 0, stdout, stderr: "" };
       },
       spawn: (command: string, args: string[], options: SpawnOptions) => {
         assert.equal(command, "git");
-        assert.deepEqual(args, ["ls-files", "--stage", "--full-name", "-z"]);
         assert.equal(options.cwd, "/repository");
         assert.deepEqual(options.stdio, ["ignore", "pipe", "pipe"]);
+        if (args[0] === "diff") {
+          const child = new GitChild();
+          setImmediate(() => {
+            child.stdout.write("tiny diff\n");
+            child.close();
+          });
+          return child;
+        }
+        assert.deepEqual(args, ["ls-files", "--stage", "--full-name", "-z"]);
         if (spawnError) throw spawnError;
         const child = new GitChild();
         children.push(child);

@@ -88,6 +88,10 @@ test("budgets count instructions and Unicode, with conservative unknown model fa
     "fallback",
   );
   assert.equal(
+    resolveContextBudget("openai", "constructor").source,
+    "fallback",
+  );
+  assert.equal(
     resolveContextBudget("custom", "local", { budgetTokens: 16000 }).source,
     "override",
   );

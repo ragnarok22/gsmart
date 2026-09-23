@@ -1,6 +1,6 @@
 import { Ajv } from "ajv";
 import schema from "../../schemas/gsmartrc.schema.json";
-import { DEFAULT_CONTEXT } from "./context-budget";
+import { DEFAULT_CONTEXT, resolveContextBudget } from "./context-budget";
 import type {
   CommitConventions,
   ConventionRuleMetadata,
@@ -142,6 +142,9 @@ export function resolveConventions(
     merge(result, parseConventions(layer.settings, layer.source), layer);
   }
   const conventions = result as ResolvedConventions;
+  // Cross-field validation is model-independent only with an explicit budget.
+  if (conventions.context.budgetTokens !== null)
+    resolveContextBudget("custom", "", conventions.context);
   conventions.language = Intl.getCanonicalLocales(conventions.language)[0];
   if (
     conventions.body.presence === "forbidden" &&

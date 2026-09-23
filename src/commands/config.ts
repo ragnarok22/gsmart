@@ -359,6 +359,15 @@ const configAction = async (
 ) => {
   const hasPromptOptions =
     options.addCustomPrompt !== undefined || options.clearCustomPrompt;
+  if (
+    !options.showEffective &&
+    (options.contextBudget !== undefined ||
+      options.contextExclude !== undefined ||
+      options.summarize !== undefined)
+  )
+    throw new Error(
+      "Use context overrides with config --show-effective to inspect them. Save shared context settings in .gsmartrc.json.",
+    );
   if (options.addCustomPrompt !== undefined && options.clearCustomPrompt)
     throw new Error(
       "Cannot set and clear the default prompt in the same command.",
