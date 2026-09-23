@@ -7,16 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-09-23
+
+### Added
+
+- Added editable commit message candidates, feedback-driven regeneration, and candidate history with preview and restore
+- Added staged-content checks before committing, with an option to regenerate outdated messages during review
+- Added shared repository conventions through `.gsmartrc.json`, a bundled JSON Schema, compatible commitlint rule imports, and `config --show-effective`
+- Added output language selection and opt-in recent commit subjects as style examples through `--language` and `--history-examples`
+- Added saved default providers, per-provider model preferences, and a per-run `--model` override
+- Added custom OpenAI-compatible endpoints with optional authentication, including local inference with Ollama and LM Studio
+- Added model-aware request budgets, local reduction of large diffs, context exclusions, opt-in AI summarization, and per-file reporting through `--show-context`
+
 ### Fixed
 
 - Fixed update notifications recommending npm instead of pnpm when a global installation resolves to the pnpm store
 - Fixed Bash, Zsh, and Fish completions for `gsmart` without an explicit `generate` subcommand, including provider values, chained options, and `config`
 - Kept welcome and update messages out of generated shell completion scripts, including on first run
 - Fixed duplicated Zsh options and detached descriptions when completing `gsmart -` with multiple matchers, including Oh My Zsh's defaults
+- Fixed generation and commit failures returning a successful exit status; failed commits now show Git diagnostics and preserve the generated message for recovery
+- Fixed Git path handling for filenames with spaces and special characters, including staging, dry-run cleanup, and large-diff context reduction
+- Restricted credential files to owner-only permissions on macOS/Linux, including existing files when GSmart starts
+- Fixed ChatGPT OAuth browser-launch failures so login can continue using the printed authorization URL
+- Fixed cancellation and shutdown handling during review, including waiting for editor cleanup before exiting on SIGTERM
 
 ### Changed
 
 - Made `gsmart` the primary generation command, with generation options in `gsmart --help`; retained `gsmart generate` as a hidden compatibility alias
+- Raised the minimum supported Node.js version to 22.12.0 for commitlint compatibility
+- Moved provider, model, repository configuration, and context-budget validation ahead of file selection and auto-staging
+- Streamed staged-index fingerprinting and staged-diff capture to support large repositories and avoid redundant Git reads
+- Expanded documentation with review workflows, repository configuration, provider defaults, local endpoints, and large-diff guidance
 
 ## [0.15.1] - 2026-09-21
 
@@ -513,7 +534,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.15.1...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/ragnarok22/gsmart/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/ragnarok22/gsmart/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/ragnarok22/gsmart/compare/v0.14.7...v0.15.0
 [0.14.7]: https://github.com/ragnarok22/gsmart/compare/v0.14.6...v0.14.7
