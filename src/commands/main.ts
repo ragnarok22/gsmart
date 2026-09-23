@@ -105,12 +105,18 @@ type Candidate = {
   snapshot: StagedSnapshot;
 };
 
+type ProviderSelection =
+  | { status: "selected"; provider: IProvider }
+  | { status: "canceled" }
+  | { status: "unavailable" }
+  | { status: "invalid" };
+
 const getProvider = async (
   provider: string,
   skipPrompt = false,
   deps: MainCommandDeps = defaultDeps,
   model?: string,
-): Promise<IProvider | null> => {
+): Promise<ProviderSelection> => {
   const activeProviders = deps
     .getActiveProviders()
     .filter((p) => isProviderConfigured(p.value, deps.config, model));
@@ -118,33 +124,35 @@ const getProvider = async (
   if (provider) {
     const selectedProvider = activeProviders.find((p) => p.value === provider);
     if (!selectedProvider) {
-      return null;
+      return { status: "invalid" };
     }
-    return selectedProvider;
+    return { status: "selected", provider: selectedProvider };
   }
 
   if (activeProviders.length === 0) {
-    return null;
+    return { status: "unavailable" };
   }
 
   if (activeProviders.length === 1) {
-    return activeProviders[0];
+    return { status: "selected", provider: activeProviders[0] };
   }
 
   if (skipPrompt) {
     // When skip prompt is enabled, use the first available provider
-    return activeProviders[0];
+    return { status: "selected", provider: activeProviders[0] };
   }
 
-  const { value } = (await deps.prompt({
+  const { value } = await deps.prompt({
     type: "select",
     name: "value",
     message: "Select an AI provider",
     choices: activeProviders.map((p) => ({ title: p.title, value: p.value })),
-  })) as { value?: string };
-  const selectedProvider =
-    activeProviders.find((p) => p.value === value) || null;
-  return selectedProvider;
+  });
+  if (value === undefined) return { status: "canceled" };
+  const selectedProvider = activeProviders.find((p) => p.value === value);
+  return selectedProvider
+    ? { status: "selected", provider: selectedProvider }
+    : { status: "invalid" };
 };
 
 const mainAction = async (
@@ -208,27 +216,26 @@ const mainAction = async (
   }
 
   spinner.stop();
-  const selectedProvider = await getProvider(
+  const selection = await getProvider(
     requestedProvider ?? "",
     Boolean(options.yes),
     deps,
     options.model,
   );
 
-  if (!selectedProvider && !requestedProvider) {
+  if (selection.status === "canceled") return;
+  if (selection.status !== "selected") {
     spinner.fail(
       chalk.red(
-        "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`.",
+        selection.status === "unavailable"
+          ? "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`."
+          : "No valid provider found. Please check your API keys.",
       ),
     );
     deps.setExitCode(1);
     return;
-  } else if (!selectedProvider) {
-    spinner.fail(
-      chalk.red("No valid provider found. Please check your API keys."),
-    );
-    return;
   }
+  const selectedProvider = selection.provider;
 
   const readSnapshot = async (): Promise<StagedSnapshot | null> => {
     try {

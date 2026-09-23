@@ -984,6 +984,7 @@ test("losing the selected provider credentials during file selection never falls
     },
   });
   await run.command.action({ provider: "openai", dryRun: true });
+  assert.equal(run.exitCode(), 1);
   assert.match(run.text(), /No valid provider/);
   assert.deepEqual(run.requests, []);
   assert.deepEqual(run.questions, []);
