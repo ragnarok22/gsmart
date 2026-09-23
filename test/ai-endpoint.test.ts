@@ -5,7 +5,7 @@ import { beforeEach, afterEach, test, type TestContext } from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { execFile } from "node:child_process";
-import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -1116,5 +1116,76 @@ test("OAuth summary and final requests preserve streaming options and budget all
         REQUEST_OVERHEAD <=
         8192,
     );
+  }
+});
+
+test("CLI rejects impossible implicit output reserves before --yes can stage untracked work", async (t) => {
+  const server = await endpoint(t);
+  const root = repository(t);
+  writeFileSync(
+    join(root, "untracked.txt"),
+    "working content must stay unstaged\n",
+  );
+  git(root, "add", "untracked.txt");
+  git(root, "rm", "--cached", "--", "untracked.txt");
+  const originalIndex = readFileSync(join(root, ".git/index"));
+  const directory = mkdtempSync(join(tmpdir(), "gsmart-budget-cli-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const entry =
+    process.env.GSMART_TEST_CLI_ENTRY ??
+    fileURLToPath(new URL("../src/index.ts", import.meta.url));
+  const run = (args: string[]) =>
+    promisify(execFile)(
+      process.execPath,
+      [
+        ...(entry.endsWith(".ts")
+          ? ["--import", import.meta.resolve("tsx")]
+          : []),
+        entry,
+        ...args,
+      ],
+      {
+        cwd: root,
+        timeout: 20_000,
+        env: {
+          ...process.env,
+          GSMART_CONFIG_DIR: directory,
+          NO_UPDATE_NOTIFIER: "1",
+          FORCE_COLOR: "0",
+        },
+      },
+    );
+  await run([
+    "config",
+    "--provider",
+    "custom",
+    "--base-url",
+    server.baseURL,
+    "--model",
+    "local",
+    "--default-provider",
+    "custom",
+  ]);
+
+  for (const context of [
+    { outputTokens: 32768 },
+    { budgetTokens: null, outputTokens: 32256 },
+  ]) {
+    writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context }));
+    await assert.rejects(
+      run(["--yes"]),
+      (error: Error & { code?: number; stderr?: string }) => {
+        assert.equal(error.code, 1);
+        assert.match(error.stderr ?? "", /leave room for input/);
+        return true;
+      },
+    );
+    assert.deepEqual(readFileSync(join(root, ".git/index")), originalIndex);
+    assert.equal(git(root, "diff", "--cached", "--name-only"), "");
+    assert.equal(
+      readFileSync(join(root, "untracked.txt"), "utf8"),
+      "working content must stay unstaged\n",
+    );
+    assert.equal(server.requests.length, 0);
   }
 });

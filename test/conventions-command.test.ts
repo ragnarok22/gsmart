@@ -160,6 +160,63 @@ test("invalid context budget relationships fail before selecting or staging file
   assert.match(run.output(), /leave room for input/);
 });
 
+for (const context of [
+  { outputTokens: 32768 },
+  { budgetTokens: null, outputTokens: 32768 },
+  { outputTokens: 32256 },
+]) {
+  test(`impossible implicit output budgets fail before auto-staging: ${JSON.stringify(context)}`, async (t) => {
+    const root = repository(t);
+    writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context }));
+    const run = setup(root);
+    await run.command.action({ yes: true });
+    assert.equal(
+      run.retrievals(),
+      0,
+      "invalid settings must stop before staging/file selection",
+    );
+    assert.deepEqual(run.requests, []);
+    assert.equal(run.exitCode(), 1);
+    assert.match(run.output(), /leave room for input/);
+  });
+}
+
+test("implicit validation allows output reserves supported by known models without fixing a model budget early", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { outputTokens: 16000 } }),
+  );
+  const run = setup(root);
+  await run.command.action({ dryRun: true });
+  assert.equal(run.exitCode(), 0);
+  assert.equal(run.retrievals(), 1);
+  assert.equal(
+    run.requests[0].options?.conventions?.context.budgetTokens,
+    null,
+  );
+  assert.equal(
+    run.requests[0].options?.conventions?.context.outputTokens,
+    16000,
+  );
+});
+
+test("an explicit larger budget permits the maximum output reserve", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { budgetTokens: 65536, outputTokens: 32768 } }),
+  );
+  const run = setup(root);
+  await run.command.action({ dryRun: true });
+  assert.equal(run.exitCode(), 0);
+  assert.equal(run.retrievals(), 1);
+  assert.equal(
+    run.requests[0].options?.conventions?.context.budgetTokens,
+    65536,
+  );
+});
+
 test("generation selects repository instructions above user prompt and propagates CLI language", async (t) => {
   const root = repository(t);
   writeFileSync(

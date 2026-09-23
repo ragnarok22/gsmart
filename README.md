@@ -554,6 +554,8 @@ Known exact provider/model pairs use a default total budget of **32,768**, below
 
 All other IDs, including unlisted built-in defaults and **every custom endpoint**, use an **8,192** total fallback unless overridden. A local server may configure a smaller window than the model supports; set `--context-budget` to that effective limit.
 
+With an automatic budget, an output reserve plus framing overhead that reaches or exceeds the 32,768-token automatic cap is rejected while loading configuration, before file selection or auto-staging. Larger output reserves require an explicit larger `budgetTokens`. Model-specific limits are checked after model selection; valid model-dependent settings retain `budgetTokens: null` in the effective configuration.
+
 GSmart conservatively counts **one token per UTF-8 byte** of request text, plus **512 tokens** for request framing, then reserves `outputTokens`. This intentionally overestimates typical token usage instead of assuming four characters per token. The report is an accounting estimate, not provider billing. Custom tokenizers or server-added templates can differ; account for their overhead with a smaller configured budget.
 
 **Context exclusions and reduction never unstage files or change working-tree contents.** All selected changes still belong to the commit; only their AI representation changes. Existing staging and dry-run selection rules still apply. Git capture supports complete diffs up to 64 MiB and returns an explicit error above that limit or on read failure.

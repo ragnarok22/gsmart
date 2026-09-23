@@ -50,6 +50,24 @@ test("supported boundary limits preserve input room and the chosen output allowa
   }
 });
 
+test("automatic model budgets enforce the cap while retaining model-specific fallback validation", () => {
+  const budget = resolveContextBudget("openai", "gpt-4o", {
+    outputTokens: 32_255,
+  });
+  assert.equal(budget.total, 32_768);
+  assert.equal(budget.input, 1);
+  assert.equal(budget.source, "model");
+  assert.equal(budget.settings.budgetTokens, null);
+  assert.throws(
+    () => resolveContextBudget("openai", "gpt-4o", { outputTokens: 32_256 }),
+    /leave room for input/,
+  );
+  assert.throws(
+    () => resolveContextBudget("custom", "local", { outputTokens: 16_000 }),
+    /leave room for input/,
+  );
+});
+
 test("request accounting accepts an exact fit and rejects overflowing Unicode text", () => {
   const budget = resolveContextBudget("custom", "local");
   const system = "é".repeat(100);
