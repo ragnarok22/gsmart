@@ -31,6 +31,13 @@ import {
 } from "./constants";
 import { debugLog, debugTime } from "./debug";
 import { resolveModel, validateModel, validateBaseURL } from "./providers";
+import { prepareContext, type ContextReport } from "./diff-context";
+import {
+  assertRequestFits,
+  resolveContextBudget,
+  type ContextBudget,
+  type ContextRequest,
+} from "./context-budget";
 
 export { providers, getActiveProviders } from "./providers";
 
@@ -199,6 +206,7 @@ export type GenerationOptions = RetryOptions & {
   conventions?: ResolvedConventions;
   historyExamples?: string[];
   abortSignal?: AbortSignal;
+  onContextPrepared?: (report: ContextReport) => void;
   refinement?: {
     previousMessage: string;
     feedback: string;
@@ -426,24 +434,77 @@ export class AIBuilder {
     context: ProviderAuth & { modelId: string },
     options?: GenerationOptions,
   ): Promise<string | { error: string }> {
-    const [system, initialPrompt] = buildCommitPrompt(
-      branch_name,
-      changes,
-      options?.conventions,
-      options?.historyExamples,
-    );
-    const instructions = options?.conventions?.instructions ?? this.prompt;
-    const refinement = options?.refinement;
-    const prompt = [
-      initialPrompt,
-      instructions ? `Additional instructions:\n${instructions}` : "",
-      refinement
-        ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise, while following the structured conventions. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
-        : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n");
+    const buildPrompt = (preparedChanges: string): ContextRequest => {
+      const [system, initialPrompt] = buildCommitPrompt(
+        branch_name,
+        preparedChanges,
+        options?.conventions,
+        options?.historyExamples,
+      );
+      const instructions = options?.conventions?.instructions ?? this.prompt;
+      const refinement = options?.refinement;
+      const prompt = [
+        initialPrompt,
+        instructions ? `Additional instructions:\n${instructions}` : "",
+        refinement
+          ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise, while following the structured conventions. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+      return { system, prompt };
+    };
 
+    try {
+      const budget = resolveContextBudget(
+        this.provider,
+        context.modelId,
+        options?.conventions?.context,
+      );
+      const prepared = await prepareContext({
+        diff: changes,
+        budget,
+        buildPrompt,
+        signal: options?.abortSignal,
+        summarize: async (request, beforeAttempt) => {
+          const result = await this.__requestText(
+            model,
+            request,
+            context,
+            budget,
+            options,
+            beforeAttempt,
+          );
+          if (typeof result !== "string")
+            throw new Error(`Summarization failed: ${result.error}`);
+          return result;
+        },
+      });
+      options?.onContextPrepared?.(prepared.report);
+      return await this.__requestText(
+        model,
+        prepared,
+        context,
+        budget,
+        options,
+      );
+    } catch (error) {
+      if (options?.abortSignal?.aborted) throw error;
+      return {
+        error: `Context preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
+
+  private async __requestText(
+    model: LanguageModel,
+    { system, prompt }: ContextRequest,
+    context: ProviderAuth & { modelId: string },
+    budget: ContextBudget,
+    options?: GenerationOptions,
+    beforeAttempt?: () => void,
+  ): Promise<string | { error: string }> {
+    assertRequestFits({ system, prompt }, budget);
     const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
     const delayFn =
@@ -457,10 +518,12 @@ export class AIBuilder {
       attempt: number,
     ): Promise<string | { error: string }> => {
       options?.abortSignal?.throwIfAborted();
+      beforeAttempt?.();
       try {
         const request = {
           model,
           prompt,
+          maxOutputTokens: budget.output,
           // The retry loop below owns backoff and diagnostics for both APIs.
           maxRetries: 0,
           timeout: { totalMs: timeoutMs },
@@ -514,7 +577,12 @@ export class AIBuilder {
           }
           if (!text.trim()) throw new NoContentGeneratedError();
         } else {
-          ({ text } = await generateText({ ...request, system }));
+          const result = await generateText({ ...request, system });
+          if (result.finishReason && result.finishReason !== "stop")
+            throw new Error(
+              "Response did not complete successfully. Increase context.outputTokens or try a different model.",
+            );
+          text = result.text;
         }
 
         options?.abortSignal?.throwIfAborted();

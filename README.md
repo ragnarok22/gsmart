@@ -416,10 +416,11 @@ The [JSON Schema](schemas/gsmartrc.schema.json) is included in the npm package a
 | `instructions`        | Additional generation instructions, up to 10,000 characters. Body and breaking-change instructions have the same limit.                                                                                                                                                                              |
 | `commitlint`          | Import compatible rules from a root commitlint configuration (default `true`). Set to `false` to skip discovery and loading.                                                                                                                                                                         |
 | `history`             | `enabled` (default `false`) and `limit` (1–20, default `5`).                                                                                                                                                                                                                                         |
+| `context`             | Request budgets, context exclusions, generated-file patterns, and opt-in AI summarization. See [Large diffs and AI context](#large-diffs-and-ai-context).                                                                                                                                            |
 
 Configuration is merged **per setting**, from highest to lowest priority:
 
-1. Explicit CLI options (`--prompt`, `--language`, `--history-examples`).
+1. Explicit CLI options (`--prompt`, `--language`, `--history-examples`, and context overrides).
 2. `.gsmartrc.json` settings.
 3. Compatible rules imported from the repository's commitlint configuration.
 4. User settings (currently the saved default prompt).
@@ -479,6 +480,87 @@ gsmart --history-examples 0
 Language changes generated commit prose, while CLI help and documentation remain in their existing language.
 
 History is opt-in. When enabled, GSmart reads recent non-merge commit subjects reachable from `HEAD`, bounded to **20 subjects, 200 characters each, and 4,000 subject characters total**. It excludes bodies, labels the subjects as style examples, and sends them to the selected provider alongside the diff. Explicit conventions override historical style. A repository without commits contributes no examples, and disabling history skips the history read entirely.
+
+### Large diffs and AI context
+
+GSmart budgets the **complete request**: system instructions, branch, changes, custom instructions, history examples, refinement feedback, an output reserve, and request overhead. Small diffs that fit keep their full content and use one generation request.
+
+Oversized diffs are reduced locally by default. Each included file keeps its path, change type, line counts, rename origin, and relevant mode/binary metadata. Small patches stay intact where possible; larger patches receive representative excerpts. Lockfiles and generated files receive at most 1 KiB of excerpts so they cannot dominate source changes. Excerpts are incomplete evidence, and the prompt tells the model not to infer unseen details. Lockfile-only, binary, rename-only, and deletion changes remain usable context.
+
+**AI summarization is opt-in.** `--summarize` allows extra requests for oversized source files. Each chunk request is independently budgeted and uses the selected model, authentication, timeout, cancellation, and retry policy. Summaries are composed within the final budget. The default limit is eight summary attempts **including retries**, in addition to final-generation attempts. If a file requires more chunks than its share of the limit, chunks are sampled across the file and its report marks the summary as partial. Large combined summaries can also be shortened for the final request. Lockfiles and generated files continue to use local compaction.
+
+```bash
+# Generate and inspect per-file context treatment without committing
+gsmart --dry-run --show-context
+
+# Set a total request budget and exclude paths from AI context
+gsmart --dry-run --context-budget 16384 --context-exclude 'vendor/**' '*.map'
+
+# Allow additional AI calls for this run
+gsmart --dry-run --summarize --show-context
+
+# Override repository opt-in; only local reduction is used
+gsmart --dry-run --no-summarize
+
+# Inspect configuration overrides and their sources
+gsmart config --show-effective --context-budget 16384 --no-summarize
+```
+
+`--show-context` prints a JSON report with the resolved budget and its source, input estimate, output/overhead reserves, summary-attempt count, and each file's treatment (`full`, `condensed`, `summarized`, or `excluded`), reason, byte sizes, and partial-coverage flag. A brief notice appears whenever files are reduced or excluded. This report describes the final context; it does not print source contents. `--dry-run` still makes the final AI request and any opted-in summary requests.
+
+Add a `context` section to the root `.gsmartrc.json` to share settings:
+
+```json
+{
+  "context": {
+    "budgetTokens": 16384,
+    "outputTokens": 1024,
+    "summarize": false,
+    "maxSummaryRequests": 8,
+    "exclude": ["vendor/**"],
+    "generated": [
+      "**/*.min.js",
+      "**/*.min.css",
+      "**/*.map",
+      "**/*.generated.*",
+      "**/generated/**",
+      "**/dist/**"
+    ]
+  }
+}
+```
+
+| Setting              | Default and behavior                                                                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `budgetTokens`       | `null`: resolve from the selected provider/model. An explicit integer from 1,024 to 1,048,576 overrides it; it must leave room for instructions and exceed output plus overhead. Known model windows are upper bounds. |
+| `outputTokens`       | `1024`: reserved output tokens, also passed to the provider as its output limit; configurable from 256 to 32,768. Increase it if a model exhausts its output/reasoning allowance.                                      |
+| `summarize`          | `false`: use local reduction only. `true` permits additional AI calls when needed.                                                                                                                                     |
+| `maxSummaryRequests` | `8`: maximum summary attempts per generation/refinement, including retries; range 1–64.                                                                                                                                |
+| `exclude`            | `[]`: omit matching files entirely from AI context, including summary requests. For renames/copies, both original and destination paths are checked.                                                                   |
+| `generated`          | The six patterns shown above. Recognized generated-code markers also trigger compaction. Setting `[]` disables pattern matching, but retains marker and lockfile detection.                                            |
+
+Patterns match complete repository-relative paths using `/` separators: `*` matches within a component, `**` crosses directories, `**/` also matches the root, and `?` matches one non-separator character. Other characters are literal; negation, brace expansion, and character classes are not supported. Quote CLI patterns to prevent shell expansion. Arrays replace inherited values. CLI context settings override their corresponding repository fields; `config` accepts these flags with `--show-effective` for inspection.
+
+#### Model budgets and conservative accounting
+
+Known exact provider/model pairs use a default total budget of **32,768**, below their advertised windows:
+
+| Provider  | Model                                | Known window |
+| --------- | ------------------------------------ | ------------ |
+| OpenAI    | `gpt-4o`, `gpt-4o-mini`              | 128,000      |
+| OpenAI    | `gpt-5-codex`                        | 400,000      |
+| Anthropic | `claude-haiku-4-5-20251001`          | 200,000      |
+| Google    | `gemini-2.5-flash`, `gemini-2.5-pro` | 1,048,576    |
+
+All other IDs, including unlisted built-in defaults and **every custom endpoint**, use an **8,192** total fallback unless overridden. A local server may configure a smaller window than the model supports; set `--context-budget` to that effective limit.
+
+With an automatic budget, an output reserve plus framing overhead that reaches or exceeds the 32,768-token automatic cap is rejected while loading configuration, before file selection or auto-staging. Larger output reserves require an explicit larger `budgetTokens`. Model-specific limits are checked after model selection; valid model-dependent settings retain `budgetTokens: null` in the effective configuration.
+
+GSmart conservatively counts **one token per UTF-8 byte** of request text, plus **512 tokens** for request framing, then reserves `outputTokens`. This intentionally overestimates typical token usage instead of assuming four characters per token. The report is an accounting estimate, not provider billing. Custom tokenizers or server-added templates can differ; account for their overhead with a smaller configured budget.
+
+**Context exclusions and reduction never unstage files or change working-tree contents.** All selected changes still belong to the commit; only their AI representation changes. Existing staging and dry-run selection rules still apply. Git capture supports complete diffs up to 64 MiB and returns an explicit error above that limit or on read failure.
+
+If all usable context is excluded, instructions or file metadata cannot fit, or an attempted summary is empty, fails, or exhausts retries, generation stops with a clear error. Increase the relevant limit, shorten instructions/history/feedback, adjust exclusions, or use `--no-summarize` to retry with local reduction. GSmart does not silently continue after a failed summary.
 
 ### Environment variables
 
@@ -577,15 +659,19 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 
 **Generation options** — use directly with `gsmart`:
 
-| Option                       | Short | Purpose                                                               |
-| ---------------------------- | ----- | --------------------------------------------------------------------- |
-| `--provider <provider>`      | `-P`  | Choose an already-configured provider                                 |
-| `--model <model>`            |       | Override the selected provider's saved or built-in model for this run |
-| `--prompt <prompt>`          | `-p`  | Supply custom instructions for this run                               |
-| `--language <tag>`           |       | Override the generated message's language (`en`, `es`, `pt-BR`)       |
-| `--history-examples <count>` |       | Include 0–20 recent subjects as style examples; `0` disables them     |
-| `--yes`                      | `-y`  | Skip generation prompts and commit automatically                      |
-| `--dry-run`                  | `-d`  | Generate a message and show analyzed files without committing         |
+| Option                            | Short | Purpose                                                               |
+| --------------------------------- | ----- | --------------------------------------------------------------------- |
+| `--provider <provider>`           | `-P`  | Choose an already-configured provider                                 |
+| `--model <model>`                 |       | Override the selected provider's saved or built-in model for this run |
+| `--prompt <prompt>`               | `-p`  | Supply custom instructions for this run                               |
+| `--language <tag>`                |       | Override the generated message's language (`en`, `es`, `pt-BR`)       |
+| `--history-examples <count>`      |       | Include 0–20 recent subjects as style examples; `0` disables them     |
+| `--context-budget <tokens>`       |       | Set the total request budget, including instructions and output       |
+| `--context-exclude <patterns...>` |       | Exclude matching paths from AI context only                           |
+| `--summarize` / `--no-summarize`  |       | Enable or disable extra AI summarization requests                     |
+| `--show-context`                  |       | Print per-file context treatment and budget accounting                |
+| `--yes`                           | `-y`  | Skip generation prompts and commit automatically                      |
+| `--dry-run`                       | `-d`  | Generate a message and show analyzed files without committing         |
 
 **Other options:**
 

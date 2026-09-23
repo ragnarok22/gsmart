@@ -1,5 +1,10 @@
 import { Ajv } from "ajv";
 import schema from "../../schemas/gsmartrc.schema.json";
+import {
+  DEFAULT_CONTEXT,
+  MAX_AUTOMATIC_BUDGET,
+  resolveContextBudget,
+} from "./context-budget";
 import type {
   CommitConventions,
   ConventionRuleMetadata,
@@ -43,6 +48,7 @@ export const DEFAULT_CONVENTIONS: ResolvedConventions = {
   breakingChanges: { requireFooter: false, instructions: "" },
   commitlint: true,
   history: { enabled: false, limit: 5 },
+  context: DEFAULT_CONTEXT,
 };
 
 const ajv = new Ajv({ allErrors: true });
@@ -140,6 +146,12 @@ export function resolveConventions(
     merge(result, parseConventions(layer.settings, layer.source), layer);
   }
   const conventions = result as ResolvedConventions;
+  // Reject impossible implicit budgets before staging; model-specific limits
+  // are checked later, once the provider and model are known.
+  resolveContextBudget("custom", "", {
+    ...conventions.context,
+    budgetTokens: conventions.context.budgetTokens ?? MAX_AUTOMATIC_BUDGET,
+  });
   conventions.language = Intl.getCanonicalLocales(conventions.language)[0];
   if (
     conventions.body.presence === "forbidden" &&
@@ -157,12 +169,24 @@ export type ConventionOptions = {
   prompt?: string;
   language?: string;
   historyExamples?: string;
+  contextBudget?: string;
+  contextExclude?: string[];
+  summarize?: boolean;
 };
 
 export function conventionsFromOptions(
   options: ConventionOptions,
 ): CommitConventions {
   const settings: CommitConventions = {};
+  if (options.contextBudget !== undefined) {
+    if (!/^\d+$/.test(options.contextBudget))
+      throw new Error("--context-budget must be an integer token budget.");
+    settings.context = { budgetTokens: Number(options.contextBudget) };
+  }
+  if (options.contextExclude !== undefined)
+    settings.context = { ...settings.context, exclude: options.contextExclude };
+  if (options.summarize !== undefined)
+    settings.context = { ...settings.context, summarize: options.summarize };
   // Commander supplies an empty default for --prompt; preserve the existing fallback.
   if (options.prompt) settings.instructions = options.prompt;
   if (options.language !== undefined) settings.language = options.language;

@@ -78,6 +78,55 @@ test("defaults are independent and leave history disabled and lengths unrestrict
   assert.equal(resolveConventions().conventions.history.enabled, false);
 });
 
+test("implicit context budgets reject output reserves that exhaust every automatic budget", () => {
+  for (const context of [
+    { outputTokens: 32_768 },
+    { budgetTokens: null, outputTokens: 32_768 },
+    { outputTokens: 32_256 },
+    { budgetTokens: null, outputTokens: 32_256 },
+  ]) {
+    assert.throws(
+      () => resolveConventions([{ source: "repo", settings: { context } }]),
+      /leave room for input/,
+    );
+  }
+});
+
+test("implicit context validation preserves model-dependent budgets and source metadata", () => {
+  for (const outputTokens of [16_000, 32_255]) {
+    const inherited = resolveConventions([
+      { source: "repo", settings: { context: { outputTokens } } },
+    ]);
+    assert.equal(inherited.conventions.context.budgetTokens, null);
+    assert.equal(inherited.conventions.context.outputTokens, outputTokens);
+    assert.equal(inherited.sources["context.budgetTokens"], "built-in");
+    assert.equal(inherited.sources["context.outputTokens"], "repo");
+
+    const reset = resolveConventions([
+      { source: "user", settings: { context: { budgetTokens: 8192 } } },
+      {
+        source: "repo",
+        settings: { context: { budgetTokens: null, outputTokens } },
+      },
+    ]);
+    assert.equal(reset.conventions.context.budgetTokens, null);
+    assert.equal(reset.conventions.context.outputTokens, outputTokens);
+    assert.equal(reset.sources["context.budgetTokens"], "repo");
+    assert.equal(reset.sources["context.outputTokens"], "repo");
+  }
+});
+
+test("a higher-priority explicit budget can accommodate the maximum output reserve", () => {
+  const effective = resolveConventions([
+    { source: "repo", settings: { context: { outputTokens: 32_768 } } },
+    { source: "CLI", settings: { context: { budgetTokens: 65_536 } } },
+  ]);
+  assert.equal(effective.conventions.context.budgetTokens, 65_536);
+  assert.equal(effective.conventions.context.outputTokens, 32_768);
+  assert.equal(effective.sources["context.budgetTokens"], "CLI");
+  assert.equal(effective.sources["context.outputTokens"], "repo");
+});
+
 for (const [name, value, field] of [
   ["array root", [], "/"],
   ["null root", null, "/"],

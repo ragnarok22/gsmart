@@ -5,7 +5,7 @@ import { beforeEach, afterEach, test, type TestContext } from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { execFile } from "node:child_process";
-import { writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -16,6 +16,12 @@ import { APICallError } from "ai";
 import config from "../src/utils/config.ts";
 import { AIBuilder } from "../src/utils/ai.ts";
 import { repository, git } from "../test-support/repository.ts";
+import { sourceDiff } from "../test-support/diff-fixtures.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
+import {
+  estimateTokens,
+  REQUEST_OVERHEAD,
+} from "../src/utils/context-budget.ts";
 
 beforeEach(() => config.clear());
 afterEach(() => config.clear());
@@ -1007,4 +1013,179 @@ test("CLI saves and inspects local settings, generates with keyless server, and 
     ],
   );
   assert.match(git(root, "diff", "--cached", "--name-only"), /example.txt/);
+
+  writeFileSync(
+    join(root, "large.ts"),
+    Array.from(
+      { length: 1000 },
+      (_, i) => `export const value${i} = "updated behavior";\n`,
+    ).join(""),
+  );
+  git(root, "add", "large.ts");
+  const originalIndex = git(root, "write-tree");
+  const generated = await run([
+    "--dry-run",
+    "--show-context",
+    "--context-budget",
+    "8192",
+    "--context-exclude",
+    "example.txt",
+  ]);
+  assert.match(generated.stdout, /"budgetTokens": 8192/);
+  assert.match(generated.stdout, /"treatment": "condensed"/);
+  assert.match(generated.stdout, /"treatment": "excluded"/);
+  assert.equal(
+    server.requests.length,
+    3,
+    "default reduction must not request AI summaries",
+  );
+  assert.doesNotMatch(
+    JSON.stringify(server.requests[2].body.messages),
+    /example.txt/,
+  );
+
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { summarize: true, maxSummaryRequests: 1 } }),
+  );
+  await run(["--dry-run", "--no-summarize"]);
+  assert.equal(
+    server.requests.length,
+    4,
+    "--no-summarize must override repository opt-in",
+  );
+  await run(["--dry-run", "--summarize"]);
+  assert.equal(
+    server.requests.length,
+    6,
+    "opt-in makes a capped summary call then the final request",
+  );
+  assert.equal(git(root, "write-tree"), originalIndex);
+  for (const request of server.requests) {
+    const messages = request.body.messages as { content: string }[];
+    assert.ok(
+      messages.reduce(
+        (total, message) => total + estimateTokens(message.content),
+        0,
+      ) +
+        Number(request.body.max_tokens) +
+        REQUEST_OVERHEAD <=
+        8192,
+    );
+  }
+});
+
+test("OAuth summary and final requests preserve streaming options and budget all instructions", async () => {
+  const requests: Record<string, unknown>[] = [];
+  const builder = await oauthBuilder(async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    requests.push(body);
+    return streamingResponse(
+      completedOAuthEvents(
+        body.instructions.startsWith("Summarize")
+          ? "Handlers now retry fetches."
+          : "fix(api): retry requests",
+      ),
+    );
+  });
+  const { conventions } = resolveConventions([
+    {
+      source: "test",
+      settings: {
+        context: { summarize: true, maxSummaryRequests: 1, budgetTokens: 8192 },
+      },
+    },
+  ]);
+  assert.equal(
+    await builder.generateCommitMessage("main", sourceDiff(), { conventions }),
+    "fix(api): retry requests",
+  );
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    assert.equal(request.store, false);
+    assert.equal(request.stream, true);
+    assert.equal(request.max_output_tokens, 1024);
+    const input = request.input as { content: { text: string }[] }[];
+    const text = input
+      .flatMap((message) => message.content.map((part) => part.text))
+      .join("");
+    assert.ok(
+      estimateTokens(String(request.instructions)) +
+        estimateTokens(text) +
+        1024 +
+        REQUEST_OVERHEAD <=
+        8192,
+    );
+  }
+});
+
+test("CLI rejects impossible implicit output reserves before --yes can stage untracked work", async (t) => {
+  const server = await endpoint(t);
+  const root = repository(t);
+  writeFileSync(
+    join(root, "untracked.txt"),
+    "working content must stay unstaged\n",
+  );
+  git(root, "add", "untracked.txt");
+  git(root, "rm", "--cached", "--", "untracked.txt");
+  const originalIndex = readFileSync(join(root, ".git/index"));
+  const directory = mkdtempSync(join(tmpdir(), "gsmart-budget-cli-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const entry =
+    process.env.GSMART_TEST_CLI_ENTRY ??
+    fileURLToPath(new URL("../src/index.ts", import.meta.url));
+  const run = (args: string[]) =>
+    promisify(execFile)(
+      process.execPath,
+      [
+        ...(entry.endsWith(".ts")
+          ? ["--import", import.meta.resolve("tsx")]
+          : []),
+        entry,
+        ...args,
+      ],
+      {
+        cwd: root,
+        timeout: 20_000,
+        env: {
+          ...process.env,
+          GSMART_CONFIG_DIR: directory,
+          NO_UPDATE_NOTIFIER: "1",
+          FORCE_COLOR: "0",
+        },
+      },
+    );
+  await run([
+    "config",
+    "--provider",
+    "custom",
+    "--base-url",
+    server.baseURL,
+    "--model",
+    "local",
+    "--default-provider",
+    "custom",
+  ]);
+
+  for (const context of [
+    { outputTokens: 32768 },
+    { budgetTokens: null, outputTokens: 32256 },
+  ]) {
+    writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context }));
+    await assert.rejects(
+      run(["--yes"]),
+      (error: Error & { code?: number; stderr?: string }) => {
+        assert.equal(error.code, 1);
+        assert.match(error.stderr ?? "", /leave room for input/);
+        return true;
+      },
+    );
+    assert.deepEqual(readFileSync(join(root, ".git/index")), originalIndex);
+    assert.equal(git(root, "diff", "--cached", "--name-only"), "");
+    assert.equal(
+      readFileSync(join(root, "untracked.txt"), "utf8"),
+      "working content must stay unstaged\n",
+    );
+    assert.equal(server.requests.length, 0);
+  }
 });

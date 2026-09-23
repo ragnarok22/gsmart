@@ -14,6 +14,7 @@ import { usesOpenAIOAuth } from "../utils/provider-config";
 import { configureCustomEndpoint } from "../utils/custom-endpoint";
 import { setPrompt, getPrompt, clearPrompt } from "../utils/prompt-config";
 import { loadEffectiveConventions } from "../utils/repository-config";
+import { contextOptions } from "../utils/context-options";
 import {
   conventionsFromOptions,
   type ConventionOptions,
@@ -358,6 +359,15 @@ const configAction = async (
 ) => {
   const hasPromptOptions =
     options.addCustomPrompt !== undefined || options.clearCustomPrompt;
+  if (
+    !options.showEffective &&
+    (options.contextBudget !== undefined ||
+      options.contextExclude !== undefined ||
+      options.summarize !== undefined)
+  )
+    throw new Error(
+      "Use context overrides with config --show-effective to inspect them. Save shared context settings in .gsmartrc.json.",
+    );
   if (options.addCustomPrompt !== undefined && options.clearCustomPrompt)
     throw new Error(
       "Cannot set and clear the default prompt in the same command.",
@@ -519,6 +529,7 @@ export const createConfigCommand = (
     description:
       "Manage prompts, default provider, models, and local endpoints",
     options: [
+      ...contextOptions,
       {
         flags: "--default-provider <provider>",
         description: "Save the default AI provider",

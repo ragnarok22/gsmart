@@ -127,13 +127,88 @@ export const getGitBranch = async (): Promise<string> => {
   }
 };
 
-export const getGitChanges = async (): Promise<string> => {
+const MAX_STAGED_DIFF_BYTES = 64 * 1024 * 1024;
+
+/** Read a complete, parser-safe patch without spawnSync's small maxBuffer. */
+const readStagedDiff = async (cwd = process.cwd()): Promise<string> => {
+  const args = [
+    "diff",
+    "--cached",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-color",
+    "--full-index",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    "--no-relative",
+    "--",
+  ];
+  debugLog("git", `git ${args.join(" ")}`);
+  const stopTimer = debugTime("git");
+
   try {
-    return runGit(["diff", "--cached"]);
-  } catch {
-    return "";
+    return await new Promise<string>((resolve, reject) => {
+      const child = spawn("git", args, {
+        cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      const chunks: Buffer[] = [];
+      let bytes = 0;
+      let stderr = "";
+      let error: Error | undefined;
+      const fail = (cause: Error) => {
+        if (error) return;
+        error = cause;
+        chunks.length = 0;
+        child.kill();
+      };
+
+      child.stdout.on("data", (chunk: Buffer) => {
+        if (error) return;
+        bytes += chunk.length;
+        if (bytes > MAX_STAGED_DIFF_BYTES) {
+          fail(
+            new Error(
+              "Staged diff exceeds the 64 MiB capture limit. Stage a smaller set of changes and try again.",
+            ),
+          );
+          return;
+        }
+        chunks.push(chunk);
+      });
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk: string) => {
+        // Drain the pipe even when the retained diagnostic is full.
+        stderr += chunk.slice(0, Math.max(0, 64 * 1024 - stderr.length));
+      });
+      child.stdout.on("error", fail);
+      child.stderr.on("error", fail);
+      child.on("error", (cause: Error) => {
+        error ??= cause;
+        chunks.length = 0;
+      });
+      // A successful exit alone is insufficient: both pipes must finish too.
+      child.on("close", (code, signal) => {
+        if (error) {
+          reject(error);
+        } else if (code !== 0) {
+          reject(
+            new Error(
+              `Failed to read staged Git diff: ${stderr.trim() || (signal ? `terminated by ${signal}` : `git exited with code ${code}`)}`,
+            ),
+          );
+        } else {
+          // Decode only after joining chunks so split UTF-8 characters survive.
+          resolve(Buffer.concat(chunks, bytes).toString("utf8"));
+        }
+      });
+    });
+  } finally {
+    stopTimer();
   }
 };
+
+export const getGitChanges = async (): Promise<string> => readStagedDiff();
 
 export type StagedSnapshot = {
   branch: string;
@@ -242,17 +317,7 @@ export const getStagedSnapshot = async (): Promise<StagedSnapshot> => {
 
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = await identity();
-    const diff = runGit(
-      [
-        "diff",
-        "--cached",
-        "--no-ext-diff",
-        "--no-textconv",
-        "--full-index",
-        "--no-color",
-      ],
-      { cwd, trim: false },
-    );
+    const diff = await readStagedDiff(cwd);
     const after = await identity();
     if (before.fingerprint === after.fingerprint) return { ...after, diff };
   }

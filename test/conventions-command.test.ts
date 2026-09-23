@@ -9,6 +9,7 @@ import { createConfigCommand } from "../src/commands/config.ts";
 import { loadEffectiveConventions } from "../src/utils/repository-config.ts";
 import type { GenerationOptions } from "../src/utils/ai.ts";
 import { repository } from "../test-support/repository.ts";
+import { createProgram } from "../src/program.ts";
 
 function setup(cwd: string, responses: Record<string, unknown>[] = []) {
   const requests: {
@@ -111,6 +112,110 @@ function setup(cwd: string, responses: Record<string, unknown>[] = []) {
     output: () => stripVTControlCharacters(events.join("\n")),
   };
 }
+
+test("context flags preserve repository opt-in unless explicitly overridden", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({
+      context: { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] },
+    }),
+  );
+  for (const [args, expected] of [
+    [[], { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] }],
+    [
+      [
+        "--no-summarize",
+        "--context-budget",
+        "16000",
+        "--context-exclude",
+        "vendor/**",
+      ],
+      { summarize: false, budgetTokens: 16000, exclude: ["vendor/**"] },
+    ],
+  ] as const) {
+    const run = setup(root);
+    const program = createProgram({
+      commands: [run.command],
+      metadata: { name: "gsmart", version: "test", description: "test" },
+    });
+    await program.parseAsync(["--dry-run", ...args], { from: "user" });
+    const context = run.requests[0].options?.conventions?.context;
+    assert.equal(context?.summarize, expected.summarize);
+    assert.equal(context?.budgetTokens, expected.budgetTokens);
+    assert.deepEqual(context?.exclude, expected.exclude);
+  }
+});
+
+test("invalid context budget relationships fail before selecting or staging files", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { budgetTokens: 2048, outputTokens: 2048 } }),
+  );
+  const run = setup(root);
+  await run.command.action({ yes: true });
+  assert.equal(run.retrievals(), 0);
+  assert.equal(run.exitCode(), 1);
+  assert.match(run.output(), /leave room for input/);
+});
+
+for (const context of [
+  { outputTokens: 32768 },
+  { budgetTokens: null, outputTokens: 32768 },
+  { outputTokens: 32256 },
+]) {
+  test(`impossible implicit output budgets fail before auto-staging: ${JSON.stringify(context)}`, async (t) => {
+    const root = repository(t);
+    writeFileSync(join(root, ".gsmartrc.json"), JSON.stringify({ context }));
+    const run = setup(root);
+    await run.command.action({ yes: true });
+    assert.equal(
+      run.retrievals(),
+      0,
+      "invalid settings must stop before staging/file selection",
+    );
+    assert.deepEqual(run.requests, []);
+    assert.equal(run.exitCode(), 1);
+    assert.match(run.output(), /leave room for input/);
+  });
+}
+
+test("implicit validation allows output reserves supported by known models without fixing a model budget early", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { outputTokens: 16000 } }),
+  );
+  const run = setup(root);
+  await run.command.action({ dryRun: true });
+  assert.equal(run.exitCode(), 0);
+  assert.equal(run.retrievals(), 1);
+  assert.equal(
+    run.requests[0].options?.conventions?.context.budgetTokens,
+    null,
+  );
+  assert.equal(
+    run.requests[0].options?.conventions?.context.outputTokens,
+    16000,
+  );
+});
+
+test("an explicit larger budget permits the maximum output reserve", async (t) => {
+  const root = repository(t);
+  writeFileSync(
+    join(root, ".gsmartrc.json"),
+    JSON.stringify({ context: { budgetTokens: 65536, outputTokens: 32768 } }),
+  );
+  const run = setup(root);
+  await run.command.action({ dryRun: true });
+  assert.equal(run.exitCode(), 0);
+  assert.equal(run.retrievals(), 1);
+  assert.equal(
+    run.requests[0].options?.conventions?.context.budgetTokens,
+    65536,
+  );
+});
 
 test("generation selects repository instructions above user prompt and propagates CLI language", async (t) => {
   const root = repository(t);
@@ -254,12 +359,19 @@ test("show-effective reports resolved settings, sources and diagnostics without 
     showEffective: true,
     language: "pt",
     prompt: "CLI style",
+    contextBudget: "16384",
+    contextExclude: ["vendor/**"],
+    summarize: false,
   });
   const effective = JSON.parse(output[0]);
   assert.equal(effective.conventions.instructions, "CLI style");
   assert.equal(effective.conventions.language, "pt");
   assert.equal(effective.conventions.headerMaxLength, 72);
   assert.equal(effective.sources.language, "CLI");
+  assert.equal(effective.conventions.context.budgetTokens, 16384);
+  assert.deepEqual(effective.conventions.context.exclude, ["vendor/**"]);
+  assert.equal(effective.conventions.context.summarize, false);
+  assert.equal(effective.sources["context.budgetTokens"], "CLI");
   assert.equal(effective.ruleMetadata.headerMaxLength.severity, 1);
   assert.equal(effective.diagnostics.length, 1);
   assert.doesNotMatch(output[0], /apiKey|accessToken|refreshToken|private-key/);

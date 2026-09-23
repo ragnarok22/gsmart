@@ -56,6 +56,44 @@ const createSpinner = (events: { type: string; message?: string }[]) => {
   return spinner;
 };
 
+for (const options of [
+  { contextBudget: "8192" },
+  { contextExclude: ["vendor/**"] },
+  { summarize: true },
+  { summarize: false },
+]) {
+  test(`config rejects context overrides without inspection before saving anything: ${JSON.stringify(options)}`, async () => {
+    const events: { type: string; message?: string }[] = [];
+    const exitCodes: number[] = [];
+    const command = createConfigCommand({
+      spinner: () => createSpinner(events) as never,
+      prompt: async () => assert.fail("must not open the config menu"),
+      promptConfig: {
+        getPrompt: () => assert.fail("must not read or write saved prompts"),
+        setPrompt: () => assert.fail("must not partially save updates"),
+        clearPrompt: () => assert.fail("must not clear saved prompts"),
+      },
+      config: {
+        setDefaultProvider: () =>
+          assert.fail("must not partially save provider settings"),
+      } as never,
+      setExitCode: (code) => exitCodes.push(code),
+    });
+    await command.action({
+      ...options,
+      addCustomPrompt: "keep this unsaved",
+      defaultProvider: "openai",
+    });
+    assert.deepEqual(exitCodes, [1]);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "fail");
+    assert.match(
+      events[0].message!,
+      /config --show-effective.*\.gsmartrc\.json/,
+    );
+  });
+}
+
 const mockTtyInput = () => {
   const stdin = process.stdin as NodeJS.ReadStream;
   const snapshot: StdinSnapshot = {
