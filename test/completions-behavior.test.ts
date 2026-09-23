@@ -17,7 +17,7 @@ import CompletionsCommand, {
 import { getActiveProviders } from "../src/utils/providers.ts";
 
 const providers = getActiveProviders().map((provider) => provider.value);
-const flagValues = { provider: providers };
+const flagValues = { provider: providers, "default-provider": providers };
 const quote = (word: string) => `'${word.replaceAll("'", "'\\''")}'`;
 const fishQuote = (word: string) =>
   `'${word.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
@@ -205,11 +205,42 @@ describe("Zsh completion menu rendering", shellTestOptions("zsh"), () => {
 });
 
 describe("root-command completion behavior", () => {
+  for (const [shell, complete] of Object.entries({
+    bash: completeBash,
+    zsh: completeZsh,
+    fish: completeFish,
+  })) {
+    describe(
+      `${shell} provider/model preferences`,
+      shellTestOptions(shell as keyof typeof shells),
+      () => {
+        it("completes custom providers in config and treats model IDs as values", () => {
+          assert.ok(
+            complete(["gsmart", "config", "--default-provider", ""]).includes(
+              "custom",
+            ),
+          );
+          assert.ok(
+            complete(["gsmart", "config", "--provider", ""]).includes("custom"),
+          );
+          assert.ok(
+            complete(["gsmart", "--model", "config", "--"]).includes("--yes"),
+          );
+          assert.ok(
+            complete(["gsmart", "config", "--model", "login", "--"]).includes(
+              "--base-url",
+            ),
+          );
+        });
+      },
+    );
+  }
   describe("bash regressions", shellTestOptions("bash"), () => {
     it("offers generation flags directly after gsmart in bash", () => {
       const matches = completeBash(["gsmart", "--"]);
       for (const flag of [
         "--provider",
+        "--model",
         "--prompt",
         "--yes",
         "--dry-run",
@@ -437,7 +468,7 @@ for (const [shell, complete] of Object.entries({
           );
           assert.ok(!matches.includes("--yes"));
           assert.ok(!matches.includes("--force"));
-          assert.ok(!matches.includes("--provider"));
+          assert.ok(matches.includes("--default-provider"));
         });
       }
 
@@ -453,15 +484,14 @@ for (const [shell, complete] of Object.entries({
           assert.ok(!matches.includes(name));
       });
 
-      it("does not offer generation flags or their values for config", () => {
+      it("offers config provider values without generation-only flags", () => {
         const options = complete(["gsmart", "config", "--p"]);
-        assert.ok(!options.includes("--provider"));
+        assert.ok(options.includes("--provider"));
         assert.ok(!options.includes("--prompt"));
         // Fish can legitimately fuzzy-match --help and config's prompt flags.
-        if (shell !== "fish") assert.deepEqual(options, []);
+        if (shell !== "fish") assert.deepEqual(options, ["--provider"]);
         const matches = complete(["gsmart", "config", "--provider", ""]);
-        for (const provider of providers)
-          assert.ok(!matches.includes(provider));
+        for (const provider of providers) assert.ok(matches.includes(provider));
       });
 
       it("offers shell choices once, after globals and the command", () => {

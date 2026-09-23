@@ -464,7 +464,10 @@ const CompletionsCommand: ICommand = {
       ConfigCommand,
     ];
     const providerValues = getActiveProviders().map((p) => p.value);
-    const flagValues = { provider: providerValues };
+    const flagValues = {
+      provider: providerValues,
+      "default-provider": providerValues,
+    };
     const generators: Record<string, () => string> = {
       bash: () => generateBashCompletion(allCommands, flagValues),
       zsh: () => generateZshCompletion(allCommands, flagValues),

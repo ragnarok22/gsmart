@@ -2,7 +2,9 @@ import "../test-support/setup-env";
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { PassThrough } from "node:stream";
 import { stripVTControlCharacters } from "node:util";
+import prompts from "prompts";
 import { createMainCommand } from "../src/commands/main.ts";
 import { parseDiffFileNames } from "../src/utils/git.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
@@ -71,6 +73,9 @@ function buildMainCommand(
     configuredPrompt?: string;
     aiResult?: string | { error: string };
     promptsResponses?: Record<string, unknown>;
+    prompt?: (
+      question: Parameters<typeof prompts>[0],
+    ) => Promise<Record<string, unknown>>;
     commitResult?: boolean;
     copyResult?: boolean;
     providers?: typeof activeProviders;
@@ -86,6 +91,7 @@ function buildMainCommand(
     configuredPrompt = "",
     aiResult = "feat: test commit",
     promptsResponses = {},
+    prompt,
     commitResult = true,
     copyResult = true,
     providers = activeProviders,
@@ -94,6 +100,8 @@ function buildMainCommand(
 
   const spinnerFactory = createSpinnerFactory();
   const aiCalls: { provider: string; prompt: string; branch: string }[] = [];
+  const exitCodes: number[] = [];
+  const questions: string[] = [];
   let committedMessage = "";
   let clipboardText = "";
 
@@ -120,14 +128,18 @@ function buildMainCommand(
         { source: "CLI", settings: cli },
       ]),
     spinner: spinnerFactory.spinner as never,
-    prompt: async (opts: unknown) => {
+    prompt: async (opts) => {
       const name = (opts as { name: string }).name;
+      questions.push(name);
+      if (prompt) return prompt(opts);
       if (name in promptsResponses) {
         return { [name]: promptsResponses[name] };
       }
       return {};
     },
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
       getAllKeys: () => allKeys,
       getKey: (provider: string) => allKeys[provider] ?? "",
       getOpenAIAuthMode: () => openAIAuthMode,
@@ -163,12 +175,17 @@ function buildMainCommand(
     debugTime: () => () => undefined,
     log: (...args: unknown[]) =>
       logs.push(stripVTControlCharacters(args.map(String).join(" "))),
+    setExitCode: (code) => {
+      exitCodes.push(code);
+    },
   });
 
   return {
     MainCommand,
     events: spinnerFactory.events,
     aiCalls,
+    exitCodes,
+    questions,
     logs,
     getCommittedMessage: () => committedMessage,
     getClipboardText: () => clipboardText,
@@ -205,6 +222,8 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
     spinner: spinnerFactory.spinner as never,
     prompt: async () => ({}),
     config: {
+      getDefaultProvider: () => undefined,
+      getModel: () => "",
       getAllKeys: () => ({ openai: "sk-key" }),
       getKey: () => "sk-key",
       getOpenAIAuthMode: () => "api-key",
@@ -243,14 +262,16 @@ test("main starts file retrieval and branch lookup concurrently", async () => {
 });
 
 test("main --yes uses first configured provider when multiple exist", async () => {
-  const { MainCommand, getCommittedMessage, aiCalls } = buildMainCommand({
-    allKeys: { openai: "sk-key", anthropic: "ak-key" },
-  });
+  const { MainCommand, getCommittedMessage, aiCalls, questions } =
+    buildMainCommand({
+      allKeys: { openai: "sk-key", anthropic: "ak-key" },
+    });
 
   await MainCommand.action({ yes: true });
 
   assert.equal(getCommittedMessage(), "feat: test commit");
   assert.equal(aiCalls[0].provider, "openai");
+  assert.deepEqual(questions, []);
 });
 
 test("main exits early when no staged changes are available", async () => {
@@ -265,14 +286,21 @@ test("main exits early when no staged changes are available", async () => {
 });
 
 test("main fails when no API keys are configured", async () => {
-  const { MainCommand, getCommittedMessage, events } = buildMainCommand({
-    allKeys: {},
-  });
+  const { MainCommand, getCommittedMessage, events, exitCodes, questions } =
+    buildMainCommand({
+      allKeys: {},
+    });
 
   await MainCommand.action({});
 
   assert.equal(getCommittedMessage(), "");
-  assert(events.some((event) => event.message?.includes("No API keys found")));
+  assert.deepEqual(exitCodes, [1]);
+  assert.deepEqual(questions, []);
+  assert(
+    events.some((event) =>
+      event.message?.includes("No configured providers found"),
+    ),
+  );
 });
 
 test("main uses OpenAI when ChatGPT OAuth is configured without an API key", async () => {
@@ -310,7 +338,7 @@ test("main fails with invalid explicit provider", async () => {
   await MainCommand.action({ provider: "invalid" });
 
   assert.equal(getCommittedMessage(), "");
-  assert(events.some((event) => event.message?.includes("No valid provider")));
+  assert(events.some((event) => event.message?.includes("Unknown provider")));
 });
 
 test("main stops when AI returns an error", async () => {
@@ -500,16 +528,131 @@ test("main prompts for provider when multiple are configured", async () => {
   assert.equal(aiCalls[0].provider, "anthropic");
 });
 
-test("main fails when provider prompt is dismissed", async () => {
-  const { MainCommand, getCommittedMessage } = buildMainCommand({
-    allKeys: { openai: "sk-key", anthropic: "ak-key" },
-    promptsResponses: {},
+for (const dryRun of [false, true]) {
+  test(`main exits normally when the provider prompt is canceled (dryRun=${dryRun})`, async () => {
+    const {
+      MainCommand,
+      getCommittedMessage,
+      getClipboardText,
+      aiCalls,
+      events,
+      exitCodes,
+      questions,
+    } = buildMainCommand({
+      allKeys: { openai: "sk-key", anthropic: "ak-key" },
+      promptsResponses: {},
+    });
+
+    await MainCommand.action({ dryRun });
+
+    assert.deepEqual(questions, ["value"]);
+    assert.deepEqual(exitCodes, [], "cancellation must not signal a failure");
+    assert.deepEqual(aiCalls, []);
+    assert.equal(getCommittedMessage(), "");
+    assert.equal(getClipboardText(), "");
+    assert.ok(events.every((event) => event.type !== "fail"));
+    assert.doesNotMatch(
+      events.map((event) => event.message ?? "").join("\n"),
+      /No configured providers|No valid provider|gsmart login|--base-url/,
+    );
   });
+
+  test(
+    `main exits normally on real provider prompt Escape (dryRun=${dryRun})`,
+    { timeout: 5000 },
+    async (t) => {
+      const stdin = new PassThrough();
+      const stdout = new PassThrough();
+      t.after(() => {
+        stdin.destroy();
+        stdout.destroy();
+      });
+      const {
+        MainCommand,
+        getCommittedMessage,
+        getClipboardText,
+        aiCalls,
+        events,
+        exitCodes,
+        questions,
+        logs,
+      } = buildMainCommand({
+        allKeys: { openai: "sk-key", anthropic: "ak-key" },
+        prompt: async (question) => {
+          assert.ok(!Array.isArray(question));
+          assert.equal(question.name, "value");
+          const response = prompts({ ...question, stdin, stdout });
+          setImmediate(() => stdin.write("\x1b"));
+          return response;
+        },
+      });
+
+      await MainCommand.action({ dryRun });
+
+      assert.deepEqual(questions, ["value"]);
+      assert.deepEqual(exitCodes, []);
+      assert.deepEqual(aiCalls, []);
+      assert.equal(getCommittedMessage(), "");
+      assert.equal(getClipboardText(), "");
+      assert.ok(events.every((event) => event.type !== "fail"));
+      assert.doesNotMatch(
+        [...logs, ...events.map((event) => event.message ?? "")].join("\n"),
+        /No configured providers|No valid provider|gsmart login|--base-url/,
+      );
+    },
+  );
+}
+
+test("main treats an explicitly undefined provider answer as cancellation", async () => {
+  const { MainCommand, exitCodes, aiCalls, events, questions } =
+    buildMainCommand({
+      allKeys: { openai: "sk-key", anthropic: "ak-key" },
+      promptsResponses: { value: undefined },
+    });
 
   await MainCommand.action({});
 
-  assert.equal(getCommittedMessage(), "");
+  assert.deepEqual(questions, ["value"]);
+  assert.deepEqual(exitCodes, []);
+  assert.deepEqual(aiCalls, []);
+  assert.ok(events.every((event) => event.type !== "fail"));
 });
+
+for (const value of ["gemini", "", null, false, 0]) {
+  test(`main rejects a non-listed provider answer: ${JSON.stringify(value)}`, async () => {
+    const {
+      MainCommand,
+      getCommittedMessage,
+      getClipboardText,
+      exitCodes,
+      aiCalls,
+      events,
+      questions,
+    } = buildMainCommand({
+      allKeys: { openai: "sk-key", anthropic: "ak-key" },
+      promptsResponses: { value },
+    });
+
+    await MainCommand.action({});
+
+    assert.deepEqual(questions, ["value"]);
+    assert.deepEqual(exitCodes, [1]);
+    assert.deepEqual(aiCalls, []);
+    assert.equal(getCommittedMessage(), "");
+    assert.equal(getClipboardText(), "");
+    assert.ok(
+      events.some(
+        (event) =>
+          event.type === "fail" && event.message?.includes("No valid provider"),
+      ),
+    );
+    assert.ok(
+      events.every(
+        (event) => !event.message?.includes("No configured providers"),
+      ),
+    );
+  });
+}
 
 test("main --dry-run lists staged file names from diff headers", async () => {
   const diffWithHeaders = [

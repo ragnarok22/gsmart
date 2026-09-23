@@ -5,12 +5,16 @@ import { ICommand, IProvider } from "../definitions";
 import { providers as providerDefinitions } from "../utils/providers";
 import config from "../utils/config";
 import { loginWithOpenAIOAuth, OpenAIOAuthTokens } from "../utils/openai-oauth";
+import { configureCustomEndpoint } from "../utils/custom-endpoint";
 
 type LoginConfig = {
   setKey(provider: string, key: string): void;
   setOpenAIAuthMode(mode: "api-key" | "oauth"): void;
   setOpenAIOAuthTokens(tokens: OpenAIOAuthTokens): void;
-};
+} & Pick<
+  typeof config,
+  "getCustomBaseURL" | "getModel" | "setCustomBaseURL" | "setModel" | "clearKey"
+>;
 
 type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
   [key: string]: unknown;
@@ -63,6 +67,27 @@ export const createLoginCommand = (
 
       if (!provider) {
         services.spinner().fail(chalk.red("No provider selected"));
+        return;
+      }
+
+      if (provider === "custom") {
+        try {
+          const saved = await configureCustomEndpoint(
+            services.prompt,
+            services.config,
+          );
+          if (saved)
+            services
+              .spinner()
+              .succeed(chalk.green("Custom endpoint saved (Chat Completions)"));
+          else services.spinner().fail(chalk.red("Endpoint setup cancelled"));
+        } catch (error) {
+          services
+            .spinner()
+            .fail(
+              chalk.red(error instanceof Error ? error.message : String(error)),
+            );
+        }
         return;
       }
 

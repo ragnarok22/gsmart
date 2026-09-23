@@ -200,3 +200,91 @@ test("login stores ChatGPT OAuth tokens for OpenAI", async () => {
   });
   assert.deepEqual(messages, ["ChatGPT login saved successfully"]);
 });
+
+const customSetupFailures: {
+  name: string;
+  responses: Record<string, unknown>[];
+  questions: string[];
+  failure?: unknown;
+  message: string;
+}[] = [
+  {
+    name: "an endpoint containing credentials",
+    responses: [
+      { provider: "custom" },
+      { baseURL: "https://user:secret-url-password@example.test/v1" },
+    ],
+    questions: ["provider", "baseURL"],
+    message:
+      "Endpoint must use HTTP or HTTPS without credentials, a query, or a fragment. Configure authentication separately.",
+  },
+  {
+    name: "a malformed model",
+    responses: [
+      { provider: "custom" },
+      { baseURL: "http://localhost:1234/v1" },
+      { model: "new-model\nsecret-model-data" },
+    ],
+    questions: ["provider", "baseURL", "model"],
+    message:
+      "Model must be a non-empty model ID without control characters. Use --model <model>.",
+  },
+  ...[
+    new Error("API key input failed", {
+      cause: new Error("secret-prompt-details"),
+    }),
+    "API key input failed",
+  ].map((failure) => ({
+    name: `a rejected key prompt (${failure instanceof Error ? "Error" : "string"})`,
+    responses: [
+      { provider: "custom" },
+      { baseURL: "http://localhost:1234/v1" },
+      { model: "replacement-model" },
+    ],
+    questions: ["provider", "baseURL", "model", "key"],
+    failure,
+    message: "API key input failed",
+  })),
+];
+
+for (const scenario of customSetupFailures) {
+  test(`custom login reports ${scenario.name} without changing saved settings`, async (t) => {
+    const messages: string[] = [];
+    const questions: string[] = [];
+    const write = t.mock.fn();
+    const oauthLogin = t.mock.fn(async () =>
+      assert.fail("Custom endpoint setup must not start OAuth login"),
+    );
+    const command = createLoginCommand({
+      spinner: () => createSpinner(messages) as never,
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        questions.push(String(question.name));
+        const response = scenario.responses[questions.length - 1];
+        if (!response) {
+          throw scenario.failure ?? new Error("Unexpected prompt");
+        }
+        return response;
+      },
+      loginWithOpenAIOAuth: oauthLogin,
+      config: {
+        getCustomBaseURL: () => "http://localhost:11434/v1",
+        getModel: () => "saved-model",
+        setCustomBaseURL: write,
+        setModel: write,
+        setKey: write,
+        clearKey: write,
+        setOpenAIAuthMode: write,
+        setOpenAIOAuthTokens: write,
+      },
+    });
+
+    await command.action({});
+
+    assert.deepEqual(questions, scenario.questions);
+    assert.equal(write.mock.callCount(), 0, "preserve all existing settings");
+    assert.equal(oauthLogin.mock.callCount(), 0);
+    assert.deepEqual(messages, [scenario.message]);
+    assert.doesNotMatch(messages.join("\n"), /secret-/);
+  });
+}

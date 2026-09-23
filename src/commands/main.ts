@@ -12,7 +12,17 @@ import {
 } from "../utils/git";
 import config from "../utils/config";
 import { AIBuilder, type GenerationOptions } from "../utils/ai";
-import { getActiveProviders } from "../utils/providers";
+import {
+  getActiveProviders,
+  validateProvider,
+  validateModel,
+  validateBaseURL,
+  resolveModel,
+} from "../utils/providers";
+import {
+  isProviderConfigured,
+  usesOpenAIOAuth,
+} from "../utils/provider-config";
 import { copyToClipboard, retrieveFilesToCommit } from "../utils";
 import { debugLog, debugTime } from "../utils/debug";
 import { editMessage } from "../utils/editor";
@@ -25,6 +35,7 @@ import {
 
 type MainCommandOptions = ConventionOptions & {
   provider?: string;
+  model?: string;
   yes?: boolean;
   dryRun?: boolean;
 };
@@ -94,52 +105,54 @@ type Candidate = {
   snapshot: StagedSnapshot;
 };
 
+type ProviderSelection =
+  | { status: "selected"; provider: IProvider }
+  | { status: "canceled" }
+  | { status: "unavailable" }
+  | { status: "invalid" };
+
 const getProvider = async (
   provider: string,
   skipPrompt = false,
   deps: MainCommandDeps = defaultDeps,
-): Promise<IProvider | null> => {
-  const allKeys = deps.config.getAllKeys();
+  model?: string,
+): Promise<ProviderSelection> => {
   const activeProviders = deps
     .getActiveProviders()
-    .filter(
-      (p) =>
-        allKeys[p.value] ||
-        (p.value === "openai" &&
-          deps.config.getOpenAIAuthMode() === "oauth" &&
-          Boolean(deps.config.getOpenAIOAuthTokens())),
-    );
+    .filter((p) => isProviderConfigured(p.value, deps.config, model));
 
   if (provider) {
     const selectedProvider = activeProviders.find((p) => p.value === provider);
     if (!selectedProvider) {
-      return null;
+      return { status: "invalid" };
     }
-    return selectedProvider;
+    return { status: "selected", provider: selectedProvider };
   }
 
   if (activeProviders.length === 0) {
-    return null;
+    return { status: "unavailable" };
   }
 
   if (activeProviders.length === 1) {
-    return activeProviders[0];
+    return { status: "selected", provider: activeProviders[0] };
   }
 
   if (skipPrompt) {
     // When skip prompt is enabled, use the first available provider
-    return activeProviders[0];
+    return { status: "selected", provider: activeProviders[0] };
   }
 
-  const { value } = (await deps.prompt({
+  const { value } = await deps.prompt({
     type: "select",
     name: "value",
     message: "Select an AI provider",
     choices: activeProviders.map((p) => ({ title: p.title, value: p.value })),
-  })) as { value?: string };
-  const selectedProvider =
-    activeProviders.find((p) => p.value === value) || null;
-  return selectedProvider;
+  });
+  if (value === undefined) return { status: "canceled" };
+  const selectedProvider = activeProviders.find((p) => p.value === value);
+  return selectedProvider
+    ? { status: "selected", provider: selectedProvider }
+    : { status: "invalid" };
 };
 
 const mainAction = async (
@@ -149,7 +162,25 @@ const mainAction = async (
   const spinner = deps.spinner("").start();
   let effective: EffectiveConventions;
   let historyExamples: string[] = [];
+  let requestedProvider: string | undefined;
   try {
+    requestedProvider =
+      options.provider !== undefined
+        ? validateProvider(options.provider)
+        : deps.config.getDefaultProvider();
+    if (options.model !== undefined) validateModel(options.model);
+    if (requestedProvider) {
+      const provider = validateProvider(requestedProvider);
+      if (provider === "custom") {
+        validateBaseURL(deps.config.getCustomBaseURL());
+        resolveModel(provider, options.model, deps.config.getModel(provider));
+      }
+      if (!isProviderConfigured(provider, deps.config, options.model)) {
+        throw new Error(
+          `Provider ${provider} is not configured. Run \`gsmart login\` or change the default with \`gsmart config --default-provider <provider>\`.`,
+        );
+      }
+    }
     const savedPrompt = deps.config.getPrompt();
     effective = await deps.loadEffectiveConventions({
       user: savedPrompt ? { instructions: savedPrompt } : {},
@@ -185,25 +216,26 @@ const mainAction = async (
   }
 
   spinner.stop();
-  const selectedProvider = await getProvider(
-    options.provider ?? "",
+  const selection = await getProvider(
+    requestedProvider ?? "",
     Boolean(options.yes),
     deps,
+    options.model,
   );
 
-  if (!selectedProvider && !options.provider) {
+  if (selection.status === "canceled") return;
+  if (selection.status !== "selected") {
     spinner.fail(
       chalk.red(
-        "No API keys found. Please run `gsmart login` to paste your API key.",
+        selection.status === "unavailable"
+          ? "No configured providers found. Run `gsmart login` for hosted or local setup, or configure a custom endpoint with `gsmart config --provider custom --base-url <url> --model <model>`."
+          : "No valid provider found. Please check your API keys.",
       ),
     );
-    return;
-  } else if (!selectedProvider) {
-    spinner.fail(
-      chalk.red("No valid provider found. Please check your API keys."),
-    );
+    deps.setExitCode(1);
     return;
   }
+  const selectedProvider = selection.provider;
 
   const readSnapshot = async (): Promise<StagedSnapshot | null> => {
     try {
@@ -241,6 +273,21 @@ const mainAction = async (
   if (options.provider)
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   const prompt = effective.conventions.instructions;
+  let model: string;
+  try {
+    model = resolveModel(
+      selectedProvider.value,
+      options.model,
+      deps.config.getModel(selectedProvider.value),
+      selectedProvider.value === "openai" && usesOpenAIOAuth(deps.config),
+    );
+  } catch (error) {
+    spinner.fail(
+      chalk.red(error instanceof Error ? error.message : String(error)),
+    );
+    deps.setExitCode(1);
+    return;
+  }
   const ai = new deps.AIBuilder(selectedProvider.value, prompt);
 
   const generate = async (
@@ -259,6 +306,7 @@ const mainAction = async (
           context.branch,
           context.diff,
           {
+            model,
             conventions: effective.conventions,
             historyExamples,
             ...(refinement ? { refinement } : {}),
@@ -273,6 +321,7 @@ const mainAction = async (
         if (controller.signal.aborted) return null;
         if (typeof message === "object") {
           spinner.fail(chalk.red(message.error));
+          if (!cancellable) deps.setExitCode(1);
           return null;
         }
         if (!message.trim()) {
@@ -514,8 +563,12 @@ export const createMainCommand = (
       },
       {
         flags: "-P, --provider <provider>",
-        default: "",
         description: "The AI provider to use for generating the commit message",
+      },
+      {
+        flags: "--model <model>",
+        description:
+          "Model for this run (overrides the saved model and built-in default)",
       },
       {
         flags: "-y, --yes",

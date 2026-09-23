@@ -30,7 +30,7 @@ async function buildMockedAI(
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -177,7 +177,7 @@ test("generateCommitMessage returns {error} on timeout", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -200,7 +200,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -226,7 +226,7 @@ test("error includes provider name in message", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "bad-key" },
+      default: { getKey: () => "bad-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -248,7 +248,7 @@ test("handles non-Error thrown values gracefully", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -272,7 +272,7 @@ test("handles Error with empty message", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -311,15 +311,17 @@ test("each provider creates the correct model", async () => {
   for (const [provider, expected] of Object.entries(providerModels)) {
     let capturedModelId = "";
     let capturedBaseURL: string | undefined;
+    let savedModel = "";
 
     const createFake =
       (isOpenAICompat: boolean) =>
       (opts: { apiKey?: string; baseURL?: string }) => {
         if (isOpenAICompat) capturedBaseURL = opts.baseURL;
-        return (modelId: string) => {
+        const model = (modelId: string) => {
           capturedModelId = modelId;
           return { modelId };
         };
+        return Object.assign(model, { chat: model, responses: model });
       };
 
     const { AIBuilder } = await esmock("../src/utils/ai.ts", {
@@ -331,7 +333,7 @@ test("each provider creates the correct model", async () => {
         generateText: async () => ({ text: "feat: test" }),
       },
       "../src/utils/config.ts": {
-        default: { getKey: () => "fake-key" },
+        default: { getKey: () => "fake-key", getModel: () => savedModel },
         validateApiKey: () => null,
       },
     });
@@ -352,6 +354,13 @@ test("each provider creates the correct model", async () => {
         `${provider} should use baseURL ${expected.baseURL}`,
       );
     }
+    savedModel = `${provider}-saved-model`;
+    await builder.generateCommitMessage("main", "diff");
+    assert.equal(capturedModelId, savedModel);
+    await builder.generateCommitMessage("main", "diff", {
+      model: "invocation-model",
+    });
+    assert.equal(capturedModelId, "invocation-model");
   }
 });
 
@@ -363,14 +372,21 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
     "@ai-sdk/openai": {
       createOpenAI: (opts: Record<string, unknown>) => {
         capturedOptions = opts;
-        return (modelId: string) => {
+        const model = (modelId: string) => {
           capturedModelId = modelId;
           return { modelId };
         };
+        return { responses: model };
       },
     },
     ai: {
-      generateText: async () => ({ text: "feat: oauth" }),
+      streamText: () => ({
+        fullStream: (async function* () {
+          yield { type: "text-delta", text: "feat: oauth" };
+          yield { type: "raw", rawValue: { type: "response.completed" } };
+          yield { type: "finish", finishReason: "stop" };
+        })(),
+      }),
     },
     "../src/utils/openai-oauth.ts": {
       ensureFreshOpenAIOAuthTokens: async (tokens: unknown) => tokens,
@@ -378,6 +394,7 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
     "../src/utils/config.ts": {
       default: {
         getKey: () => "",
+        getModel: () => "",
         getOpenAIAuthMode: () => "oauth",
         getOpenAIOAuthTokens: () => ({
           idToken: "id-token",
@@ -407,7 +424,7 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
     "ChatGPT-Account-ID": "account-id",
     originator: "gsmart_cli",
   });
-  assert.equal(capturedModelId, "gpt-5.6-luna");
+  assert.equal(capturedModelId, "gpt-5-codex");
 });
 
 for (const scenario of ["missing", "expired"] as const) {
@@ -464,7 +481,7 @@ test("invalid provider throws an error", async () => {
       generateText: async () => ({ text: "feat: test" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -718,10 +735,11 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
   let capturedModelId = "";
 
   const createFake = () => () => {
-    return (modelId: string) => {
+    const model = (modelId: string) => {
       capturedModelId = modelId;
       return { modelId };
     };
+    return Object.assign(model, { chat: model, responses: model });
   };
 
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
@@ -733,7 +751,7 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
       generateText: async () => ({ text: "feat: test" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -815,7 +833,7 @@ test("generateCommitMessage proceeds when API key is valid", async () => {
       generateText: async () => ({ text: "feat: valid key" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "sk-1234567890abcdef" },
+      default: { getKey: () => "sk-1234567890abcdef", getModel: () => "" },
       validateApiKey: (await import("../src/utils/config.ts")).validateApiKey,
     },
   });
@@ -840,6 +858,7 @@ test("passes correct provider to config.getKey", async () => {
     },
     "../src/utils/config.ts": {
       default: {
+        getModel: () => "",
         getKey: (provider: string) => {
           capturedProvider = provider;
           return "fake-key";
@@ -869,7 +888,7 @@ async function buildMockedAIWithError(errorFactory: () => unknown) {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -1343,7 +1362,7 @@ test("returns generic error for non-network plain Error", async () => {
 test("ai utility does not export private retry detection", async () => {
   const mod = await esmock("../src/utils/ai.ts", {
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -1372,7 +1391,7 @@ async function buildRetryAI(
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
