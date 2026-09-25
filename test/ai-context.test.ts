@@ -175,6 +175,58 @@ test("empty, excluded and instruction-only oversized requests do not call the pr
   assert.equal(requests.length, 0);
 });
 
+test("metadata overflow recommends a concrete budget that makes the same request succeed", async () => {
+  const { ai, requests } = await builder();
+  const diff = Array.from({ length: 150 }, (_, i) =>
+    sourceDiff(`src/feature-${i}.ts`, 1),
+  ).join("");
+  const settings = conventions();
+  settings.instructions = "Preserve behavior details 界😀. ".repeat(20);
+  settings.history.enabled = true;
+  const options = {
+    historyExamples: ["feat: 更新界面"],
+    refinement: {
+      previousMessage: "feat: update features",
+      feedback: "保留行为细节",
+    },
+  };
+  const result = await ai.generateCommitMessage("feature/many-files", diff, {
+    ...options,
+    conventions: settings,
+  });
+  assert.ok(typeof result === "object");
+  assert.match(result.error, /File metadata does not fit/);
+  assert.equal(requests.length, 0);
+  const suggestion = result.error.match(/--context-budget (\d+)/);
+  assert.ok(suggestion, "provide a concrete budget instead of a generic hint");
+  const budgetTokens = Number(suggestion[1]);
+  assert.ok(budgetTokens > 8192);
+  assert.equal(result.contextRecovery?.kind, "metadata-overflow");
+  assert.equal(result.contextRecovery?.suggestedBudgetTokens, budgetTokens);
+  assert.equal(result.contextRecovery?.requiredBudgetTokens, budgetTokens);
+  assert.equal(result.contextRecovery?.currentBudgetTokens, 8192);
+  assert.equal(
+    await ai.generateCommitMessage("feature/many-files", diff, {
+      ...options,
+      conventions: {
+        ...settings,
+        context: { ...settings.context, budgetTokens },
+      },
+    }),
+    "feat: retry requests",
+  );
+  assert.equal(requests.length, 1);
+  assert.equal(
+    estimateTokens(requests[0].system) +
+      estimateTokens(requests[0].prompt) +
+      requests[0].maxOutputTokens +
+      REQUEST_OVERHEAD,
+    budgetTokens,
+  );
+  assert.match(requests[0].prompt, /保留行为细节/);
+  assert.match(requests[0].prompt, /feat: 更新界面/);
+});
+
 test("context report failures are returned clearly before sending the final request", async () => {
   for (const failure of [
     new Error("context report output failed"),

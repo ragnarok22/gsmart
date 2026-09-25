@@ -220,6 +220,49 @@ export type ContextReport = {
   files: ContextFileReport[];
 };
 
+export type ContextRecovery = {
+  kind: "metadata-overflow";
+  currentBudgetTokens: number;
+  requiredBudgetTokens: number;
+  maxBudgetTokens: number;
+  modelWindow?: number;
+  suggestedBudgetTokens?: number;
+};
+
+export class ContextMetadataOverflowError extends Error {
+  readonly recovery: ContextRecovery;
+
+  constructor(budget: ContextBudget, requiredBudgetTokens: number) {
+    const suggestedBudgetTokens =
+      requiredBudgetTokens <= budget.maxTotal
+        ? requiredBudgetTokens
+        : undefined;
+    const limit =
+      budget.modelWindow === budget.maxTotal
+        ? "the selected model's known context window"
+        : "gsmart's maximum context budget";
+    super(
+      `File metadata does not fit the context budget (current: ${budget.total} tokens; minimum needed: ${requiredBudgetTokens} tokens, including prompt instructions/history, output reserve and request overhead). ` +
+        (suggestedBudgetTokens !== undefined
+          ? `Rerun the same command with --context-budget ${suggestedBudgetTokens}. `
+          : `The minimum exceeds ${limit} (${budget.maxTotal} tokens); increasing --context-budget cannot fit this request. `) +
+        (budget.modelWindow === undefined
+          ? "Check the selected model/server capacity before increasing the budget; its context limit is unknown. "
+          : "") +
+        'Alternatives: disable history with --history-examples 0, shorten instructions or refinement feedback, exclude unneeded AI context with --context-exclude "path/to/exclude/**", or stage fewer files.',
+    );
+    this.name = "ContextMetadataOverflowError";
+    this.recovery = {
+      kind: "metadata-overflow",
+      currentBudgetTokens: budget.total,
+      requiredBudgetTokens,
+      maxBudgetTokens: budget.maxTotal,
+      modelWindow: budget.modelWindow,
+      ...(suggestedBudgetTokens !== undefined ? { suggestedBudgetTokens } : {}),
+    };
+  }
+}
+
 export type SummarizeContext = (
   request: ContextRequest,
   beforeAttempt: () => void,
@@ -343,10 +386,17 @@ export async function prepareContext({
     budget.input - estimateTokens(empty.system) - estimateTokens(empty.prompt);
   const baseline =
     REDUCED_NOTICE + usable.map(({ file }) => file.metadata).join("\n\n");
-  if (estimateTokens(baseline) > available)
-    throw new Error(
-      "File metadata does not fit the context budget. Increase --context-budget, shorten instructions/history, or configure context exclusions.",
+  if (estimateTokens(baseline) > available) {
+    // Account for the complete prompt, not just file paths or the missing bytes.
+    const minimumRequest = buildPrompt(baseline);
+    throw new ContextMetadataOverflowError(
+      budget,
+      estimateTokens(minimumRequest.system) +
+        estimateTokens(minimumRequest.prompt) +
+        budget.output +
+        budget.overhead,
     );
+  }
   let extra = available - estimateTokens(baseline);
   const pieces = new Map<DiffFile, string>();
   // Fit small files first and fairly share remaining space; bulky generated

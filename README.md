@@ -562,7 +562,11 @@ GSmart conservatively counts **one token per UTF-8 byte** of request text, plus 
 
 **Context exclusions and reduction never unstage files or change working-tree contents.** All selected changes still belong to the commit; only their AI representation changes. Existing staging and dry-run selection rules still apply. Git capture supports complete diffs up to 64 MiB and returns an explicit error above that limit or on read failure.
 
-If all usable context is excluded, instructions or file metadata cannot fit, or an attempted summary is empty, fails, or exhausts retries, generation stops with a clear error. Increase the relevant limit, shorten instructions/history/feedback, adjust exclusions, or use `--no-summarize` to retry with local reduction. GSmart does not silently continue after a failed summary.
+If even the file metadata cannot fit, GSmart shows the current budget and the minimum total needed, including instructions/history, output reserve, and request overhead. In an interactive terminal, it offers to increase the budget for the current session and retry the captured changes. Accepting keeps that budget for subsequent candidates without saving it to configuration. With `--yes` or noninteractive input/output, GSmart exits with a concrete `--context-budget <number>` recommendation to use with the same command.
+
+Recommendations respect known model windows and GSmart's maximum budget. If the minimum exceeds those limits, reduce context instead: use `--history-examples 0`, shorten instructions/feedback, add `--context-exclude 'path/to/exclude/**'`, or stage fewer files. For unknown models and custom endpoints, check the model/server's actual capacity before accepting an increase. The minimum budget fits metadata; additional room allows more diff excerpts. `--summarize` cannot fix metadata overflow.
+
+If all usable context is excluded, instructions cannot fit, or an attempted summary is empty, fails, or exhausts retries, generation stops with a clear error. Increase the relevant limit, shorten instructions/history/feedback, adjust exclusions, or use `--no-summarize` to retry with local reduction. GSmart does not silently continue after a failed summary.
 
 ### Environment variables
 

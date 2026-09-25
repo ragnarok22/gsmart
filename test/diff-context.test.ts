@@ -4,11 +4,13 @@ import {
   prepareContext,
   parseDiffFiles,
   matchesContextPattern,
+  ContextMetadataOverflowError,
 } from "../src/utils/diff-context.ts";
 import {
   resolveContextBudget,
   estimateTokens,
   bytePrefix,
+  MAX_CONTEXT_BUDGET,
 } from "../src/utils/context-budget.ts";
 import {
   resolveConventions,
@@ -272,6 +274,146 @@ test("metadata overflow fails clearly, rename exclusions match original paths, a
       signal: controller.signal,
     }),
     /aborted/,
+  );
+});
+
+test("metadata recovery accounts for UTF-8, prompt overhead, output reserve and excluded rename paths", async () => {
+  const included = Array.from({ length: 180 }, (_, i) =>
+    patch(`src/界😀-${i}.ts`),
+  ).join("");
+  const excluded =
+    "diff --git a/private/old.ts b/public/new.ts\nsimilarity index 100%\nrename from private/old.ts\nrename to public/new.ts\n" +
+    patch("private/secret.ts", 100);
+  const budget = resolveContextBudget("custom", "local", {
+    outputTokens: 2048,
+    exclude: ["private/**"],
+    summarize: true,
+  });
+  const prompt = (changes: string) => ({
+    system: "Instructions 界😀. ".repeat(30),
+    prompt: `History: fix: 保留行为\nPrevious candidate: feat: 更新\nFeedback: 更短\n${changes}`,
+  });
+  const failure = async (diff: string) =>
+    prepareContext({ diff, budget, buildPrompt: prompt }).then(
+      () => assert.fail("metadata should overflow the initial budget"),
+      (error: unknown) => {
+        assert.ok(error instanceof ContextMetadataOverflowError);
+        return error;
+      },
+    );
+  const error = await failure(included + excluded);
+  assert.deepEqual(error.recovery, (await failure(included)).recovery);
+  assert.equal(error.recovery.currentBudgetTokens, 8192);
+  assert.equal(error.recovery.maxBudgetTokens, MAX_CONTEXT_BUDGET);
+  assert.equal(error.recovery.modelWindow, undefined);
+  assert.match(error.message, /selected model\/server capacity/);
+  assert.match(error.message, /--history-examples 0/);
+  assert.match(error.message, /--context-exclude "[^"]+"/);
+  assert.doesNotMatch(error.message, /--summarize/);
+  const budgetTokens = error.recovery.suggestedBudgetTokens;
+  assert.equal(budgetTokens, error.recovery.requiredBudgetTokens);
+  assert.ok(budgetTokens !== undefined && budgetTokens > budget.total);
+  const result = await prepareContext({
+    diff: included + excluded,
+    budget: resolveContextBudget("custom", "local", {
+      ...budget.settings,
+      budgetTokens,
+    }),
+    buildPrompt: prompt,
+    summarize: async () =>
+      assert.fail("minimum metadata needs no AI summaries"),
+  });
+  assert.equal(
+    result.report.inputTokens + budget.output + budget.overhead,
+    budgetTokens,
+  );
+  assert.equal(
+    result.report.files.filter((f) => f.treatment === "excluded").length,
+    2,
+  );
+  assert.doesNotMatch(result.prompt, /private|public\/new/);
+  await assert.rejects(
+    prepareContext({
+      diff: included + excluded,
+      budget: resolveContextBudget("custom", "local", {
+        ...budget.settings,
+        budgetTokens: budgetTokens - 1,
+      }),
+      buildPrompt: prompt,
+    }),
+    ContextMetadataOverflowError,
+  );
+});
+
+for (const [provider, model, count, limit, limitDescription] of [
+  ["openai", "gpt-4o", 2600, 128_000, /known context window/],
+  ["custom", "local", 20000, MAX_CONTEXT_BUDGET, /maximum context budget/],
+] as const) {
+  test(`metadata overflow beyond ${provider}/${model} limit has no unworkable budget recommendation`, async () => {
+    const diff = Array.from({ length: count }, (_, i) =>
+      patch(`file-${i}.ts`),
+    ).join("");
+    await assert.rejects(
+      prepareContext({
+        diff,
+        budget: resolveContextBudget(provider, model),
+        buildPrompt,
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof ContextMetadataOverflowError);
+        assert.equal(error.recovery.maxBudgetTokens, limit);
+        assert.ok(error.recovery.requiredBudgetTokens > limit);
+        assert.equal(error.recovery.suggestedBudgetTokens, undefined);
+        assert.match(error.message, limitDescription);
+        assert.ok(error.message.includes(String(limit)));
+        assert.doesNotMatch(error.message, /--context-budget \d+|--summarize/);
+        return true;
+      },
+    );
+  });
+}
+
+test("a metadata recommendation exactly at the known model window is usable", async () => {
+  const diff = Array.from({ length: 150 }, (_, i) =>
+    patch(`file-${i}.ts`),
+  ).join("");
+  const budget = resolveContextBudget("openai", "gpt-4o", {
+    budgetTokens: 8192,
+  });
+  const overflow = await prepareContext({ diff, budget, buildPrompt }).catch(
+    (error) => {
+      assert.ok(error instanceof ContextMetadataOverflowError);
+      return error;
+    },
+  );
+  assert.ok(overflow instanceof ContextMetadataOverflowError);
+  const extraInstructions = 128_000 - overflow.recovery.requiredBudgetTokens;
+  const prompt = (changes: string) => ({
+    ...buildPrompt(changes),
+    system: buildPrompt(changes).system + "x".repeat(extraInstructions),
+  });
+  await assert.rejects(
+    prepareContext({
+      diff,
+      budget: resolveContextBudget("openai", "gpt-4o", {
+        budgetTokens: 127_999,
+      }),
+      buildPrompt: prompt,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ContextMetadataOverflowError);
+      assert.equal(error.recovery.suggestedBudgetTokens, 128_000);
+      return true;
+    },
+  );
+  const result = await prepareContext({
+    diff,
+    budget: resolveContextBudget("openai", "gpt-4o", { budgetTokens: 128_000 }),
+    buildPrompt: prompt,
+  });
+  assert.equal(
+    result.report.inputTokens + budget.output + budget.overhead,
+    128_000,
   );
 });
 

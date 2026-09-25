@@ -62,6 +62,7 @@ type AIBuilderConstructor = new (
 type MainCommandDeps = {
   spinner: typeof ora;
   prompt: PromptFn;
+  isInteractive: () => boolean;
   config: typeof config;
   AIBuilder: AIBuilderConstructor;
   getActiveProviders: typeof getActiveProviders;
@@ -83,6 +84,7 @@ type MainCommandDeps = {
 const defaultDeps: MainCommandDeps = {
   spinner: ora,
   prompt: prompts,
+  isInteractive: () => Boolean(process.stdin.isTTY && process.stdout.isTTY),
   config,
   AIBuilder,
   getActiveProviders,
@@ -324,6 +326,7 @@ const mainAction = async (
     spinner.info(chalk.green(`Using provider: ${selectedProvider.title}`));
   const prompt = effective.conventions.instructions;
   const ai = new deps.AIBuilder(selectedProvider.value, prompt);
+  let conventions = effective.conventions;
 
   const generate = async (
     context: StagedSnapshot,
@@ -337,60 +340,90 @@ const mainAction = async (
     const controller = new AbortController();
     const request = async (): Promise<string | null> => {
       try {
-        const message = await ai.generateCommitMessage(
-          context.branch,
-          context.diff,
-          {
-            model,
-            conventions: effective.conventions,
-            historyExamples,
-            onContextPrepared: (report) => {
-              const reduced = report.files.filter(
-                (file) => file.treatment !== "full",
-              );
-              if (reduced.length) {
-                spinner.info(
-                  chalk.cyan(
-                    `AI context reduced for ${reduced.length} file(s); staged changes preserved. Use --show-context for details.`,
-                  ),
+        // At most one approved budget retry per generation. Later candidates
+        // reuse the session budget, but can need more room for new feedback.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const message = await ai.generateCommitMessage(
+            context.branch,
+            context.diff,
+            {
+              model,
+              conventions,
+              historyExamples,
+              onContextPrepared: (report) => {
+                const reduced = report.files.filter(
+                  (file) => file.treatment !== "full",
                 );
-                spinner.start("Generating commit message...");
-              }
-              if (options.showContext) {
-                spinner.stop();
-                // JSON quoting prevents paths from injecting terminal controls.
-                deps.log(
-                  stripVTControlCharacters(
-                    JSON.stringify({ context: report }, null, 2),
-                  ),
+                if (reduced.length) {
+                  spinner.info(
+                    chalk.cyan(
+                      `AI context reduced for ${reduced.length} file(s); staged changes preserved. Use --show-context for details.`,
+                    ),
+                  );
+                  spinner.start("Generating commit message...");
+                }
+                if (options.showContext) {
+                  spinner.stop();
+                  // JSON quoting prevents paths from injecting terminal controls.
+                  deps.log(
+                    stripVTControlCharacters(
+                      JSON.stringify({ context: report }, null, 2),
+                    ),
+                  );
+                  spinner.start("Generating commit message...");
+                }
+              },
+              ...(refinement ? { refinement } : {}),
+              ...(cancellable ? { abortSignal: controller.signal } : {}),
+              onRetry: (attempt, maxRetries) => {
+                spinner.text = chalk.yellow(
+                  `Retrying... (attempt ${attempt + 1}/${maxRetries})`,
                 );
-                spinner.start("Generating commit message...");
-              }
+              },
             },
-            ...(refinement ? { refinement } : {}),
-            ...(cancellable ? { abortSignal: controller.signal } : {}),
-            onRetry: (attempt, maxRetries) => {
-              spinner.text = chalk.yellow(
-                `Retrying... (attempt ${attempt + 1}/${maxRetries})`,
-              );
-            },
-          },
-        );
-        if (controller.signal.aborted) return null;
-        if (typeof message === "object") {
-          spinner.fail(chalk.red(message.error));
-          return null;
-        }
-        if (!message.trim()) {
-          spinner.fail(
-            chalk.red(
-              "The AI returned an empty commit message. Please try again.",
-            ),
           );
-          return null;
+          if (controller.signal.aborted) return null;
+          if (typeof message === "object") {
+            spinner.fail(chalk.red(message.error));
+            const recovery = message.contextRecovery;
+            const budgetTokens = recovery?.suggestedBudgetTokens;
+            if (
+              attempt > 0 ||
+              options.yes ||
+              !deps.isInteractive() ||
+              recovery?.kind !== "metadata-overflow" ||
+              budgetTokens === undefined ||
+              budgetTokens <= recovery.currentBudgetTokens
+            )
+              return null;
+            spinner.stop();
+            const { increaseBudget } = await deps.prompt({
+              type: "confirm",
+              name: "increaseBudget",
+              message: `Increase context budget to ${budgetTokens} tokens for this session and retry?`,
+              initial: false,
+            });
+            if (increaseBudget !== true || controller.signal.aborted)
+              return null;
+            conventions = {
+              ...conventions,
+              context: { ...conventions.context, budgetTokens },
+            };
+            spinner.start("Generating commit message...");
+            continue;
+          }
+          if (!message.trim()) {
+            spinner.fail(
+              chalk.red(
+                "The AI returned an empty commit message. Please try again.",
+              ),
+            );
+            return null;
+          }
+          spinner.succeed(chalk.green("Message generated"));
+          return message;
         }
-        spinner.succeed(chalk.green("Message generated"));
-        return message;
+        return null;
       } catch (error) {
         if (!controller.signal.aborted) {
           spinner.fail(

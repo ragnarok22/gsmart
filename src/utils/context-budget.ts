@@ -27,6 +27,7 @@ const MODEL_WINDOWS: Partial<Record<Provider, Record<string, number>>> = {
 export const REQUEST_OVERHEAD = 512;
 export const FALLBACK_BUDGET = 8192;
 export const MAX_AUTOMATIC_BUDGET = 32_768;
+export const MAX_CONTEXT_BUDGET = 1_048_576;
 
 /** Conservative accounting: one token per UTF-8 byte, not chars / 4.
  * Byte-fallback tokenizers encode text in no more tokens than bytes. Custom
@@ -48,7 +49,11 @@ export function resolveContextBudget(
   const total =
     resolved.budgetTokens ??
     (window ? Math.min(window, MAX_AUTOMATIC_BUDGET) : FALLBACK_BUDGET);
-  if (!Number.isSafeInteger(total) || total < 1024 || total > 1_048_576)
+  if (
+    !Number.isSafeInteger(total) ||
+    total < 1024 ||
+    total > MAX_CONTEXT_BUDGET
+  )
     throw new Error(
       "context.budgetTokens must be an integer from 1024 to 1048576.",
     );
@@ -78,6 +83,8 @@ export function resolveContextBudget(
     );
   return {
     total,
+    modelWindow: window,
+    maxTotal: Math.min(window ?? MAX_CONTEXT_BUDGET, MAX_CONTEXT_BUDGET),
     input: total - resolved.outputTokens - REQUEST_OVERHEAD,
     output: resolved.outputTokens,
     overhead: REQUEST_OVERHEAD,

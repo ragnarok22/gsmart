@@ -31,7 +31,12 @@ import {
 } from "./constants";
 import { debugLog, debugTime } from "./debug";
 import { resolveModel, validateModel, validateBaseURL } from "./providers";
-import { prepareContext, type ContextReport } from "./diff-context";
+import {
+  prepareContext,
+  ContextMetadataOverflowError,
+  type ContextRecovery,
+  type ContextReport,
+} from "./diff-context";
 import {
   assertRequestFits,
   resolveContextBudget,
@@ -213,6 +218,11 @@ export type GenerationOptions = RetryOptions & {
   };
 };
 
+export type GenerationError = {
+  error: string;
+  contextRecovery?: ContextRecovery;
+};
+
 type ProviderAuth = {
   apiKey?: string;
   baseURL?: string;
@@ -253,7 +263,7 @@ export class AIBuilder {
     branch_name: string,
     changes: string,
     options?: GenerationOptions,
-  ) {
+  ): Promise<string | GenerationError> {
     debugLog("ai", `provider: ${this.provider}`);
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
     try {
@@ -433,7 +443,7 @@ export class AIBuilder {
     changes: string,
     context: ProviderAuth & { modelId: string },
     options?: GenerationOptions,
-  ): Promise<string | { error: string }> {
+  ): Promise<string | GenerationError> {
     const buildPrompt = (preparedChanges: string): ContextRequest => {
       const [system, initialPrompt] = buildCommitPrompt(
         branch_name,
@@ -492,6 +502,9 @@ export class AIBuilder {
       if (options?.abortSignal?.aborted) throw error;
       return {
         error: `Context preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+        ...(error instanceof ContextMetadataOverflowError
+          ? { contextRecovery: error.recovery }
+          : {}),
       };
     }
   }
