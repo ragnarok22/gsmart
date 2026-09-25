@@ -30,6 +30,7 @@ import {
   INITIAL_RETRY_DELAY_MS,
 } from "./constants";
 import { debugLog, debugTime } from "./debug";
+import { WorkflowError, type WorkflowErrorCode } from "./workflow-result";
 import { resolveModel, validateModel, validateBaseURL } from "./providers";
 import {
   prepareContext,
@@ -220,6 +221,7 @@ export type GenerationOptions = RetryOptions & {
 
 export type GenerationError = {
   error: string;
+  code?: WorkflowErrorCode;
   contextRecovery?: ContextRecovery;
 };
 
@@ -272,7 +274,7 @@ export class AIBuilder {
         try {
           validateModel(options.model);
         } catch (error) {
-          return { error: (error as Error).message };
+          return { error: (error as Error).message, code: "CONFIGURATION" };
         }
       }
       const auth = await this.__resolveAuth();
@@ -291,7 +293,7 @@ export class AIBuilder {
           auth.oauth,
         );
       } catch (error) {
-        return { error: (error as Error).message };
+        return { error: (error as Error).message, code: "CONFIGURATION" };
       }
       debugLog("ai", `model: ${modelId}`);
       const model = this.__generateModel(auth, modelId);
@@ -309,7 +311,7 @@ export class AIBuilder {
     }
   }
 
-  private async __resolveAuth(): Promise<ProviderAuth | { error: string }> {
+  private async __resolveAuth(): Promise<ProviderAuth | GenerationError> {
     if (this.provider === "custom") {
       try {
         return {
@@ -319,6 +321,7 @@ export class AIBuilder {
       } catch (error) {
         return {
           error: `custom - ${(error as Error).message} Configure it with \`gsmart config --provider custom --base-url <url> --model <model>\`.`,
+          code: "CONFIGURATION",
         };
       }
     }
@@ -333,6 +336,7 @@ export class AIBuilder {
           return {
             error:
               "openai - ChatGPT login is not configured. Run `gsmart login` and choose ChatGPT subscription.",
+            code: "AUTHENTICATION",
           };
         }
 
@@ -346,6 +350,7 @@ export class AIBuilder {
           return {
             error:
               "openai - ChatGPT login expired. Run `gsmart login` and choose ChatGPT subscription again.",
+            code: "AUTHENTICATION",
           };
         }
       }
@@ -353,7 +358,8 @@ export class AIBuilder {
 
     const apiKey = config.getKey(this.provider);
     const validationError = validateApiKey(this.provider, apiKey);
-    if (validationError) return { error: validationError };
+    if (validationError)
+      return { error: validationError, code: "AUTHENTICATION" };
 
     return { apiKey: apiKey.trim() };
   }
@@ -486,7 +492,10 @@ export class AIBuilder {
             beforeAttempt,
           );
           if (typeof result !== "string")
-            throw new Error(`Summarization failed: ${result.error}`);
+            throw new WorkflowError(
+              result.code ?? "GENERATION",
+              `Summarization failed: ${result.error}`,
+            );
           return result;
         },
       });
@@ -502,6 +511,7 @@ export class AIBuilder {
       if (options?.abortSignal?.aborted) throw error;
       return {
         error: `Context preparation failed: ${error instanceof Error ? error.message : String(error)}`,
+        code: error instanceof WorkflowError ? error.code : "CONTEXT",
         ...(error instanceof ContextMetadataOverflowError
           ? { contextRecovery: error.recovery }
           : {}),
@@ -516,7 +526,7 @@ export class AIBuilder {
     budget: ContextBudget,
     options?: GenerationOptions,
     beforeAttempt?: () => void,
-  ): Promise<string | { error: string }> {
+  ): Promise<string | GenerationError> {
     assertRequestFits({ system, prompt }, budget);
     const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -529,7 +539,7 @@ export class AIBuilder {
 
     const runAttempt = async (
       attempt: number,
-    ): Promise<string | { error: string }> => {
+    ): Promise<string | GenerationError> => {
       options?.abortSignal?.throwIfAborted();
       beforeAttempt?.();
       try {
@@ -611,7 +621,14 @@ export class AIBuilder {
             context,
           );
           debugLog("ai", `generation failed: ${classified}`);
-          return { error: classified };
+          return {
+            error: classified,
+            code:
+              APICallError.isInstance(error) &&
+              (error.statusCode === 401 || error.statusCode === 403)
+                ? "AUTHENTICATION"
+                : "GENERATION",
+          };
         }
 
         options?.onRetry?.(attempt, maxRetries);

@@ -305,6 +305,22 @@ it("honors explicit debug on silent commands without human lifecycle output", as
   assert.deepEqual(app.events, ["debug", "action:completions"]);
 });
 
+for (const args of [
+  ["--output=json", "--debug"],
+  ["generate", "--stdin"],
+  ["--stage"],
+  ["--commit"],
+]) {
+  it(`machine workflows skip human lifecycle hooks: ${args.join(" ")}`, async () => {
+    const app = setup();
+    await app.parse(args);
+    assert.deepEqual(app.events, [
+      ...(args.includes("--debug") ? ["debug"] : []),
+      "action:generate",
+    ]);
+  });
+}
+
 const invalidArgs = [
   { args: ["unknown"], code: "commander.excessArguments" },
   { args: ["generate", "unexpected"], code: "commander.excessArguments" },

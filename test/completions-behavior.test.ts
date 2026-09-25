@@ -17,7 +17,11 @@ import CompletionsCommand, {
 import { getActiveProviders } from "../src/utils/providers.ts";
 
 const providers = getActiveProviders().map((provider) => provider.value);
-const flagValues = { provider: providers, "default-provider": providers };
+const flagValues = {
+  provider: providers,
+  "default-provider": providers,
+  output: ["message", "json"],
+};
 const quote = (word: string) => `'${word.replaceAll("'", "'\\''")}'`;
 const fishQuote = (word: string) =>
   `'${word.replaceAll("\\", "\\\\").replaceAll("'", "\\'")}'`;
@@ -364,6 +368,11 @@ for (const [shell, complete] of Object.entries({
           "--provider",
           "--language",
           "--history-examples",
+          "--output",
+          "--stdin",
+          "--branch",
+          "--stage",
+          "--commit",
           "--help",
           "--debug",
           "--version",
@@ -377,6 +386,14 @@ for (const [shell, complete] of Object.entries({
         for (const name of ["config", "login", "reset", "completions", "help"])
           assert.ok(names.includes(name), `Missing ${name}: ${names}`);
         assert.ok(!names.includes("generate"));
+      });
+
+      it("completes machine output formats for root and generate alias", () => {
+        for (const prefix of [[], ["generate"]]) {
+          const values = complete(["gsmart", ...prefix, "--output", ""]);
+          assert.ok(values.includes("message"));
+          assert.ok(values.includes("json"));
+        }
       });
 
       for (const before of [

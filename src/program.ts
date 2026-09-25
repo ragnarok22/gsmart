@@ -1,5 +1,7 @@
 import { Argument as CommanderArgument, Command } from "commander";
 import type { ICommand } from "./definitions";
+import { isMachineWorkflow } from "./utils/generation-options";
+import { WorkflowError } from "./utils/workflow-result";
 
 type ActionHook = (
   command: ICommand,
@@ -54,10 +56,18 @@ export const createProgram = ({
       });
 
       // Commander validates options and positional arguments before this runs.
+      const machine = isMachineWorkflow(options);
+      if (machine && !descriptor.default)
+        throw new WorkflowError(
+          "USAGE",
+          "Machine workflow flags apply only to generation, not other subcommands.",
+        );
       if (options.debug) await onDebug?.();
-      if (!descriptor.silent) await beforeAction?.(descriptor, options);
+      if (!descriptor.silent && !machine)
+        await beforeAction?.(descriptor, options);
       await descriptor.action(options);
-      if (!descriptor.silent) await afterAction?.(descriptor, options);
+      if (!descriptor.silent && !machine)
+        await afterAction?.(descriptor, options);
     });
   };
 

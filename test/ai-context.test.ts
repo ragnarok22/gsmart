@@ -244,6 +244,7 @@ test("context report failures are returned clearly before sending the final requ
     );
     assert.deepEqual(result, {
       error: "Context preparation failed: context report output failed",
+      code: "CONTEXT",
     });
     assert.equal(requests.length, 0);
   }

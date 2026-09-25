@@ -465,6 +465,7 @@ for (const scenario of ["missing", "expired"] as const) {
       "diff",
     );
     assert.deepEqual(result, {
+      code: "AUTHENTICATION",
       error:
         scenario === "missing"
           ? "openai - ChatGPT login is not configured. Run `gsmart login` and choose ChatGPT subscription."

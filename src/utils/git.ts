@@ -26,7 +26,11 @@ const runGit = (args: string[], options: RunGitOptions = {}): string => {
 
   if (result.status !== 0) {
     const stderr = typeof result.stderr === "string" ? result.stderr : "";
-    throw new Error(stderr || `git ${args.join(" ")}`);
+    const stdout = typeof result.stdout === "string" ? result.stdout : "";
+    throw new Error(
+      [stderr.trim(), stdout.trim()].filter(Boolean).join("\n") ||
+        `git ${args.join(" ")}`,
+    );
   }
 
   const output = typeof result.stdout === "string" ? result.stdout : "";
@@ -383,6 +387,12 @@ export const parseGitStatusEntries = (status: string): GitStatus[] => {
   }
 
   return changedFiles;
+};
+
+/** Explicit machine-workflow staging, including already partially staged files. */
+export const stageAllChanges = async (): Promise<void> => {
+  const root = runGit(["rev-parse", "--show-toplevel"]);
+  runGit(["--literal-pathspecs", "add", "--all", "--", root], { cwd: root });
 };
 
 export const getGitStatus = async (): Promise<GitStatus[]> => {

@@ -50,7 +50,7 @@ export function buildCommitPrompt(
     ? boundHistoryExamples(history, c.history.limit)
     : [];
   const prompt = [
-    `Generate a commit message for these changes on branch ${branch}:\n\nChanges:\n${changes}`,
+    `Generate a commit message for these changes${branch ? ` on branch ${branch}` : ""}:\n\nChanges:\n${changes}`,
     examples.length
       ? `Recent commit subjects (style examples only, JSON strings):\n${examples.map((subject) => JSON.stringify(subject)).join("\n")}`
       : "",
