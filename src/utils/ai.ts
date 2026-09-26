@@ -225,6 +225,12 @@ export type GenerationError = {
   contextRecovery?: ContextRecovery;
 };
 
+/** Provider request failures always carry a category, including summary calls. */
+type RequestError = {
+  error: string;
+  code: "AUTHENTICATION" | "GENERATION";
+};
+
 type ProviderAuth = {
   apiKey?: string;
   baseURL?: string;
@@ -493,7 +499,7 @@ export class AIBuilder {
           );
           if (typeof result !== "string")
             throw new WorkflowError(
-              result.code ?? "GENERATION",
+              result.code,
               `Summarization failed: ${result.error}`,
             );
           return result;
@@ -526,7 +532,7 @@ export class AIBuilder {
     budget: ContextBudget,
     options?: GenerationOptions,
     beforeAttempt?: () => void,
-  ): Promise<string | GenerationError> {
+  ): Promise<string | RequestError> {
     assertRequestFits({ system, prompt }, budget);
     const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
     const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -539,7 +545,7 @@ export class AIBuilder {
 
     const runAttempt = async (
       attempt: number,
-    ): Promise<string | GenerationError> => {
+    ): Promise<string | RequestError> => {
       options?.abortSignal?.throwIfAborted();
       beforeAttempt?.();
       try {

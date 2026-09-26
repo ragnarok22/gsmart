@@ -10,8 +10,11 @@ import { MAX_DIFF_BYTES, readStdinDiff } from "../src/utils/stdin.ts";
 import { createMachineWorkflow } from "../src/commands/machine.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
 import { dispatchInterrupt } from "../src/utils/interrupt.ts";
-import type { GenerationOptions } from "../src/utils/ai.ts";
-import type { WorkflowResult } from "../src/utils/workflow-result.ts";
+import type { GenerationOptions, GenerationError } from "../src/utils/ai.ts";
+import {
+  writeWorkflowResult,
+  type WorkflowResult,
+} from "../src/utils/workflow-result.ts";
 
 for (const args of [
   ["--prompt", "--stdin"],
@@ -80,6 +83,133 @@ test("stdin rejects TTY input, stream errors, and pre-cancellation", async () =>
   const reading = readStdinDiff(new AbortController().signal, broken);
   broken.destroy(new Error("stdin failed"));
   await assert.rejects(reading, /stdin failed/);
+});
+
+test("stdin accepts an already decoded UTF-8 stream", async () => {
+  const input = new PassThrough();
+  input.setEncoding("utf8");
+  const reading = readStdinDiff(new AbortController().signal, input);
+  input.end(Buffer.from("diff --git a/café.ts b/café.ts\n+界😀\n"));
+  assert.equal(await reading, "diff --git a/café.ts b/café.ts\n+界😀\n");
+});
+
+function machineHarness(
+  generated: string | GenerationError = "feat: preserve details",
+) {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const exitCodes: number[] = [];
+  const requests: {
+    branch: string;
+    diff: string;
+    prompt: string;
+    options?: GenerationOptions;
+  }[] = [];
+  const committed: string[] = [];
+  const snapshot = {
+    branch: "feature/fixture",
+    diff: "+change",
+    fingerprint: "unchanged",
+  };
+  const run = createMachineWorkflow({
+    config: {
+      getPrompt: () => "Use the saved personal instructions.",
+      getDefaultProvider: () => "anthropic",
+      getModel: () => "local",
+      getKey: () => "fake",
+    } as never,
+    loadEffectiveConventions: async ({ user = {}, cli = {} } = {}) => ({
+      ...resolveConventions([
+        { source: "user", settings: user },
+        { source: "CLI", settings: cli },
+      ]),
+      diagnostics: ["Ignored unsupported commitlint rule: subject-case"],
+    }),
+    diagnostic: (message) => stderr.push(message + "\n"),
+    getStagedSnapshot: async () => snapshot,
+    AIBuilder: class {
+      constructor(
+        _provider: string,
+        private prompt: string,
+      ) {}
+      async generateCommitMessage(
+        branch: string,
+        diff: string,
+        options?: GenerationOptions,
+      ) {
+        requests.push({ branch, diff, prompt: this.prompt, options });
+        return generated;
+      }
+    },
+    commitChanges: async (message) => {
+      committed.push(message);
+      return false;
+    },
+    writeResult: (result, format) =>
+      writeWorkflowResult(result, format, {
+        stdout: (message) => stdout.push(message),
+        stderr: (message) => stderr.push(message),
+      }),
+    setExitCode: (code) => exitCodes.push(code),
+  });
+  return { run, stdout, stderr, exitCodes, requests, committed };
+}
+
+test("machine generation preserves saved instructions and sends configuration diagnostics only to stderr", async () => {
+  const app = machineHarness();
+  await app.run({ output: "message" });
+  assert.deepEqual(app.stdout, ["feat: preserve details\n"]);
+  assert.deepEqual(app.stderr, [
+    "Ignored unsupported commitlint rule: subject-case\n",
+  ]);
+  assert.deepEqual(app.exitCodes, [0]);
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.requests[0].prompt, "Use the saved personal instructions.");
+  assert.equal(
+    app.requests[0].options?.conventions?.instructions,
+    app.requests[0].prompt,
+  );
+  assert.deepEqual(app.committed, []);
+});
+
+test("a generation failure without a structured code still produces a GENERATION error", async () => {
+  const app = machineHarness({
+    error: "Provider failed before returning a result",
+  });
+  await app.run({ output: "json", commit: true });
+  assert.deepEqual(app.exitCodes, [1]);
+  assert.deepEqual(app.committed, []);
+  assert.equal(app.stdout.length, 1);
+  assert.deepEqual(JSON.parse(app.stdout[0]), {
+    schemaVersion: 1,
+    ok: false,
+    error: {
+      code: "GENERATION",
+      message: "Provider failed before returning a result",
+    },
+  });
+  assert.match(
+    app.stderr.join(""),
+    /Provider failed before returning a result/,
+  );
+});
+
+test("a failed commit without a diagnostic retains the candidate and reports a GIT failure", async () => {
+  const app = machineHarness();
+  await app.run({ output: "json", commit: true });
+  assert.deepEqual(app.exitCodes, [1]);
+  assert.deepEqual(app.committed, ["feat: preserve details"]);
+  assert.equal(app.stdout.length, 1);
+  assert.deepEqual(JSON.parse(app.stdout[0]), {
+    schemaVersion: 1,
+    ok: false,
+    message: "feat: preserve details",
+    error: {
+      code: "GIT",
+      message: "Failed to commit changes: Git commit failed.",
+    },
+  });
+  assert.match(app.stderr.join(""), /Git commit failed/);
 });
 
 test("machine generation selects the first configured provider and forwards cancellation", async () => {
