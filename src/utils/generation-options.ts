@@ -23,7 +23,7 @@ export const isMachineWorkflow = (options: GenerationCommandOptions): boolean =>
   options.stage === true ||
   options.commit === true;
 
-export const generationOptions: Option[] = [
+export const generationContextOptions: Option[] = [
   ...contextOptions,
   {
     flags: "--show-context",
@@ -53,6 +53,10 @@ export const generationOptions: Option[] = [
     description:
       "Model for this run (overrides the saved model and built-in default)",
   },
+];
+
+export const generationOptions: Option[] = [
+  ...generationContextOptions,
   {
     flags: "-y, --yes",
     default: false,
@@ -93,16 +97,25 @@ export const generationOptions: Option[] = [
 /** Side-effect-free bootstrap parsing, including values that look like flags.
  * The full program still owns validation, help, and command dispatch.
  */
-export function inspectWorkflowArgs(args: string[]): GenerationCommandOptions {
+export function inspectWorkflowArgs(
+  args: string[],
+): GenerationCommandOptions & { planning?: boolean } {
   const probe = new Command()
     .exitOverride()
     .configureOutput({ writeErr: () => {} });
   for (const option of generationOptions)
     probe.option(option.flags, option.description, option.default);
   probe.option("-D, --debug");
+  let planning = false;
   try {
-    probe.parseOptions(args);
+    const parsed = probe.parseOptions(args);
+    planning = parsed.operands[0] === "plan";
   } catch (error) {
+    if (
+      error instanceof CommanderError &&
+      error.code === "commander.optionMissingArgument"
+    )
+      planning = probe.parseOptions(args.slice(0, -1)).operands[0] === "plan";
     // Retain flags parsed before a missing value; the real parser reports it.
     if (
       error instanceof CommanderError &&
@@ -112,5 +125,8 @@ export function inspectWorkflowArgs(args: string[]): GenerationCommandOptions {
     )
       probe.setOptionValue("output", "message");
   }
-  return probe.opts<GenerationCommandOptions>();
+  return {
+    ...probe.opts<GenerationCommandOptions>(),
+    ...(planning ? { planning } : {}),
+  };
 }

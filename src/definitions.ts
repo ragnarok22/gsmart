@@ -3,6 +3,8 @@ export interface ICommand {
   description: string;
   default?: boolean;
   silent?: boolean;
+  /** Reuse root generation options without registering shadowing defaults. */
+  inheritGenerationOptions?: boolean;
   options?: Option[];
   arguments?: Argument[];
   action: (args: Record<string, unknown>) => void | Promise<void>;

@@ -143,6 +143,8 @@ const readStagedDiff = async (cwd = process.cwd()): Promise<string> => {
     "--no-textconv",
     "--no-color",
     "--full-index",
+    "--submodule=short",
+    "--ignore-submodules=none",
     "--src-prefix=a/",
     "--dst-prefix=b/",
     "--no-relative",

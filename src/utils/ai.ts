@@ -23,6 +23,13 @@ import {
 } from "./openai-oauth";
 import { Provider, type ResolvedConventions } from "../definitions";
 import { buildCommitPrompt } from "./commit-prompt";
+import { DEFAULT_CONVENTIONS } from "./conventions";
+import {
+  buildPlanPrompt,
+  inventoryChanges,
+  parseSplitPlan,
+  type SplitPlan,
+} from "./split-plan";
 import {
   DEFAULT_PROVIDER,
   DEFAULT_TIMEOUT_MS,
@@ -272,6 +279,68 @@ export class AIBuilder {
     changes: string,
     options?: GenerationOptions,
   ): Promise<string | GenerationError> {
+    return this.__generate(branch_name, changes, options);
+  }
+
+  /** Use the same provider/context pipeline, but validate a complete advisory plan. */
+  async generateCommitPlan(
+    branch: string,
+    diff: string,
+    options?: GenerationOptions,
+  ): Promise<SplitPlan | GenerationError> {
+    try {
+      options?.abortSignal?.throwIfAborted();
+      const conventions = options?.conventions ?? {
+        ...DEFAULT_CONVENTIONS,
+        instructions: this.prompt,
+      };
+      const changes = inventoryChanges(diff, conventions.context);
+      if (!changes.length)
+        return { error: "No staged changes to plan.", code: "NO_INPUT" };
+      // Exclusions are local manual-review items, including when all files are
+      // excluded. Never send their paths, ranges or contents to the provider.
+      if (changes.every((change) => change.excluded))
+        return { changes, commits: [] };
+      let report: ContextReport | undefined;
+      const response = await this.__generate(
+        branch,
+        diff,
+        {
+          ...options,
+          conventions,
+          onContextPrepared: (value) => {
+            report = value;
+            options?.onContextPrepared?.(value);
+          },
+        },
+        (preparedDiff) =>
+          buildPlanPrompt(
+            branch,
+            changes,
+            preparedDiff,
+            conventions,
+            options?.historyExamples,
+          ),
+      );
+      if (typeof response !== "string") return response;
+      options?.abortSignal?.throwIfAborted();
+      return parseSplitPlan(response, changes, report);
+    } catch (error) {
+      return {
+        error: options?.abortSignal?.aborted
+          ? "Planning canceled."
+          : `Could not generate a valid plan: ${error instanceof Error ? error.message : String(error)}`,
+        code: options?.abortSignal?.aborted ? "CANCELED" : "GENERATION",
+      };
+    }
+  }
+
+  private async __generate(
+    branch_name: string,
+    changes: string,
+    options?: GenerationOptions,
+    promptBuilder?: (changes: string) => ContextRequest,
+  ): Promise<string | GenerationError> {
     debugLog("ai", `provider: ${this.provider}`);
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
     try {
@@ -309,6 +378,7 @@ export class AIBuilder {
         changes,
         { ...auth, modelId },
         options,
+        promptBuilder,
       );
     } catch (error) {
       if (options?.abortSignal?.aborted)
@@ -455,27 +525,30 @@ export class AIBuilder {
     changes: string,
     context: ProviderAuth & { modelId: string },
     options?: GenerationOptions,
+    promptBuilder?: (changes: string) => ContextRequest,
   ): Promise<string | GenerationError> {
-    const buildPrompt = (preparedChanges: string): ContextRequest => {
-      const [system, initialPrompt] = buildCommitPrompt(
-        branch_name,
-        preparedChanges,
-        options?.conventions,
-        options?.historyExamples,
-      );
-      const instructions = options?.conventions?.instructions ?? this.prompt;
-      const refinement = options?.refinement;
-      const prompt = [
-        initialPrompt,
-        instructions ? `Additional instructions:\n${instructions}` : "",
-        refinement
-          ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise, while following the structured conventions. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
-          : "",
-      ]
-        .filter(Boolean)
-        .join("\n\n");
-      return { system, prompt };
-    };
+    const buildPrompt =
+      promptBuilder ??
+      ((preparedChanges: string): ContextRequest => {
+        const [system, initialPrompt] = buildCommitPrompt(
+          branch_name,
+          preparedChanges,
+          options?.conventions,
+          options?.historyExamples,
+        );
+        const instructions = options?.conventions?.instructions ?? this.prompt;
+        const refinement = options?.refinement;
+        const prompt = [
+          initialPrompt,
+          instructions ? `Additional instructions:\n${instructions}` : "",
+          refinement
+            ? `Refine the previous candidate using the original changes above and the feedback below. Preserve relevant details unless the feedback requests otherwise, while following the structured conventions. Return ONLY the complete revised commit message.\n\nPrevious candidate:\n${refinement.previousMessage}\n\nUser feedback:\n${refinement.feedback.trim() || "Generate an alternative version of the previous candidate."}`
+            : "",
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        return { system, prompt };
+      });
 
     try {
       const budget = resolveContextBudget(

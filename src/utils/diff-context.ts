@@ -8,6 +8,7 @@ import {
 export type DiffFile = {
   path: string;
   originalPath?: string;
+  status: "added" | "deleted" | "renamed" | "copied" | "modified";
   patch: string;
   metadata: string;
   kind: "source" | "lockfile" | "generated" | "binary";
@@ -191,6 +192,7 @@ export function parseDiffFiles(
             : "source";
       return {
         path,
+        status,
         originalPath: oldPath !== path ? oldPath : undefined,
         patch,
         kind,

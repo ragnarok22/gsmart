@@ -203,6 +203,51 @@ gsmart --dry-run
 
 Dry run still makes an AI request and needs a configured provider (authentication is optional for custom endpoints). It skips committing and the final action menu. If nothing is staged, GSmart temporarily stages your selected files to read their diff, then attempts to unstage them. Existing staged changes stay staged.
 
+### Plan coherent commits from mixed changes
+
+Request an advisory split plan for the **existing staged diff**:
+
+```bash
+gsmart plan --staged
+gsmart plan --staged --provider anthropic --model claude-haiku-4-5-20251001
+gsmart plan --staged --context-budget 16384 --show-context
+```
+
+`--staged` explicitly selects the scope: all staged changes throughout the repository, including when run from a subdirectory. Unstaged and untracked content is not included. Planning, reading the plan, and canceling with Ctrl+C leave HEAD, the index, and working-tree files unchanged. An empty staged diff is an error.
+
+The plan suggests Conventional Commit messages, identifies the files or hunks assigned to each commit, explains the grouping, and lists ordering dependencies and uncertainties. A coherent diff can receive one commit. For example, a dependency update coupled to a retry feature could produce:
+
+```text
+Staged commit plan (advisory)
+2 proposed commit(s). Scope: captured staged diff only.
+Repository unchanged. Review grouping and ordering; independent applicability/builds are not guaranteed.
+Mixed concerns within a hunk or whole-file unit require manual splitting; each unit is assigned intact here.
+
+1. [deps] build(deps): update retry library
+   Why: Keep the dependency manifest and lockfile in sync.
+   - f1.h1: "package.json" — modified, source; @@ -12,3 +12,3 @@
+   - f2: "pnpm-lock.yaml" — modified, lockfile; whole file (keep together)
+
+2. [retry] feat(api): retry transient request failures
+   Why: Group the retry implementation with its regression tests.
+   - f3.h1: "src/request.ts" — modified, source; @@ -20,7 +20,12 @@
+   - f4: "test/request.test.ts" — added, source; whole file (keep together)
+   Depends on [deps]: Uses the newly introduced retry API.
+   Review: Verify retry timing and failure behavior before committing.
+
+Accounting: 4 change unit(s) assigned exactly once; 0 excluded unit(s) listed for manual review.
+```
+
+Change IDs and hunk ranges refer to the captured staged snapshot. Ordinary modified source files are identified by hunk. Renames/copies (including their original paths), additions, deletions, binaries, mode changes, submodule updates, lockfiles, and generated files are kept as whole-file units. A file assigned across several commits is explicitly marked for manual splitting. Mixed concerns inside one hunk or whole-file unit also need manual review; the plan does not provide executable patches. Review dependencies and make the intended staging selections yourself before committing.
+
+Every included unit must appear exactly once. Invalid responses with missing, duplicated, or invented IDs, malformed messages, or invalid dependency ordering fail instead of displaying a partial plan. GSmart also checks the staged snapshot again before displaying the result; if staging, HEAD, or the branch changed during generation, rerun the command.
+
+Planning uses the configured provider, model, repository conventions, language, and optional history examples. Provider selection is prompt-free: explicit `--provider`, saved default, then the first configured provider. `--prompt`, `--language`, `--history-examples`, and the [context options](#large-diffs-and-ai-context) are supported. The human-readable plan goes to stdout; diagnostics, debug output, and `--show-context` go to stderr. Planning rejects `--yes`, `--dry-run`, `--stage`, `--commit`, `--stdin`, `--branch`, and `--output`.
+
+**Large or excluded changes:** the complete ID inventory is retained even when diff context is condensed or summarized, and affected groups receive a review note. Excluded paths and contents are not sent to the provider; those files appear separately as unassigned manual-review items with an explicit accounting total. If all files are excluded, the result lists only manual-review items and makes no AI request. If the inventory cannot fit, increase `--context-budget`, shorten instructions/history, or plan a smaller staged scope. If a plan exhausts its output allowance, increase `context.outputTokens` in `.gsmartrc.json` (and the total budget if needed), then retry. Plan quality still depends on the available diff evidence and model.
+
+Exit status is `0` for a displayed plan, `1` for a configuration/Git/generation failure, `2` for invalid usage, `130` for SIGINT, and `143` for SIGTERM.
+
 ### Skip the generation prompts
 
 Use `--yes` when you're ready to generate and commit in one step:
@@ -758,6 +803,7 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 | Command                      | Purpose                                                       |
 | ---------------------------- | ------------------------------------------------------------- |
 | `gsmart`                     | Generate a message and choose what to do with it              |
+| `gsmart plan --staged`       | Suggest coherent commits for the existing staged diff         |
 | `gsmart login`               | Configure a provider's authentication                         |
 | `gsmart config`              | Manage prompts, provider/model defaults, and custom endpoints |
 | `gsmart reset`               | Clear the active local configuration after confirmation       |
@@ -919,26 +965,29 @@ pnpm run test:coverage
 
 Native completion tests use Bash, Zsh, Fish, and Python 3 (for Zsh's terminal harness). Locally, suites for unavailable shells are skipped. CI installs all three shells and sets `GSMART_REQUIRE_SHELL_TESTS=1` so missing runtimes fail the checks. Set `GSMART_TEST_BASH`, `GSMART_TEST_ZSH`, or `FISH` to test a specific shell executable.
 
+Planning fixtures live in `test-support/split-plan-fixtures.ts`. Offline tests check mixed/coherent plans, exact change accounting, context reduction, and repository preservation using mocked providers. When comparing live model or prompt changes, also review semantic accuracy, useful grouping, manifest/lockfile and implementation/test coupling, justified dependency ordering, and explicit uncertainty. Several messages or groupings can be valid; exact wording is not a quality score.
+
 </details>
 
 <details>
 <summary><strong>Find your way around the code</strong></summary>
 
-| Location                    | Responsibility                                           |
-| --------------------------- | -------------------------------------------------------- |
-| `src/index.ts`              | CLI startup, lifecycle output, and signal handling       |
-| `src/program.ts`            | Testable command registration, root action, and alias    |
-| `src/gsmart.ts`             | Command registration                                     |
-| `src/commands/`             | Generation, login, configuration, reset, and completions |
-| `src/utils/ai.ts`           | Provider models, prompts, timeouts, and retries          |
-| `src/utils/openai-oauth.ts` | ChatGPT browser login and token refresh                  |
-| `src/utils/git.ts`          | Git operations and diff parsing                          |
-| `src/utils/editor.ts`       | External message editing and temporary-file cleanup      |
-| `src/utils/interrupt.ts`    | Foreground operation cancellation                        |
-| `src/utils/index.ts`        | File selection, staging, and clipboard helpers           |
-| `src/utils/config.ts`       | Local credentials and settings                           |
-| `src/definitions.ts`        | Shared TypeScript contracts                              |
-| `test/`                     | Unit and integration tests                               |
+| Location                    | Responsibility                                              |
+| --------------------------- | ----------------------------------------------------------- |
+| `src/index.ts`              | CLI startup, lifecycle output, and signal handling          |
+| `src/program.ts`            | Testable command registration, root action, and alias       |
+| `src/gsmart.ts`             | Command registration                                        |
+| `src/commands/`             | Generation, login, configuration, reset, and completions    |
+| `src/utils/ai.ts`           | Provider models, prompts, timeouts, and retries             |
+| `src/utils/openai-oauth.ts` | ChatGPT browser login and token refresh                     |
+| `src/utils/git.ts`          | Git operations and diff parsing                             |
+| `src/utils/split-plan.ts`   | Staged-change inventory, plan validation, and review output |
+| `src/utils/editor.ts`       | External message editing and temporary-file cleanup         |
+| `src/utils/interrupt.ts`    | Foreground operation cancellation                           |
+| `src/utils/index.ts`        | File selection, staging, and clipboard helpers              |
+| `src/utils/config.ts`       | Local credentials and settings                              |
+| `src/definitions.ts`        | Shared TypeScript contracts                                 |
+| `test/`                     | Unit and integration tests                                  |
 
 `src/build-info.ts` and `dist/` are generated. See [AGENTS.md](https://github.com/ragnarok22/gsmart/blob/main/AGENTS.md) for implementation conventions and focused test commands.
 

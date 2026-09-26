@@ -4,6 +4,7 @@ import MainCommand from "./main";
 import LoginCommand from "./login";
 import ResetCommand from "./reset";
 import ConfigCommand from "./config";
+import PlanCommand from "./plan";
 
 type CompletionsOptions = { shell: string };
 type FlagValues = Record<string, string[]>;
@@ -462,6 +463,7 @@ const CompletionsCommand: ICommand = {
       ResetCommand,
       CompletionsCommand,
       ConfigCommand,
+      PlanCommand,
     ];
     const providerValues = getActiveProviders().map((p) => p.value);
     const flagValues = {

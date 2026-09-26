@@ -27,15 +27,17 @@ import {
 // Inspect before loading configuration so even startup failures honor JSON mode.
 const workflowOptions = inspectWorkflowArgs(process.argv.slice(2));
 const machine = isMachineWorkflow(workflowOptions);
+const noninteractive = machine || workflowOptions.planning === true;
 // Third-party configuration loaders may log too. Reserve stdout for the result;
 // Commander help/version and the result writer use their streams directly.
-if (machine) globalThis.console = new Console(process.stderr, process.stderr);
+if (noninteractive)
+  globalThis.console = new Console(process.stderr, process.stderr);
 let earlySignal: NodeJS.Signals | undefined;
 let loaded = false;
 
 // Handle SIGINT and SIGTERM signals to exit the process gracefully
 const handleSigTerm = (signal: NodeJS.Signals) => {
-  if (machine) {
+  if (noninteractive) {
     if (!dispatchInterrupt(signal)) earlySignal = signal;
     return;
   }
@@ -85,7 +87,7 @@ async function main() {
     },
   });
 
-  if (machine) {
+  if (noninteractive) {
     for (const command of [program, ...program.commands])
       command.exitOverride().configureOutput({ outputError: () => {} });
   }
@@ -94,7 +96,7 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  if (machine) {
+  if (noninteractive) {
     if (error instanceof CommanderError && error.exitCode === 0) return;
     const code = earlySignal
       ? "CANCELED"

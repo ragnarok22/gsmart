@@ -42,6 +42,22 @@ test("bootstrap finds output flags after unknown options, aliases, and short clu
   assert.equal(inspectWorkflowArgs(["--output"]).output, "message");
 });
 
+test("bootstrap identifies planning without mistaking flag values for commands", () => {
+  for (const args of [
+    ["plan", "--staged"],
+    ["--prompt", "instructions", "plan", "--staged"],
+    ["plan", "--staged", "--model"],
+    ["--", "plan"],
+  ])
+    assert.equal(inspectWorkflowArgs(args).planning, true);
+  for (const args of [
+    ["--prompt", "plan"],
+    ["-Dpplan"],
+    ["generate", "--prompt", "plan"],
+  ])
+    assert.equal(inspectWorkflowArgs(args).planning, undefined);
+});
+
 test("stdin reassembles split Unicode and enforces the capture limit", async () => {
   const data = Buffer.from("café 界😀");
   const signal = new AbortController().signal;
