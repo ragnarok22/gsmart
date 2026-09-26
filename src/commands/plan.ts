@@ -1,6 +1,6 @@
 import { stripVTControlCharacters } from "node:util";
 import type { ICommand } from "../definitions";
-import { AIBuilder } from "../utils/ai";
+import { AIBuilder, type GenerationError } from "../utils/ai";
 import config from "../utils/config";
 import { conventionsFromOptions } from "../utils/conventions";
 import {
@@ -22,7 +22,11 @@ import {
   validateProvider,
 } from "../utils/providers";
 import { loadEffectiveConventions } from "../utils/repository-config";
-import { renderSplitPlan } from "../utils/split-plan";
+import {
+  inventoryChanges,
+  renderSplitPlan,
+  type SplitPlan,
+} from "../utils/split-plan";
 import { errorMessage, WorkflowError } from "../utils/workflow-result";
 
 type PlanOptions = GenerationCommandOptions & { staged?: boolean };
@@ -120,57 +124,72 @@ export function createPlanCommand(overrides: Partial<PlanDeps> = {}): ICommand {
                 "NO_INPUT",
                 "No staged changes found. Stage the changes to plan with git add, then run gsmart plan --staged.",
               );
-            const requested =
-              options.provider ?? deps.config.getDefaultProvider();
-            const provider =
-              requested !== undefined
-                ? validateProvider(requested)
-                : deps
-                    .getActiveProviders()
-                    .find((p) =>
-                      isProviderConfigured(p.value, deps.config, options.model),
-                    )?.value;
-            if (!provider)
-              throw new WorkflowError(
-                "CONFIGURATION",
-                "No configured providers found. Run `gsmart login` or configure a custom endpoint, then run gsmart plan --staged.",
-              );
-            if (provider === "custom")
-              validateBaseURL(deps.config.getCustomBaseURL());
-            const model = resolveModel(
-              provider,
-              options.model,
-              deps.config.getModel(provider),
-              provider === "openai" && usesOpenAIOAuth(deps.config),
-            );
-            if (!isProviderConfigured(provider, deps.config, model))
-              throw new WorkflowError(
-                "AUTHENTICATION",
-                `Provider ${provider} is not configured. Run gsmart login or select a configured provider with --provider.`,
-              );
-            const history = effective.conventions.history;
-            const historyExamples =
-              history.enabled && effective.root
-                ? await deps.getRecentCommitSubjects(
-                    effective.root,
-                    history.limit,
-                  )
-                : [];
-            controller.signal.throwIfAborted();
-            const ai = new deps.AIBuilder(
-              provider,
-              effective.conventions.instructions,
-            );
-            const plan = await ai.generateCommitPlan(
-              snapshot.branch,
+            const changes = inventoryChanges(
               snapshot.diff,
-              {
-                model,
-                conventions: effective.conventions,
-                historyExamples,
-                abortSignal: controller.signal,
-              },
+              effective.conventions.context,
             );
+            if (!changes.length)
+              throw new WorkflowError("NO_INPUT", "No staged changes to plan.");
+            let plan: SplitPlan | GenerationError;
+            if (changes.every((change) => change.excluded)) {
+              plan = { changes, commits: [] };
+            } else {
+              const requested =
+                options.provider ?? deps.config.getDefaultProvider();
+              const provider =
+                requested !== undefined
+                  ? validateProvider(requested)
+                  : deps
+                      .getActiveProviders()
+                      .find((p) =>
+                        isProviderConfigured(
+                          p.value,
+                          deps.config,
+                          options.model,
+                        ),
+                      )?.value;
+              if (!provider)
+                throw new WorkflowError(
+                  "CONFIGURATION",
+                  "No configured providers found. Run `gsmart login` or configure a custom endpoint, then run gsmart plan --staged.",
+                );
+              if (provider === "custom")
+                validateBaseURL(deps.config.getCustomBaseURL());
+              const model = resolveModel(
+                provider,
+                options.model,
+                deps.config.getModel(provider),
+                provider === "openai" && usesOpenAIOAuth(deps.config),
+              );
+              if (!isProviderConfigured(provider, deps.config, model))
+                throw new WorkflowError(
+                  "AUTHENTICATION",
+                  `Provider ${provider} is not configured. Run gsmart login or select a configured provider with --provider.`,
+                );
+              const history = effective.conventions.history;
+              const historyExamples =
+                history.enabled && effective.root
+                  ? await deps.getRecentCommitSubjects(
+                      effective.root,
+                      history.limit,
+                    )
+                  : [];
+              controller.signal.throwIfAborted();
+              const ai = new deps.AIBuilder(
+                provider,
+                effective.conventions.instructions,
+              );
+              plan = await ai.generateCommitPlan(
+                snapshot.branch,
+                snapshot.diff,
+                {
+                  model,
+                  conventions: effective.conventions,
+                  historyExamples,
+                  abortSignal: controller.signal,
+                },
+              );
+            }
             controller.signal.throwIfAborted();
             if ("error" in plan)
               throw new WorkflowError(plan.code ?? "GENERATION", plan.error);

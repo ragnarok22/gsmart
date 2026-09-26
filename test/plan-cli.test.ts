@@ -322,6 +322,76 @@ test("excluded scope lists manual-review items without making an AI request", as
   assert.deepEqual(state(app.cwd), before);
 });
 
+for (const provider of [undefined, "anthropic", "custom"]) {
+  test(`all-excluded planning needs no provider configuration (${provider ?? "automatic selection"})`, async (t) => {
+    const app = await setup(t, { configured: false });
+    stage(app.cwd);
+    const before = state(app.cwd);
+    const result = await app.run([
+      "plan",
+      "--staged",
+      "--context-exclude",
+      "**",
+      ...(provider ? ["--provider", provider] : []),
+    ]);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr, "");
+    assert.match(result.stdout, /0 proposed commit/);
+    assert.match(result.stdout, /Manual review.*excluded from AI context/);
+    assert.match(result.stdout, /"change.txt"/);
+    assert.match(
+      result.stdout,
+      /0 change unit\(s\) assigned exactly once; 1 excluded unit/,
+    );
+    assert.equal(app.requests.length, 0);
+    assert.deepEqual(state(app.cwd), before);
+  });
+}
+
+test("all-excluded planning honors repository exclusions despite incomplete saved provider settings", async (t) => {
+  const app = await setup(t, { configured: false });
+  stage(app.cwd);
+  writeFileSync(
+    join(app.store, "config.json"),
+    JSON.stringify({ defaultProvider: "custom" }),
+  );
+  writeFileSync(
+    join(app.cwd, ".gsmartrc.json"),
+    JSON.stringify({
+      context: { exclude: ["change.txt"] },
+      history: { enabled: true, limit: 5 },
+    }),
+  );
+  const before = state(app.cwd);
+  const result = await app.run(["plan", "--staged"]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /0 proposed commit/);
+  assert.match(result.stdout, /"change.txt"/);
+  assert.match(result.stdout, /1 excluded unit/);
+  assert.equal(app.requests.length, 0);
+  assert.deepEqual(state(app.cwd), before);
+});
+
+test("partially excluded planning still requires a configured provider", async (t) => {
+  const app = await setup(t, { configured: false });
+  stage(app.cwd);
+  writeFileSync(join(app.cwd, "included.txt"), "needs AI grouping\n");
+  git(app.cwd, "add", "included.txt");
+  const before = state(app.cwd);
+  const result = await app.run([
+    "plan",
+    "--staged",
+    "--context-exclude",
+    "change.txt",
+  ]);
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /No configured providers/);
+  assert.equal(app.requests.length, 0);
+  assert.deepEqual(state(app.cwd), before);
+});
+
 for (const args of [
   ["plan"],
   ["plan", "--staged", "--yes"],
