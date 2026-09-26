@@ -1,4 +1,8 @@
-import { Command, CommanderError } from "commander";
+import {
+  Command,
+  type Option as CommanderOption,
+  type OptionValueSource,
+} from "commander";
 import type { Option } from "../definitions";
 import { contextOptions } from "./context-options";
 import type { ConventionOptions } from "./conventions";
@@ -94,37 +98,49 @@ export const generationOptions: Option[] = [
   },
 ];
 
+class WorkflowProbeCommand extends Command {
+  private missingOption?: string;
+
+  // Commander 15's runtime hook is private and absent from its typings.
+  // Let parseOptions finish collecting operands; the real parser reports errors.
+  optionMissingArgument(option: CommanderOption): void {
+    this.missingOption = option.attributeName();
+    if (
+      this.missingOption === "output" &&
+      this.getOptionValue("output") === undefined
+    )
+      super.setOptionValueWithSource("output", "message", "cli");
+  }
+
+  override setOptionValueWithSource(
+    key: string,
+    value: unknown,
+    source: OptionValueSource,
+  ): this {
+    // Returning from the hook still emits an option event with an undefined value.
+    // Ignore that write to preserve prior values, defaults, and variadic arrays.
+    if (key === this.missingOption) {
+      this.missingOption = undefined;
+      return this;
+    }
+    return super.setOptionValueWithSource(key, value, source);
+  }
+}
+
 /** Side-effect-free bootstrap parsing, including values that look like flags.
  * The full program still owns validation, help, and command dispatch.
  */
 export function inspectWorkflowArgs(
   args: string[],
 ): GenerationCommandOptions & { planning?: boolean } {
-  const probe = new Command()
+  const probe = new WorkflowProbeCommand()
     .exitOverride()
     .configureOutput({ writeErr: () => {} });
   for (const option of generationOptions)
     probe.option(option.flags, option.description, option.default);
   probe.option("-D, --debug");
-  let planning = false;
-  try {
-    const parsed = probe.parseOptions(args);
-    planning = parsed.operands[0] === "plan";
-  } catch (error) {
-    if (
-      error instanceof CommanderError &&
-      error.code === "commander.optionMissingArgument"
-    )
-      planning = probe.parseOptions(args.slice(0, -1)).operands[0] === "plan";
-    // Retain flags parsed before a missing value; the real parser reports it.
-    if (
-      error instanceof CommanderError &&
-      error.code === "commander.optionMissingArgument" &&
-      args.at(-1) === "--output" &&
-      probe.opts().output === undefined
-    )
-      probe.setOptionValue("output", "message");
-  }
+  const parsed = probe.parseOptions(args);
+  const planning = parsed.operands[0] === "plan";
   return {
     ...probe.opts<GenerationCommandOptions>(),
     ...(planning ? { planning } : {}),

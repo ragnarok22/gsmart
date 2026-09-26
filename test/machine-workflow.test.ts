@@ -58,6 +58,55 @@ test("bootstrap identifies planning without mistaking flag values for commands",
     assert.equal(inspectWorkflowArgs(args).planning, undefined);
 });
 
+test("bootstrap preserves flag-like required values while retaining planning mode", () => {
+  const options = inspectWorkflowArgs([
+    "plan",
+    "--staged",
+    "--model",
+    "--show-context",
+  ]);
+  assert.equal(options.planning, true);
+  assert.equal(options.model, "--show-context");
+});
+
+test("bootstrap missing-value recovery preserves variadic values without replaying them", () => {
+  const options = inspectWorkflowArgs([
+    "plan",
+    "--staged",
+    "--context-exclude",
+    "src/**",
+    "test/**",
+    "--model",
+  ]);
+  assert.equal(options.planning, true);
+  assert.deepEqual(options.contextExclude, ["src/**", "test/**"]);
+});
+
+test("bootstrap preserves earlier values and output mode when the final value is missing", () => {
+  const options = inspectWorkflowArgs([
+    "plan",
+    "--staged",
+    "--prompt",
+    "keep this instruction",
+    "--prompt",
+  ]);
+  assert.equal(options.planning, true);
+  assert.equal(options.prompt, "keep this instruction");
+  assert.equal(
+    inspectWorkflowArgs(["plan", "--staged", "--output"]).output,
+    "message",
+  );
+  assert.equal(
+    inspectWorkflowArgs(["--output=json", "plan", "--staged", "--output"])
+      .output,
+    "json",
+  );
+  assert.equal(
+    inspectWorkflowArgs(["--prompt", "plan", "--model"]).planning,
+    undefined,
+  );
+});
+
 test("stdin reassembles split Unicode and enforces the capture limit", async () => {
   const data = Buffer.from("café 界😀");
   const signal = new AbortController().signal;

@@ -417,6 +417,67 @@ for (const args of [
     assert.deepEqual(state(app.cwd), before);
   });
 
+test("planning preserves a flag-like model value instead of misclassifying it as a missing value", async (t) => {
+  const app = await setup(t);
+  stage(app.cwd);
+  const before = state(app.cwd);
+  const result = await app.run([
+    "plan",
+    "--staged",
+    "--model",
+    "--show-context",
+  ]);
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.stderr, "");
+  assert.match(result.stdout, /Staged commit plan/);
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.requests[0].model, "--show-context");
+  assert.deepEqual(state(app.cwd), before);
+});
+
+for (const flags of [
+  ["--context-exclude", "src/**", "test/**", "--model"],
+  ["--model", "--show-context", "--provider"],
+  ["--show-context", "-DP"],
+]) {
+  test(`missing planning values produce clean usage errors: ${flags.join(" ")}`, async (t) => {
+    const app = await setup(t);
+    stage(app.cwd);
+    const before = state(app.cwd);
+    const result = await app.run(["plan", "--staged", ...flags]);
+    assert.equal(result.code, 2, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /^error:.*argument missing/);
+    assert.doesNotMatch(
+      result.stderr,
+      /CommanderError|node:internal|generation-options\.ts:\d/,
+    );
+    assert.equal(app.requests.length, 0);
+    assert.deepEqual(state(app.cwd), before);
+  });
+}
+
+test("a missing final planning value retains an earlier JSON output mode", async (t) => {
+  const app = await setup(t);
+  stage(app.cwd);
+  const before = state(app.cwd);
+  const result = await app.run([
+    "--output=json",
+    "plan",
+    "--staged",
+    "--output",
+  ]);
+  assert.equal(result.code, 2, result.stderr);
+  const failure = JSON.parse(result.stdout);
+  assert.equal(failure.ok, false);
+  assert.equal(failure.error.code, "USAGE");
+  assert.match(failure.error.message, /--output.*argument missing/);
+  assert.match(result.stderr, /^error:.*--output.*argument missing/);
+  assert.doesNotMatch(result.stderr, /CommanderError|node:internal/);
+  assert.equal(app.requests.length, 0);
+  assert.deepEqual(state(app.cwd), before);
+});
+
 test("an empty index never auto-stages files or calls a provider", async (t) => {
   const app = await setup(t);
   writeFileSync(join(app.cwd, "untracked.txt"), "private change");
