@@ -218,6 +218,24 @@ describe("root-command completion behavior", () => {
       `${shell} provider/model preferences`,
       shellTestOptions(shell as keyof typeof shells),
       () => {
+        it("offers the planning scope and provider options without mutation flags", () => {
+          const matches = complete(["gsmart", "plan", "--"]);
+          for (const flag of [
+            "--staged",
+            "--provider",
+            "--model",
+            "--context-budget",
+          ])
+            assert.ok(matches.includes(flag), `Missing planning flag ${flag}`);
+          for (const flag of ["--yes", "--stage", "--commit", "--output"])
+            assert.ok(
+              !matches.includes(flag),
+              `Unexpected planning flag ${flag}`,
+            );
+          assert.ok(
+            complete(["gsmart", "plan", "--provider", ""]).includes("custom"),
+          );
+        });
         it("completes custom providers in config and treats model IDs as values", () => {
           assert.ok(
             complete(["gsmart", "config", "--default-provider", ""]).includes(

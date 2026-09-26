@@ -35,6 +35,12 @@ export const createProgram = ({
 
   const addOptions = (cmd: Command, descriptor: ICommand) => {
     for (const option of descriptor.options ?? []) {
+      if (
+        cmd !== program &&
+        descriptor.inheritGenerationOptions &&
+        program.options.some((rootOption) => rootOption.flags === option.flags)
+      )
+        continue;
       cmd.option(option.flags, option.description, option.default);
     }
   };
@@ -87,6 +93,8 @@ export const createProgram = ({
       const cmd = program
         .command(descriptor.name)
         .description(descriptor.description);
+      if (descriptor.inheritGenerationOptions)
+        cmd.configureHelp({ showGlobalOptions: true });
       addOptions(cmd, descriptor);
       addAction(cmd, descriptor);
     }
