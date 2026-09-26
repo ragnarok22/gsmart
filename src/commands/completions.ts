@@ -467,6 +467,7 @@ const CompletionsCommand: ICommand = {
     const flagValues = {
       provider: providerValues,
       "default-provider": providerValues,
+      output: ["message", "json"],
     };
     const generators: Record<string, () => string> = {
       bash: () => generateBashCompletion(allCommands, flagValues),

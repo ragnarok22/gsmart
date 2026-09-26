@@ -1,0 +1,151 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ragnarok22.github.io/gsmart/schemas/generation-result.schema.json",
+  "title": "GSmart generation result v1",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "ok",
+        "message",
+        "provider",
+        "model",
+        "input",
+        "staged",
+        "committed"
+      ],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": true },
+        "message": { "type": "string", "minLength": 1 },
+        "provider": {
+          "enum": [
+            "openai",
+            "anthropic",
+            "google",
+            "mistral",
+            "fireworks",
+            "plataformia",
+            "custom"
+          ]
+        },
+        "model": { "type": "string", "minLength": 1 },
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "branch"],
+          "properties": {
+            "source": { "enum": ["stdin", "index"] },
+            "branch": { "type": ["string", "null"] }
+          }
+        },
+        "staged": { "type": "boolean" },
+        "committed": { "type": "boolean" },
+        "context": { "$ref": "#/definitions/context" }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "ok", "error"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "ok": { "const": false },
+        "message": { "type": "string" },
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": {
+              "enum": [
+                "USAGE",
+                "CONFIGURATION",
+                "AUTHENTICATION",
+                "INPUT",
+                "NO_INPUT",
+                "CONTEXT",
+                "GENERATION",
+                "GIT",
+                "CANCELED",
+                "INTERNAL"
+              ]
+            },
+            "message": { "type": "string" },
+            "recovery": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "currentBudgetTokens",
+                "requiredBudgetTokens",
+                "maxBudgetTokens"
+              ],
+              "properties": {
+                "kind": { "const": "metadata-overflow" },
+                "currentBudgetTokens": { "type": "integer" },
+                "requiredBudgetTokens": { "type": "integer" },
+                "maxBudgetTokens": { "type": "integer" },
+                "modelWindow": { "type": "integer" },
+                "suggestedBudgetTokens": { "type": "integer" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "budgetTokens",
+        "budgetSource",
+        "inputTokens",
+        "outputTokens",
+        "overheadTokens",
+        "summaryRequests",
+        "files"
+      ],
+      "properties": {
+        "budgetTokens": { "type": "integer" },
+        "budgetSource": { "type": "string" },
+        "inputTokens": { "type": "integer" },
+        "outputTokens": { "type": "integer" },
+        "overheadTokens": { "type": "integer" },
+        "summaryRequests": { "type": "integer" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "kind",
+              "treatment",
+              "reason",
+              "originalBytes",
+              "contextBytes",
+              "partial"
+            ],
+            "properties": {
+              "path": { "type": "string" },
+              "originalPath": { "type": "string" },
+              "kind": { "enum": ["source", "lockfile", "generated", "binary"] },
+              "treatment": {
+                "enum": ["full", "condensed", "summarized", "excluded"]
+              },
+              "reason": { "type": "string" },
+              "originalBytes": { "type": "integer" },
+              "contextBytes": { "type": "integer" },
+              "partial": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

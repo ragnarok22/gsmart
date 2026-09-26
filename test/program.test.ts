@@ -8,6 +8,7 @@ import { CommanderError } from "commander";
 import type { ICommand } from "../src/definitions.ts";
 import commands from "../src/gsmart.ts";
 import { createProgram, type ProgramOptions } from "../src/program.ts";
+import { temporaryDirectory } from "../test-support/repository.ts";
 
 const metadata = {
   name: "gsmart",
@@ -305,6 +306,22 @@ it("honors explicit debug on silent commands without human lifecycle output", as
   assert.deepEqual(app.events, ["debug", "action:completions"]);
 });
 
+for (const args of [
+  ["--output=json", "--debug"],
+  ["generate", "--stdin"],
+  ["--stage"],
+  ["--commit"],
+]) {
+  it(`machine workflows skip human lifecycle hooks: ${args.join(" ")}`, async () => {
+    const app = setup();
+    await app.parse(args);
+    assert.deepEqual(app.events, [
+      ...(args.includes("--debug") ? ["debug"] : []),
+      "action:generate",
+    ]);
+  });
+}
+
 const invalidArgs = [
   { args: ["unknown"], code: "commander.excessArguments" },
   { args: ["generate", "unexpected"], code: "commander.excessArguments" },
@@ -487,15 +504,17 @@ it("supports optional positional choices from injected descriptors without lifec
   ]);
 });
 
-for (const args of [[], ["generate"]]) {
-  it(`reports asynchronous entrypoint failures for ${JSON.stringify(args)} without unhandled rejections`, () => {
+for (const args of [[], ["generate"], ["--output=json"]]) {
+  it(`reports asynchronous entrypoint failures for ${JSON.stringify(args)} without unhandled rejections`, (t) => {
     const script = `
       import esmock from "esmock";
       import commands from "./src/gsmart.ts";
       import { setImmediate } from "node:timers/promises";
 
       process.argv = ["node", "gsmart", ...${JSON.stringify(args)}];
-      await esmock("../src/index.ts", ${JSON.stringify(import.meta.url)}, {
+      // The entrypoint starts dynamic imports without awaiting main at module scope.
+      // Keep their mocks available until this isolated child process exits.
+      await esmock.p("../src/index.ts", ${JSON.stringify(import.meta.url)}, {
         "../src/gsmart.ts": {
           default: commands.map(command => ({
             ...command,
@@ -522,11 +541,24 @@ for (const args of [[], ["generate"]]) {
         "--eval",
         script,
       ],
-      { encoding: "utf8", timeout: 15_000 },
+      {
+        encoding: "utf8",
+        timeout: 15_000,
+        env: { ...process.env, GSMART_CONFIG_DIR: temporaryDirectory(t) },
+      },
     );
     assert.equal(result.error, undefined);
     assert.equal(result.status, 1);
-    assert.equal(result.stdout, "");
+    if (args.includes("--output=json")) {
+      assert.deepEqual(JSON.parse(result.stdout), {
+        schemaVersion: 1,
+        ok: false,
+        error: {
+          code: "INTERNAL",
+          message: "generation failed asynchronously",
+        },
+      });
+    } else assert.equal(result.stdout, "");
     // Node may also emit runtime diagnostics, such as esmock's DEP0205 warning.
     assert.deepEqual(
       result.stderr.match(/^error:.*$/gm),

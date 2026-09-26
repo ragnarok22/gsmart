@@ -45,7 +45,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./schemas/gsmartrc.schema.json": "./schemas/gsmartrc.schema.json"
+    "./schemas/gsmartrc.schema.json": "./schemas/gsmartrc.schema.json",
+    "./schemas/generation-result.schema.json": "./schemas/generation-result.schema.json"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

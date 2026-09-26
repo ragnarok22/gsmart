@@ -2,6 +2,7 @@ import "../test-support/setup-env";
 import assert from "node:assert/strict";
 import test from "node:test";
 import esmock from "esmock";
+import { APICallError } from "ai";
 import { sourceDiff, lockfileDiff } from "../test-support/diff-fixtures.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
 import {
@@ -132,6 +133,31 @@ test("failed, empty and truncated summaries prevent final generation", async () 
   }
 });
 
+for (const [statusCode, code] of [
+  [401, "AUTHENTICATION"],
+  [500, "GENERATION"],
+] as const) {
+  test(`summary HTTP ${statusCode} failures preserve the structured ${code} category`, async () => {
+    const { ai, requests } = await builder(async () => {
+      throw new APICallError({
+        message: "summary endpoint rejected request",
+        url: "https://example.test/v1/responses",
+        requestBodyValues: {},
+        statusCode,
+      });
+    });
+    const result = await ai.generateCommitMessage("main", sourceDiff(), {
+      conventions: conventions({ summarize: true }),
+      maxRetries: 1,
+    });
+    assert.ok(typeof result === "object");
+    assert.equal(result.code, code);
+    assert.match(result.error, /Summarization failed/);
+    assert.equal(requests.length, 1);
+    assert.match(requests[0].system, /^Summarize/);
+  });
+}
+
 test("summary attempts include retries and cancellation stops the pipeline", async () => {
   const { ai, requests } = await builder(async () => {
     throw new Error("network failure");
@@ -244,6 +270,7 @@ test("context report failures are returned clearly before sending the final requ
     );
     assert.deepEqual(result, {
       error: "Context preparation failed: context report output failed",
+      code: "CONTEXT",
     });
     assert.equal(requests.length, 0);
   }

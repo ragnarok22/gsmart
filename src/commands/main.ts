@@ -29,20 +29,16 @@ import { debugLog, debugTime } from "../utils/debug";
 import { editMessage } from "../utils/editor";
 import { withInterruptHandler } from "../utils/interrupt";
 import { loadEffectiveConventions } from "../utils/repository-config";
-import { contextOptions } from "../utils/context-options";
-import { resolveContextBudget } from "../utils/context-budget";
 import {
-  conventionsFromOptions,
-  type ConventionOptions,
-} from "../utils/conventions";
+  generationOptions,
+  isMachineWorkflow,
+  type GenerationCommandOptions,
+} from "../utils/generation-options";
+import { createMachineWorkflow } from "./machine";
+import { resolveContextBudget } from "../utils/context-budget";
+import { conventionsFromOptions } from "../utils/conventions";
 
-type MainCommandOptions = ConventionOptions & {
-  provider?: string;
-  model?: string;
-  yes?: boolean;
-  dryRun?: boolean;
-  showContext?: boolean;
-};
+type MainCommandOptions = GenerationCommandOptions;
 
 type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
   [key: string]: unknown;
@@ -79,6 +75,7 @@ type MainCommandDeps = {
   debugTime: typeof debugTime;
   log: typeof console.log;
   setExitCode: (code: number) => void;
+  machineWorkflow: ReturnType<typeof createMachineWorkflow>;
 };
 
 const defaultDeps: MainCommandDeps = {
@@ -100,6 +97,7 @@ const defaultDeps: MainCommandDeps = {
   debugLog,
   debugTime,
   log: console.log,
+  machineWorkflow: createMachineWorkflow(),
   setExitCode: (code) => {
     process.exitCode = code;
   },
@@ -165,6 +163,7 @@ const mainAction = async (
   options: MainCommandOptions = {},
   deps: MainCommandDeps = defaultDeps,
 ) => {
+  if (isMachineWorkflow(options)) return deps.machineWorkflow(options);
   const spinner = deps.spinner("").start();
   let effective: EffectiveConventions;
   let historyExamples: string[] = [];
@@ -651,49 +650,7 @@ export const createMainCommand = (
     default: true,
     description:
       "Generate a commit message based on the changes in the staging area",
-    options: [
-      ...contextOptions,
-      {
-        flags: "--show-context",
-        description:
-          "Show per-file AI context treatment and request budget accounting",
-      },
-      {
-        flags: "-p, --prompt <prompt>",
-        default: "",
-        description: "The prompt to use for generating the commit message",
-      },
-      {
-        flags: "--language <tag>",
-        description: "Output language tag for this run (e.g. en, es, pt-BR)",
-      },
-      {
-        flags: "--history-examples <count>",
-        description:
-          "Use 0–20 recent commit subjects as style examples (0 disables)",
-      },
-      {
-        flags: "-P, --provider <provider>",
-        description: "The AI provider to use for generating the commit message",
-      },
-      {
-        flags: "--model <model>",
-        description:
-          "Model for this run (overrides the saved model and built-in default)",
-      },
-      {
-        flags: "-y, --yes",
-        default: false,
-        description:
-          "Automatically commit without prompting (useful for automation)",
-      },
-      {
-        flags: "-d, --dry-run",
-        default: false,
-        description:
-          "Show the generated commit message and staged files without committing",
-      },
-    ],
+    options: generationOptions,
     action: (options) => mainAction(options as MainCommandOptions, services),
   };
 

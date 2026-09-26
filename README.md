@@ -226,6 +226,107 @@ Initial generation failures and failed commits also exit with status `1`, so aut
 
 **The staging rule:** an existing staged diff always takes priority. `--yes` only auto-stages all detected changes when that diff is empty. Dry-run cleanup reports a warning if files could not be unstaged.
 
+### Scripting, editors, and hooks
+
+Use `--output message` or `--output json` for a prompt-free generation workflow. These modes read the existing staged diff by default and leave the index, working tree, and HEAD untouched. An empty index is an error; files are never selected or staged implicitly.
+
+```bash
+# Capture only the commit message, preserving multiline output
+message=$(gsmart --output message) || exit $?
+printf '%s\n' "$message"
+
+# Save one machine-readable result, including failures
+gsmart --output json > result.json
+
+# Generate from a supplied diff, including outside a Git repository
+gsmart --stdin --branch feature/SHOP-142 --output json < changes.patch
+
+# Describe unstaged tracked changes without staging them (Bash/Zsh)
+set -o pipefail
+git diff --no-ext-diff --no-textconv --no-color | gsmart --stdin
+
+# Explicit staging and committing are independent
+gsmart --stage --output message          # Stage all changes and generate only
+gsmart --commit --output json            # Generate and commit existing staged changes
+gsmart --stage --commit --output json    # Stage all, generate, and commit
+```
+
+`--stdin`, `--branch`, `--stage`, and `--commit` also select this noninteractive workflow; output defaults to `message`. These flags apply only to generation, including the compatibility alias `gsmart generate`.
+
+- **Output:** message mode writes only the generated message with a final newline to stdout. On failure stdout is empty. JSON mode writes exactly one JSON object followed by a newline, on success or failure. Diagnostics, configuration-loader logging, and `--debug` output go to stderr; greetings, update notices, holiday messages, spinners, and menus are suppressed. Explicit `--help` and `--version` requests still print their normal text instead of a generation result.
+- **Input:** `--stdin` reads UTF-8 until EOF, up to 64 MiB. Empty input and terminal input are errors. It neither requires Git nor infers a branch; `--branch` supplies optional branch context. Repository conventions and history settings apply when the current directory is inside a repository; otherwise personal/default conventions and CLI overrides apply. It cannot be combined with `--stage` or `--commit`.
+- **Provider:** selection follows explicit `--provider` → saved default → first configured provider in the [provider table](#providers). Missing configuration fails immediately with setup guidance. Machine workflows never prompt to select a provider or enlarge the context budget; context failures include retry guidance.
+- **Staging:** `--stage` stages all tracked and untracked changes throughout the repository, even when some changes were already partially staged. Configuration is validated first. Explicitly staged changes remain staged if subsequent generation or committing fails.
+- **Committing:** `--commit` verifies the original staged snapshot before committing. A changed snapshot stops the operation. Hook and signing failures preserve Git's diagnostic; JSON also retains the generated message. Machine workflows do not use the clipboard.
+
+The existing `--yes` and `--dry-run` workflows retain the behavior in the table above. They cannot be combined with machine-workflow flags: use `--output message` for generation-only operation and explicitly add `--stage` or `--commit` as needed. In particular, legacy `--yes` auto-stages only when the index is empty, whereas explicit `--stage` always stages all changes.
+
+#### JSON result contract
+
+The versioned schema is published as [`schemas/generation-result.schema.json`](schemas/generation-result.schema.json), also available from the npm package at `gsmart/schemas/generation-result.schema.json`.
+
+Success:
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "message": "fix(api): retry failed requests",
+  "provider": "custom",
+  "model": "local-model",
+  "input": { "source": "index", "branch": "main" },
+  "staged": false,
+  "committed": false
+}
+```
+
+`input.source` is `index` or `stdin`; `input.branch` is `null` when no branch context is available. `staged` means explicit staging was performed by this invocation, not that the index contains staged files. `--show-context` adds the existing per-file `context` report to the JSON object; in message mode that report goes to stderr.
+
+Failure:
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "error": {
+    "code": "NO_INPUT",
+    "message": "No diff received on stdin. Pipe or redirect a non-empty diff."
+  }
+}
+```
+
+Stable `error.code` values are `USAGE`, `CONFIGURATION`, `AUTHENTICATION`, `INPUT`, `NO_INPUT`, `CONTEXT`, `GENERATION`, `GIT`, `CANCELED`, and `INTERNAL`. Human-readable error text may change. A failure after generation may include a top-level `message` for recovery. Metadata-overflow errors include `error.recovery` with current/required/maximum budgets and, when possible, `suggestedBudgetTokens`.
+
+| Exit status | Meaning in machine workflows                                                          |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `0`         | Generation and any requested commit succeeded                                         |
+| `1`         | Configuration, authentication, input, context, generation, Git, or unexpected failure |
+| `2`         | Invalid arguments or incompatible options                                             |
+| `130`       | Canceled by SIGINT (Ctrl+C)                                                           |
+| `143`       | Canceled by SIGTERM                                                                   |
+
+SIGINT/SIGTERM cancel stdin reading or the active AI request and emit a failure result. Completed explicit staging remains in the index. Check exit status and `ok` before using a message:
+
+```bash
+if result=$(gsmart --output json); then
+  printf '%s\n' "$result" | jq -r '.message'
+else
+  status=$?
+  printf '%s\n' "$result" | jq -r '.error.message' >&2
+  exit "$status"
+fi
+```
+
+For an optional `.git/hooks/prepare-commit-msg` integration, generate from the existing index and let Git perform the commit:
+
+```sh
+#!/bin/sh
+# Preserve messages supplied by -m/-F, merges, and other explicit sources.
+[ -z "${2:-}" ] || exit 0
+message=$(gsmart --output message) || exit $?
+printf '%s\n' "$message" > "$1"
+```
+
 ### Give one commit extra context
 
 Explain the intent behind a change:
@@ -678,6 +779,11 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 | `--show-context`                  |       | Print per-file context treatment and budget accounting                |
 | `--yes`                           | `-y`  | Skip generation prompts and commit automatically                      |
 | `--dry-run`                       | `-d`  | Generate a message and show analyzed files without committing         |
+| `--output <message\|json>`        |       | Generate without prompts; write only the message or a JSON result     |
+| `--stdin`                         |       | Read a diff from stdin; works outside a Git repository                |
+| `--branch <name>`                 |       | Supply branch context in a machine workflow                           |
+| `--stage`                         |       | Explicitly stage all changes before noninteractive generation         |
+| `--commit`                        |       | Explicitly commit verified staged changes after generation            |
 
 **Other options:**
 
