@@ -4,6 +4,7 @@ import test from "node:test";
 import esmock from "esmock";
 import { resolveConventions } from "../src/utils/conventions.ts";
 import type { ContextSettings } from "../src/definitions.ts";
+import type { ContextReport } from "../src/utils/diff-context.ts";
 import {
   estimateTokens,
   REQUEST_OVERHEAD,
@@ -25,13 +26,18 @@ type Request = {
 };
 async function setup(
   reply: (request: Request) => Promise<{ text: string; finishReason?: string }>,
+  configOverrides: { getKey?: () => string } = {},
 ) {
   const requests: Request[] = [];
   const { AIBuilder } = await esmock<typeof import("../src/utils/ai.ts")>(
     "../src/utils/ai.ts",
     {
       "../src/utils/config.ts": {
-        default: { getKey: () => "fake", getModel: () => "" },
+        default: {
+          getKey: () => "fake",
+          getModel: () => "",
+          ...configOverrides,
+        },
         validateApiKey: () => null,
       },
       ai: {
@@ -218,4 +224,63 @@ test("planning retains retries and honors cancellation", async () => {
   assert.ok("error" in before);
   assert.equal(before.code, "CANCELED");
   assert.equal(canceled.requests.length, 1);
+});
+
+test("planning delivers the context report before generation and retains it on the validated plan", async () => {
+  const reports: ContextReport[] = [];
+  const app = await setup(async () => {
+    assert.equal(
+      reports.length,
+      1,
+      "context should be available before the request",
+    );
+    return { text: JSON.stringify({ commits: [commit("retry", ["f1.h1"])] }) };
+  });
+  const plan = await app.ai.generateCommitPlan("main", featureDiff, {
+    onContextPrepared: (report) => {
+      reports.push(report);
+    },
+  });
+  assert.ok(!("error" in plan), JSON.stringify(plan));
+  assert.equal(plan.context, reports[0]);
+  assert.equal(reports[0].files[0].path, "src/retry.ts");
+  assert.equal(reports[0].files[0].treatment, "full");
+  assert.equal(app.requests.length, 1);
+});
+
+test("a planning context callback failure is actionable and stops the provider request", async () => {
+  const app = await setup(async () =>
+    assert.fail("must not generate after a failed context callback"),
+  );
+  const result = await app.ai.generateCommitPlan("main", featureDiff, {
+    onContextPrepared: () => {
+      throw new Error("context report could not be written");
+    },
+  });
+  assert.ok("error" in result);
+  assert.equal(result.code, "CONTEXT");
+  assert.match(result.error, /context report could not be written/);
+  assert.equal(app.requests.length, 0);
+});
+
+test("planning reports unexpected credential-store failures, including non-Error rejections", async () => {
+  for (const cause of [
+    new Error("credential store unavailable"),
+    "credential store unavailable",
+  ]) {
+    const app = await setup(
+      async () => assert.fail("must not request without credentials"),
+      {
+        getKey: () => {
+          throw cause;
+        },
+      },
+    );
+    const result = await app.ai.generateCommitPlan("main", featureDiff);
+    assert.deepEqual(result, {
+      error: "Could not generate a valid plan: credential store unavailable",
+      code: "GENERATION",
+    });
+    assert.equal(app.requests.length, 0);
+  }
 });

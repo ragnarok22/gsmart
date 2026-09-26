@@ -279,3 +279,58 @@ test("review output escapes paths and strips provider terminal controls", () => 
   assert.ok(!renderSplitPlan(plan).includes("\u001b"));
   assert.ok(!renderSplitPlan(plan).includes("\u0007"));
 });
+
+test("a metadata-only modified source file stays accounted for as a whole-file unit", () => {
+  const changes = inventoryChanges(
+    "diff --git a/opaque.txt b/opaque.txt\nindex 1111111..2222222 100644\n",
+  );
+  assert.equal(changes.length, 1);
+  assert.equal(changes[0].status, "modified");
+  assert.equal(changes[0].hunk, undefined);
+  const plan = parseSplitPlan(
+    JSON.stringify({
+      commits: [
+        commit("opaque", ["f1"], {
+          message: "chore: update opaque file",
+          rationale: "Only file metadata is available.",
+          cautions: [
+            "Review the complete file change manually before grouping it.",
+          ],
+        }),
+      ],
+    }),
+    changes,
+  );
+  const output = renderSplitPlan(plan);
+  assert.match(output, /f1: "opaque.txt".*whole file/);
+  assert.match(output, /Review the complete file change manually/);
+  assert.match(output, /1 change unit\(s\) assigned exactly once/);
+});
+
+test("multiline messages and tab-indented review notes preserve formatting while removing terminal controls", () => {
+  const message =
+    "feat: retry requests\n\n\t- Retry transient failures.\n\t- Preserve the original response.";
+  const rationale =
+    "Related behavior changes:\n\tRetry requests.\n\tPreserve responses.\u0007\u007f";
+  const plan = parseSplitPlan(
+    JSON.stringify({
+      commits: [
+        commit("retry", ["f1.h1"], {
+          message,
+          rationale,
+        }),
+      ],
+    }),
+    inventoryChanges(featureDiff),
+  );
+  assert.equal(plan.commits[0].message, message);
+  const output = renderSplitPlan(plan);
+  assert.ok(output.includes(message));
+  assert.ok(
+    output.includes(
+      "Related behavior changes:\n\tRetry requests.\n\tPreserve responses.",
+    ),
+  );
+  assert.ok(!output.includes("\u0007"));
+  assert.ok(!output.includes("\u007f"));
+});
