@@ -220,6 +220,8 @@ export type GenerationOptions = RetryOptions & {
   historyExamples?: string[];
   abortSignal?: AbortSignal;
   onContextPrepared?: (report: ContextReport) => void;
+  /** Observe the assembled final prompt (never credentials) for opt-in evaluations. */
+  onPromptPrepared?: (request: ContextRequest) => void;
   refinement?: {
     previousMessage: string;
     feedback: string;
@@ -579,6 +581,10 @@ export class AIBuilder {
         },
       });
       options?.onContextPrepared?.(prepared.report);
+      options?.onPromptPrepared?.({
+        system: prepared.system,
+        prompt: prepared.prompt,
+      });
       return await this.__requestText(
         model,
         prepared,
@@ -677,7 +683,8 @@ export class AIBuilder {
               "Response did not complete successfully. Please try again.",
             );
           }
-          if (!text.trim()) throw new NoContentGeneratedError();
+          // A completed empty candidate belongs to message validation, just as
+          // for generateText. Keep transport failures distinct from invalid text.
         } else {
           const result = await generateText({ ...request, system });
           if (result.finishReason && result.finishReason !== "stop")

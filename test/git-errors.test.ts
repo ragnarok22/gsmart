@@ -21,12 +21,12 @@ for (const [name, output, expected] of [
   [
     "silent failure",
     { status: 1, stdout: "", stderr: "" },
-    "git commit -m feat: candidate",
+    "git commit --cleanup=verbatim -m feat: candidate",
   ],
   [
     "termination before output",
     { status: null, signal: "SIGTERM", stdout: null, stderr: null },
-    "git commit -m feat: candidate",
+    "git commit --cleanup=verbatim -m feat: candidate",
   ],
 ] as const) {
   test(`failed Git commits preserve actionable diagnostics for ${name}`, async () => {
@@ -49,7 +49,11 @@ for (const [name, output, expected] of [
     assert.equal(errors.length, 1);
     assert.equal(errors[0].message, expected);
     assert.deepEqual(calls, [
-      ["git", ["commit", "-m", "feat: candidate"], { encoding: "utf8" }],
+      [
+        "git",
+        ["commit", "--cleanup=verbatim", "-m", "feat: candidate"],
+        { encoding: "utf8" },
+      ],
     ]);
   });
 }

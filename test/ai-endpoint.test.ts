@@ -18,6 +18,7 @@ import { AIBuilder } from "../src/utils/ai.ts";
 import { repository, git } from "../test-support/repository.ts";
 import { sourceDiff } from "../test-support/diff-fixtures.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
+import { validateCommitMessage } from "../src/utils/commit-message.ts";
 import {
   estimateTokens,
   REQUEST_OVERHEAD,
@@ -828,15 +829,17 @@ test("real OAuth SDK cancellation during interruption backoff prevents a second 
   assert.equal(calls, 1);
 });
 
-test("real OAuth SDK rejects a completed response with no commit message", async () => {
+test("real OAuth SDK exposes a completed empty candidate for shared validation and editing", async () => {
   const builder = await oauthBuilder(async () =>
     streamingResponse(completedOAuthEvents("")),
   );
   const result = await builder.generateCommitMessage("main", "diff", {
     onRetry: () => assert.fail("Empty output must not retry unchanged"),
   });
-  assert.equal(typeof result, "object", JSON.stringify(result));
-  assert.match(result.error, /response/i);
+  assert.equal(result, "");
+  const validation = validateCommitMessage(result);
+  assert.equal(validation.valid, false);
+  assert.equal(validation.diagnostics[0].code, "empty");
 });
 
 for (const partial of [false, true]) {

@@ -1,0 +1,18 @@
+diff --git a/src/users.ts b/src/users.ts
+index 7527639..281dec0 100644
+--- a/src/users.ts
++++ b/src/users.ts
+@@ -1,9 +1,11 @@
+ type User = { id: string; active: boolean; deleted: boolean };
+ 
++const isActive = (user: User) => user.active && !user.deleted;
++
+ export function listActive(users: User[]) {
+-  return users.filter((user) => user.active && !user.deleted);
++  return users.filter(isActive);
+ }
+ 
+ export function countActive(users: User[]) {
+-  return users.filter((user) => user.active && !user.deleted).length;
++  return users.filter(isActive).length;
+ }

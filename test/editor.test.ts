@@ -70,7 +70,7 @@ test("editor treats a signaled process as cancellation and cleans up", async () 
   assert.ok(!existsSync(dirname(filePath)));
 });
 
-for (const mode of ["exit", "spawn", "empty", "missing-file"] as const) {
+for (const mode of ["exit", "spawn", "missing-file"] as const) {
   test(`editor ${mode} failure is actionable and cleans up`, async () => {
     let filePath = "";
     const edit = createMessageEditor({
@@ -78,7 +78,6 @@ for (const mode of ["exit", "spawn", "empty", "missing-file"] as const) {
       runEditor: async (_command, file) => {
         filePath = file;
         if (mode === "spawn") throw new Error("ENOENT");
-        if (mode === "empty") writeFileSync(file, " \n\t ");
         if (mode === "missing-file") rmSync(file);
         return { code: mode === "exit" ? 1 : 0, signal: null };
       },
@@ -92,6 +91,34 @@ for (const mode of ["exit", "spawn", "empty", "missing-file"] as const) {
     assert.ok(!existsSync(dirname(filePath)));
   });
 }
+
+for (const message of ["", " \n\t ", "  fix: preserve indentation"]) {
+  test(`editor returns invalid drafts unchanged for review: ${JSON.stringify(message)}`, async () => {
+    let filePath = "";
+    const edit = createMessageEditor({
+      runEditor: async (_command, file) => {
+        filePath = file;
+        writeFileSync(file, message.replaceAll("\n", "\r\n") + "\r\n\r\n");
+        return { code: 0, signal: null };
+      },
+    });
+    assert.deepEqual(await edit(original), { status: "edited", message });
+    assert.ok(!existsSync(dirname(filePath)));
+  });
+}
+
+test("editor distinguishes removing invalid leading whitespace from canceling", async () => {
+  const edit = createMessageEditor({
+    runEditor: async (_command, file) => {
+      writeFileSync(file, original + "\n");
+      return { code: 0, signal: null };
+    },
+  });
+  assert.deepEqual(await edit("  " + original), {
+    status: "edited",
+    message: original,
+  });
+});
 
 test("editor runner supports arguments and paths containing spaces without interpreting message content", async () => {
   const root = mkdtempSync(join(tmpdir(), "gsmart editor test "));

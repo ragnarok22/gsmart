@@ -138,6 +138,7 @@ function buildMainCommand(
         { source: "CLI", settings: cli },
       ]),
     spinner: spinnerFactory.spinner as never,
+    isInteractive: () => true,
     prompt: async (opts) => {
       const name = (opts as { name: string }).name;
       questions.push(name);

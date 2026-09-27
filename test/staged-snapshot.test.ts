@@ -6,6 +6,11 @@ import { join } from "node:path";
 import { execFileSync, spawn, type SpawnOptions } from "node:child_process";
 import esmock from "esmock";
 import { getStagedSnapshot, commitChanges } from "../src/utils/git.ts";
+import {
+  normalizeCommitMessage,
+  validateCommitMessage,
+} from "../src/utils/commit-message.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
 
 async function withRepository(
   action: (git: (...args: string[]) => string) => Promise<void>,
@@ -136,6 +141,29 @@ test("commitChanges preserves a multiline message through Git", async () => {
       "feat: subject\n\nFirst paragraph.\nSecond line.\n\nRefs: #499";
     assert.equal(await commitChanges(message), true);
     assert.equal(git("log", "-1", "--format=%B").trimEnd(), message);
+  });
+});
+
+test("Git cleanup cannot strip a validated required body or Markdown hard breaks", async () => {
+  await withRepository(async (git) => {
+    git("config", "commit.cleanup", "strip");
+    const effective = resolveConventions([
+      { source: "repository", settings: { body: { presence: "required" } } },
+    ]);
+    for (const message of [
+      "fix: preserve docs\n\n# Keep this body",
+      "fix: preserve formatting\n\nKeep this hard break.  \nAnd this trailing space. ",
+    ]) {
+      writeFileSync("file.txt", message);
+      git("add", "file.txt");
+      assert.equal(validateCommitMessage(message, effective).valid, true);
+      assert.equal(await commitChanges(message), true);
+      const stored = normalizeCommitMessage(
+        git("cat-file", "commit", "HEAD").split("\n\n").slice(1).join("\n\n"),
+      );
+      assert.equal(stored, message);
+      assert.equal(validateCommitMessage(stored, effective).valid, true);
+    }
   });
 });
 

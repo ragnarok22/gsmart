@@ -1,0 +1,275 @@
+{
+  "version": "v1",
+  "cases": [
+    {
+      "id": "rename-date-helper",
+      "category": "rename",
+      "generation": {
+        "branch": "refactor/date-helper-name",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["dates"],
+          "headerMaxLength": 72,
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "rename",
+            "claim": "Move the internal date helper from format.ts to format-date.ts with identical contents.",
+            "evidence": [
+              "similarity index 100%",
+              "rename from src/internal/format.ts",
+              "rename to src/internal/format-date.ts"
+            ]
+          },
+          {
+            "id": "import",
+            "claim": "Update the invoice view's import to the renamed helper.",
+            "evidence": [
+              "-import { formatDate } from '../internal/format';",
+              "+import { formatDate } from '../internal/format-date';"
+            ]
+          }
+        ],
+        "types": ["refactor", "chore"],
+        "scopes": ["dates"],
+        "breakingChange": false,
+        "unsupportedClaims": [
+          "Date output or timezone handling changed",
+          "A public API was removed",
+          "Performance improved"
+        ]
+      }
+    },
+    {
+      "id": "upgrade-parser-dependency",
+      "category": "dependency-only",
+      "generation": {
+        "branch": "chore/yaml-update",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["deps"],
+          "types": ["build", "chore"],
+          "headerMaxLength": 72,
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "version",
+            "claim": "Update yaml from 2.5.0 to 2.6.1 in package.json and the lockfile.",
+            "evidence": [
+              "-    \"yaml\": \"2.5.0\"",
+              "+    \"yaml\": \"2.6.1\"",
+              "+        specifier: 2.6.1",
+              "+        version: 2.6.1"
+            ]
+          },
+          {
+            "id": "lock-entry",
+            "claim": "Replace the resolved yaml package and snapshot keys without changing application source.",
+            "evidence": ["+  yaml@2.6.1:", "+  yaml@2.6.1: {}"]
+          }
+        ],
+        "types": ["build", "chore"],
+        "scopes": ["deps"],
+        "breakingChange": false,
+        "unsupportedClaims": [
+          "Fixes a security vulnerability or a CVE",
+          "Adds parser features",
+          "Fixes an application crash",
+          "Improves parsing performance"
+        ]
+      }
+    },
+    {
+      "id": "require-client-options",
+      "category": "breaking-change",
+      "generation": {
+        "branch": "feat/API-42-client-options",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["client"],
+          "headerMaxLength": 72,
+          "breakingChanges": { "requireFooter": true },
+          "tickets": {
+            "prefixes": ["API-"],
+            "required": true,
+            "placement": "footer",
+            "footerToken": "Refs"
+          },
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "signature",
+            "claim": "The exported createClient function now requires an options object with baseUrl instead of a URL string.",
+            "evidence": [
+              "-export function createClient(baseUrl: string) {",
+              "+export function createClient(options: { baseUrl: string }) {",
+              "+  return new Client(options.baseUrl);"
+            ]
+          },
+          {
+            "id": "migration",
+            "claim": "Migrate callers to createClient({ baseUrl: url }); string calls are incompatible.",
+            "evidence": [
+              "-const client = createClient('https://api.example.test');",
+              "+const client = createClient({ baseUrl: 'https://api.example.test' });"
+            ]
+          }
+        ],
+        "types": ["feat", "refactor"],
+        "scopes": ["client"],
+        "breakingChange": true,
+        "unsupportedClaims": [
+          "Adds retries or authentication",
+          "Preserves the old string signature",
+          "Changes the HTTP transport",
+          "Renames the base URL option to endpoint"
+        ]
+      }
+    },
+    {
+      "id": "extract-active-predicate",
+      "category": "refactor",
+      "generation": {
+        "branch": "refactor/active-users",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["users"],
+          "headerMaxLength": 72,
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "predicate",
+            "claim": "Extract the existing active and not-deleted check into an internal isActive predicate.",
+            "evidence": [
+              "+const isActive = (user: User) => user.active && !user.deleted;",
+              "-  return users.filter((user) => user.active && !user.deleted);",
+              "+  return users.filter(isActive);"
+            ]
+          },
+          {
+            "id": "behavior",
+            "claim": "Both listActive and countActive use the same unchanged filtering condition.",
+            "evidence": [
+              " export function listActive(users: User[]) {",
+              " export function countActive(users: User[]) {",
+              "-  return users.filter((user) => user.active && !user.deleted).length;",
+              "+  return users.filter(isActive).length;"
+            ]
+          }
+        ],
+        "types": ["refactor"],
+        "scopes": ["users"],
+        "breakingChange": false,
+        "unsupportedClaims": [
+          "Fixes deleted users appearing in results",
+          "Adds filtering capability",
+          "Changes public return types",
+          "Speeds up filtering"
+        ]
+      }
+    },
+    {
+      "id": "delete-retired-ci-job",
+      "category": "deletion",
+      "generation": {
+        "branch": "chore/remove-node18-job",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["ci"],
+          "headerMaxLength": 72,
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "workflow",
+            "claim": "Delete the standalone scheduled Node 18 compatibility workflow.",
+            "evidence": [
+              "deleted file mode 100644",
+              "-name: Node 18 compatibility",
+              "-  schedule:",
+              "-      - uses: actions/setup-node@v4",
+              "-          node-version: 18"
+            ]
+          },
+          {
+            "id": "test-job",
+            "claim": "Remove that workflow's install and test steps.",
+            "evidence": ["-      - run: npm ci", "-      - run: npm test"]
+          }
+        ],
+        "types": ["ci", "chore"],
+        "scopes": ["ci"],
+        "breakingChange": false,
+        "unsupportedClaims": [
+          "Changes the package's Node engine requirement",
+          "Removes all CI tests",
+          "Adds a replacement workflow",
+          "Deletes production runtime support code"
+        ]
+      }
+    },
+    {
+      "id": "mixed-cache-and-docs",
+      "category": "mixed",
+      "generation": {
+        "branch": "fix/CACHE-17-zero-ttl",
+        "conventions": {
+          "scope": "required",
+          "scopes": ["cache", "docs"],
+          "headerMaxLength": 72,
+          "body": { "presence": "required", "leadingBlank": true },
+          "context": { "summarize": false }
+        }
+      },
+      "scorer": {
+        "facts": [
+          {
+            "id": "zero-ttl",
+            "claim": "Honor an explicit zero TTL by using nullish fallback instead of truthiness.",
+            "evidence": [
+              "-  const ttl = options.ttl || DEFAULT_TTL;",
+              "+  const ttl = options.ttl ?? DEFAULT_TTL;",
+              "   return { expiresAt: now + ttl };"
+            ]
+          },
+          {
+            "id": "test",
+            "claim": "Add a zero-TTL regression assertion that expiresAt equals now.",
+            "evidence": [
+              "+test('zero TTL expires immediately', () => {",
+              "+  assert.equal(createEntry({ ttl: 0 }, 100).expiresAt, 100);"
+            ]
+          },
+          {
+            "id": "docs",
+            "claim": "Separately correct the README's installation heading typo.",
+            "evidence": ["-## Instalation", "+## Installation"]
+          }
+        ],
+        "types": ["fix"],
+        "scopes": ["cache", "cache/docs"],
+        "breakingChange": false,
+        "unsupportedClaims": [
+          "Disables caching globally",
+          "Adds cache eviction or background timers",
+          "Changes the default TTL",
+          "Adds a new installation method"
+        ]
+      }
+    }
+  ]
+}

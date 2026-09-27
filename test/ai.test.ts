@@ -367,6 +367,7 @@ test("each provider creates the correct model", async () => {
 test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
   let capturedOptions: Record<string, unknown> = {};
   let capturedModelId = "";
+  let response = "feat: oauth";
 
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
     "@ai-sdk/openai": {
@@ -382,7 +383,7 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
     ai: {
       streamText: () => ({
         fullStream: (async function* () {
-          yield { type: "text-delta", text: "feat: oauth" };
+          yield { type: "text-delta", text: response };
           yield { type: "raw", rawValue: { type: "response.completed" } };
           yield { type: "finish", finishReason: "stop" };
         })(),
@@ -425,6 +426,10 @@ test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
     originator: "gsmart_cli",
   });
   assert.equal(capturedModelId, "gpt-5-codex");
+  // Completed malformed candidates must reach the shared review validator so
+  // users can edit them, just like completed non-streaming responses.
+  for (response of ["", "   ", "```\nfeat: oauth\n```"])
+    assert.equal(await builder.generateCommitMessage("main", "diff"), response);
 });
 
 for (const scenario of ["missing", "expired"] as const) {

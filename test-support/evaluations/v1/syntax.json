@@ -1,0 +1,95 @@
+{
+  "version": "v1",
+  "fixtures": [
+    {
+      "id": "valid-rename",
+      "caseId": "rename-date-helper",
+      "message": "refactor(dates): rename the internal date helper",
+      "valid": true
+    },
+    {
+      "id": "empty",
+      "caseId": "rename-date-helper",
+      "message": "",
+      "valid": false
+    },
+    {
+      "id": "not-conventional",
+      "caseId": "rename-date-helper",
+      "message": "Renamed the date helper",
+      "valid": false
+    },
+    {
+      "id": "scope-required",
+      "caseId": "rename-date-helper",
+      "message": "refactor: rename the internal date helper",
+      "valid": false
+    },
+    {
+      "id": "scope-not-allowed",
+      "caseId": "rename-date-helper",
+      "message": "refactor(api): rename the internal date helper",
+      "valid": false
+    },
+    {
+      "id": "header-too-long",
+      "caseId": "rename-date-helper",
+      "message": "refactor(dates): rename the internal date helper and update the invoice view import path to match",
+      "valid": false
+    },
+    {
+      "id": "valid-dependency",
+      "caseId": "upgrade-parser-dependency",
+      "message": "build(deps): update yaml to 2.6.1",
+      "valid": true
+    },
+    {
+      "id": "type-not-allowed",
+      "caseId": "upgrade-parser-dependency",
+      "message": "feat(deps): update yaml to 2.6.1",
+      "valid": false
+    },
+    {
+      "id": "valid-breaking",
+      "caseId": "require-client-options",
+      "message": "feat(client)!: require an options object in createClient\n\nBREAKING CHANGE: Pass { baseUrl: url } instead of a URL string.\nRefs: API-42",
+      "valid": true
+    },
+    {
+      "id": "missing-breaking-footer",
+      "caseId": "require-client-options",
+      "message": "feat(client)!: require an options object in createClient\n\nRefs: API-42",
+      "valid": false
+    },
+    {
+      "id": "missing-ticket",
+      "caseId": "require-client-options",
+      "message": "feat(client)!: require an options object in createClient\n\nBREAKING CHANGE: Pass { baseUrl: url } instead of a URL string.",
+      "valid": false
+    },
+    {
+      "id": "valid-refactor",
+      "caseId": "extract-active-predicate",
+      "message": "refactor(users): extract the shared active-user predicate",
+      "valid": true
+    },
+    {
+      "id": "valid-deletion",
+      "caseId": "delete-retired-ci-job",
+      "message": "ci(ci): remove the scheduled Node 18 workflow",
+      "valid": true
+    },
+    {
+      "id": "valid-mixed",
+      "caseId": "mixed-cache-and-docs",
+      "message": "fix(cache): honor an explicit zero TTL\n\nUse nullish fallback and cover immediate expiry with a regression test.\nAlso correct the README installation heading.",
+      "valid": true
+    },
+    {
+      "id": "required-body",
+      "caseId": "mixed-cache-and-docs",
+      "message": "fix(cache): honor an explicit zero TTL",
+      "valid": false
+    }
+  ]
+}
