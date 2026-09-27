@@ -33,6 +33,11 @@ const breakingToken = (token: string) =>
   token === "BREAKING CHANGE" || token === "BREAKING-CHANGE";
 const referenceTokens = new Set(["refs", "closes", "fixes", "resolves"]);
 
+/** Shared header grammar; allowed types/scopes are checked against conventions separately. */
+export function parseCommitHeader(header: string): RegExpExecArray | null {
+  return /^([^\s():!]+)(?:\(([^\s():!]+)\))?(!)?: ([^\s].*)$/.exec(header);
+}
+
 /** Syntax and effective repository rules only; this does not judge the diff's meaning. */
 export function validateCommitMessage(
   message: string,
@@ -80,9 +85,7 @@ export function validateCommitMessage(
   const lines = text.split("\n");
   // Match the same token alphabet allowed in repository configuration, including
   // custom/Unicode types. Membership and scope requirements are separate rules.
-  const header = /^([^\s():!]+)(?:\(([^\s():!]+)\))?(!)?: ([^\s].*)$/.exec(
-    lines[0],
-  );
+  const header = parseCommitHeader(lines[0]);
   let fence: string | undefined;
   // Exclude fenced examples from trailer parsing and ticket scanning.
   const fencedLines = lines.map((line, index) => {

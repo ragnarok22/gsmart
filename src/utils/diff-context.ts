@@ -32,7 +32,7 @@ const LOCKFILES = new Set([
 ]);
 
 /** Small, platform-independent glob vocabulary. Patterns are never shell input. */
-export function matchesContextPattern(path: string, pattern: string): boolean {
+function compileContextPattern(pattern: string): RegExp {
   let expression = "^";
   for (let i = 0; i < pattern.length; i++) {
     const char = pattern[i];
@@ -46,7 +46,19 @@ export function matchesContextPattern(path: string, pattern: string): boolean {
     else if (char === "?") expression += "[^/]";
     else expression += char.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
-  return new RegExp(expression + "$", "s").test(path);
+  return new RegExp(expression + "$", "s");
+}
+
+export function matchesContextPattern(path: string, pattern: string): boolean {
+  return compileContextPattern(pattern).test(path);
+}
+
+/** Compile once per inventory/preparation, without retaining a global cache. */
+export function createContextMatcher(
+  patterns: string[],
+): (path: string) => boolean {
+  const expressions = patterns.map(compileContextPattern);
+  return (path) => expressions.some((expression) => expression.test(path));
 }
 
 /** Git quotes non-ASCII bytes with C-style octal escapes (not JSON escapes). */
@@ -118,6 +130,7 @@ export function parseDiffFiles(
   generated: string[] = [],
 ): DiffFile[] {
   if (!diff.trim()) return [];
+  const isGenerated = createContextMatcher(generated);
   return diff
     .split(/(?=^diff --git )/m)
     .filter(Boolean)
@@ -184,7 +197,7 @@ export function parseDiffFiles(
         ? "binary"
         : LOCKFILES.has(path.split("/").at(-1)!)
           ? "lockfile"
-          : generated.some((pattern) => matchesContextPattern(path, pattern)) ||
+          : isGenerated(path) ||
               /(?:auto[- ]generated|@generated|DO NOT EDIT)/i.test(
                 patch.slice(0, 8192),
               )
@@ -334,6 +347,7 @@ export async function prepareContext({
 }): Promise<ContextRequest & { report: ContextReport }> {
   signal?.throwIfAborted();
   const files = parseDiffFiles(diff, budget.settings.generated);
+  const isExcluded = createContextMatcher(budget.settings.exclude);
   const report: ContextReport = {
     budgetTokens: budget.total,
     budgetSource: budget.source,
@@ -342,12 +356,9 @@ export async function prepareContext({
     overheadTokens: budget.overhead,
     summaryRequests: 0,
     files: files.map((file) => {
-      const excluded = budget.settings.exclude.some(
-        (pattern) =>
-          matchesContextPattern(file.path, pattern) ||
-          (file.originalPath !== undefined &&
-            matchesContextPattern(file.originalPath, pattern)),
-      );
+      const excluded =
+        isExcluded(file.path) ||
+        (file.originalPath !== undefined && isExcluded(file.originalPath));
       return {
         path: file.path,
         originalPath: file.originalPath,

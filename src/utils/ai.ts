@@ -209,6 +209,7 @@ function isRetryableError(error: unknown): boolean {
 }
 
 export type RetryOptions = {
+  /** Total attempt limit (legacy name). Both 0 and 1 disable retries. */
   maxRetries?: number;
   onRetry?: (attempt: number, maxRetries: number) => void;
   delayFn?: (ms: number) => Promise<void>;
@@ -347,6 +348,15 @@ export class AIBuilder {
     debugLog("ai", `prompt length: ${this.prompt.length} chars`);
     try {
       options?.abortSignal?.throwIfAborted();
+      if (
+        options?.maxRetries !== undefined &&
+        (!Number.isSafeInteger(options.maxRetries) || options.maxRetries < 0)
+      ) {
+        return {
+          error: "maxRetries must be a non-negative safe integer.",
+          code: "CONFIGURATION",
+        };
+      }
       if (options?.model !== undefined) {
         try {
           validateModel(options.model);
@@ -614,7 +624,7 @@ export class AIBuilder {
   ): Promise<string | RequestError> {
     assertRequestFits({ system, prompt }, budget);
     const timeoutMs = resolveTimeoutMs(process.env.GSMART_TIMEOUT);
-    const maxRetries = options?.maxRetries ?? DEFAULT_MAX_RETRIES;
+    const maxRetries = Math.max(1, options?.maxRetries ?? DEFAULT_MAX_RETRIES);
     const delayFn =
       options?.delayFn ??
       ((ms: number) => delay(ms, undefined, { signal: options?.abortSignal }));
@@ -699,7 +709,7 @@ export class AIBuilder {
         return text;
       } catch (error) {
         if (options?.abortSignal?.aborted) throw error;
-        if (!isRetryableError(error) || attempt === maxRetries) {
+        if (!isRetryableError(error) || attempt >= maxRetries) {
           const classified = classifyError(
             error,
             this.provider,

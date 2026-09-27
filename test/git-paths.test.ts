@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { spawnSync, type SpawnSyncOptions } from "node:child_process";
+import esmock from "esmock";
 import {
   getGitChanges,
   getGitStatus,
@@ -144,6 +146,109 @@ test("dry-run filenames decode Git-quoted paths and renamed destinations", async
       parseDiffFileNames(await getGitChanges()).sort(),
       [...names, "renamed café.txt"].sort(),
     );
+  } finally {
+    process.chdir(previous);
+  }
+});
+
+for (const operation of ["stageFile", "unstageFiles"] as const) {
+  test(`${operation} handles selections larger than the process argument limit`, async (t) => {
+    const root = repository(t);
+    const names = Array.from(
+      { length: 1200 },
+      (_, index) => `${index}-${"long-file-name-".repeat(12)}.txt`,
+    );
+    for (const name of names) writeFileSync(join(root, name), "content");
+    const other = "keep-separate.txt";
+    writeFileSync(join(root, other), "other content");
+    if (operation === "unstageFiles") git(root, "add", ".");
+    const diagnostics: string[] = [];
+    const utils = await esmock<typeof import("../src/utils/git.ts")>(
+      "../src/utils/git.ts",
+      {
+        "node:child_process": {
+          spawnSync: (
+            command: string,
+            args: string[],
+            options: SpawnSyncOptions,
+          ) => {
+            // Reproduce a finite argv limit on every platform, while running real Git.
+            if (Buffer.byteLength(args.join("\0")) > 128 * 1024) {
+              return {
+                error: Object.assign(new Error("argument list too long"), {
+                  code: "E2BIG",
+                }),
+              };
+            }
+            const result = spawnSync(command, args, options);
+            if (result.status !== 0) diagnostics.push(String(result.stderr));
+            return result;
+          },
+        },
+      },
+    );
+    const previous = process.cwd();
+    process.chdir(root);
+    try {
+      assert.equal(await utils[operation](names), true, diagnostics.join("\n"));
+      assert.deepEqual(
+        (await getStagedFileNames()).sort(),
+        operation === "stageFile" ? names.sort() : [other],
+      );
+    } finally {
+      process.chdir(previous);
+    }
+  });
+}
+
+test("staging and unstaging reject NUL paths without changing other files", async (t) => {
+  const root = repository(t);
+  for (const name of ["selected.txt", "other.txt"])
+    writeFileSync(join(root, name), "content");
+  const previous = process.cwd();
+  process.chdir(root);
+  try {
+    const invalid = `selected.txt\0${join(root, "other.txt")}`;
+    assert.equal(await stageFile(invalid), false);
+    assert.deepEqual(await getStagedFileNames(), []);
+    git(root, "add", ".");
+    assert.equal(await unstageFiles(invalid), false);
+    assert.deepEqual((await getStagedFileNames()).sort(), [
+      "other.txt",
+      "selected.txt",
+    ]);
+  } finally {
+    process.chdir(previous);
+  }
+});
+
+test("staging and unstaging preserve literal unusual paths and tracked working-tree edits", async (t) => {
+  const root = repository(t);
+  const names = [
+    " leading and trailing ",
+    "line\nbreak.txt",
+    "tab\tname.txt",
+    'quoted"file.txt',
+    "café.txt",
+    ":(glob)*.txt",
+    "-option.txt",
+  ];
+  for (const name of [...names, "other.txt"])
+    writeFileSync(join(root, name), "original");
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "baseline");
+  for (const name of [...names, "other.txt"])
+    writeFileSync(join(root, name), "modified");
+  const previous = process.cwd();
+  process.chdir(root);
+  try {
+    assert.equal(await stageFile(names), true);
+    assert.deepEqual((await getStagedFileNames()).sort(), [...names].sort());
+    git(root, "add", "other.txt");
+    assert.equal(await unstageFiles(names), true);
+    assert.deepEqual(await getStagedFileNames(), ["other.txt"]);
+    for (const name of names)
+      assert.equal(readFileSync(join(root, name), "utf8"), "modified");
   } finally {
     process.chdir(previous);
   }

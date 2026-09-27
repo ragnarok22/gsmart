@@ -408,6 +408,8 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
   if (files.length === 0) {
     return true;
   }
+  // NUL is the stdin pathspec separator, never part of a valid filename.
+  if (files.some((file) => file.includes("\0"))) return false;
 
   try {
     const repoRoot = runGit(["rev-parse", "--show-toplevel"]);
@@ -415,9 +417,16 @@ export const stageFile = async (file: string | string[]): Promise<boolean> => {
       new Set(files.map((candidate) => path.resolve(repoRoot, candidate))),
     );
 
-    runGit(["--literal-pathspecs", "add", "--", ...absolutePaths], {
-      cwd: repoRoot,
-    });
+    // Send selections through stdin so large batches cannot exceed ARG_MAX.
+    runGit(
+      [
+        "--literal-pathspecs",
+        "add",
+        "--pathspec-from-file=-",
+        "--pathspec-file-nul",
+      ],
+      { cwd: repoRoot, input: absolutePaths.join("\0") + "\0" },
+    );
     return true;
   } catch {
     return false;
@@ -432,6 +441,7 @@ export const unstageFiles = async (
   if (paths.length === 0) {
     return true;
   }
+  if (paths.some((file) => file.includes("\0"))) return false;
 
   try {
     const repoRoot = runGit(["rev-parse", "--show-toplevel"]);
@@ -439,9 +449,18 @@ export const unstageFiles = async (
       new Set(paths.map((candidate) => path.resolve(repoRoot, candidate))),
     );
 
-    runGit(["--literal-pathspecs", "reset", "HEAD", "--", ...absolutePaths], {
-      cwd: repoRoot,
-    });
+    runGit(
+      [
+        "--literal-pathspecs",
+        "reset",
+        "--quiet",
+        "--pathspec-from-file=-",
+        "--pathspec-file-nul",
+        "HEAD",
+        "--",
+      ],
+      { cwd: repoRoot, input: absolutePaths.join("\0") + "\0" },
+    );
     return true;
   } catch {
     return false;

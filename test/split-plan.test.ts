@@ -101,6 +101,36 @@ test("structural, generated, binary and marker-less changes stay whole", () => {
   assert.match(renderSplitPlan(plan), /deleted, source; whole file/);
 });
 
+test("plan headers support the custom type alphabet used by commit conventions", () => {
+  for (const type of ["FIX", "修复", "✨", "build_deps", "team.fix", "[fix]"]) {
+    const message = `${type}(api): update retries`;
+    const plan = parseSplitPlan(
+      JSON.stringify({ commits: [commit("retry", ["f1.h1"], { message })] }),
+      inventoryChanges(featureDiff),
+    );
+    assert.equal(plan.commits[0].message, message);
+  }
+});
+
+test("plan headers reject whitespace and reserved punctuation in scopes", () => {
+  for (const scope of ["api client", "api:client", "api!", "api\tclient"]) {
+    assert.throws(
+      () =>
+        parseSplitPlan(
+          JSON.stringify({
+            commits: [
+              commit("retry", ["f1.h1"], {
+                message: `fix(${scope}): update retries`,
+              }),
+            ],
+          }),
+          inventoryChanges(featureDiff),
+        ),
+      /Conventional Commit headers/,
+    );
+  }
+});
+
 test("zero-length ranges, quoted paths and no-newline markers survive inventory", () => {
   const diff = `diff --git "a/line\\n\\t\\"file\\".ts" "b/line\\n\\t\\"file\\".ts"
 --- "a/line\\n\\t\\"file\\".ts"

@@ -196,6 +196,39 @@ test("glob patterns and config overrides are validated and merged", () => {
   );
 });
 
+test("generated and excluded matchers remain independent across context preparations", async () => {
+  const diff =
+    patch("src/one.ts") + patch("src/two.ts") + patch("src/three.ts");
+  for (const generated of [["src/**"], [], ["src/t?o.ts"]]) {
+    for (const exclude of [["src/one.ts"], ["src/t?o.ts"], []]) {
+      const result = await prepareContext({
+        diff,
+        budget: resolveContextBudget("custom", "local", { generated, exclude }),
+        buildPrompt,
+      });
+      assert.deepEqual(
+        result.report.files.map(({ kind }) => kind),
+        generated.length === 0
+          ? ["source", "source", "source"]
+          : generated[0] === "src/**"
+            ? ["generated", "generated", "generated"]
+            : ["source", "generated", "source"],
+      );
+      assert.deepEqual(
+        result.report.files
+          .filter(({ treatment }) => treatment === "excluded")
+          .map(({ path }) => path),
+        exclude.length === 0
+          ? []
+          : exclude[0] === "src/one.ts"
+            ? ["src/one.ts"]
+            : ["src/two.ts"],
+      );
+      assert.match(result.prompt, /src\/three\.ts/);
+    }
+  }
+});
+
 test("large single lines, lockfile-only changes and metadata-only commits have bounded useful context", async () => {
   const budget = resolveContextBudget("custom", "local");
   for (const diff of [

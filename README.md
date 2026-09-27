@@ -23,7 +23,7 @@ GSmart is a CLI that turns your Git diff into an AI-generated [Conventional Comm
 
 ## Quick start
 
-You'll need **Node.js 22.12.0+**, **Git**, and either an account with one of the [supported providers](#providers) or a [local inference server](#local-inference-and-custom-endpoints). Run GSmart inside the Git repository you're working on.
+You'll need **Node.js 22.12.0+**, **Git 2.25+**, and either an account with one of the [supported providers](#providers) or a [local inference server](#local-inference-and-custom-endpoints). Run GSmart inside the Git repository you're working on.
 
 ### 1. Install
 

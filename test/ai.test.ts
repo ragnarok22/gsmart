@@ -1382,6 +1382,59 @@ test("ai utility does not export private retry detection", async () => {
 
 const noDelay = async () => {};
 
+test("zero maxRetries stops after the first failed request without backoff", async () => {
+  let attempts = 0;
+  const delays: number[] = [];
+  const retries: number[] = [];
+  const { AIBuilder } = await buildMockedAI(async () => {
+    // Bound a broken retry loop so this regression fails without hanging.
+    if (++attempts > 5) throw new Error("test request limit reached");
+    throw new Error("fetch failed");
+  });
+  const result = await new AIBuilder("openai", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      maxRetries: 0,
+      delayFn: async (ms: number) => {
+        delays.push(ms);
+      },
+      onRetry: (attempt: number) => {
+        retries.push(attempt);
+      },
+    },
+  );
+  assert.equal(attempts, 1);
+  assert.deepEqual(delays, []);
+  assert.deepEqual(retries, []);
+  assert.equal(result.code, "GENERATION");
+  assert.match(result.error, /Could not reach/);
+});
+
+test("invalid retry limits fail configuration before making a request", async () => {
+  let requests = 0;
+  const { AIBuilder } = await buildMockedAI(async () => {
+    requests++;
+    return { text: "feat: unexpected request" };
+  });
+  for (const maxRetries of [
+    -1,
+    0.5,
+    NaN,
+    Infinity,
+    Number.MAX_SAFE_INTEGER + 1,
+  ]) {
+    const result = await new AIBuilder("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+      { maxRetries },
+    );
+    assert.equal(result.code, "CONFIGURATION");
+    assert.match(result.error, /maxRetries/);
+  }
+  assert.equal(requests, 0);
+});
+
 async function buildRetryAI(
   generateTextFake: (
     opts: Record<string, unknown>,

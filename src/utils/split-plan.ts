@@ -1,10 +1,11 @@
 import { stripVTControlCharacters } from "node:util";
 import type { ContextSettings, ResolvedConventions } from "../definitions";
 import { buildCommitInstructions } from "./commit-prompt";
+import { parseCommitHeader } from "./commit-message";
 import type { ContextRequest } from "./context-budget";
 import { DEFAULT_CONVENTIONS } from "./conventions";
 import {
-  matchesContextPattern,
+  createContextMatcher,
   parseDiffFiles,
   type ContextReport,
   type DiffFile,
@@ -47,6 +48,7 @@ export function inventoryChanges(
   settings: ContextSettings = {},
 ): PlanChange[] {
   const files = parseDiffFiles(diff, settings.generated);
+  const isExcluded = createContextMatcher(settings.exclude ?? []);
   return files.flatMap((file, index) => {
     if (
       !file.patch.startsWith("diff --git ") ||
@@ -61,12 +63,9 @@ export function inventoryChanges(
       ...(file.originalPath ? { originalPath: file.originalPath } : {}),
       status: file.status,
       kind: file.kind,
-      excluded: (settings.exclude ?? []).some(
-        (pattern) =>
-          matchesContextPattern(file.path, pattern) ||
-          (file.originalPath !== undefined &&
-            matchesContextPattern(file.originalPath, pattern)),
-      ),
+      excluded:
+        isExcluded(file.path) ||
+        (file.originalPath !== undefined && isExcluded(file.originalPath)),
     };
     // Whole-file units preserve structural changes and lock/generated-file
     // integrity. Excluded files remain local, as one manual-review item each.
@@ -214,9 +213,7 @@ export function parseSplitPlan(
         "Invalid plan: each commit needs a message, change IDs, rationale, dependencies and cautions.",
       );
     if (
-      !/^[a-z][a-z0-9-]*(?:\([^()\r\n]+\))?!?: [^\s].*$/u.test(
-        entry.message.split("\n")[0],
-      ) ||
+      !parseCommitHeader(entry.message.split("\n")[0]) ||
       safeText(entry.message) !== entry.message
     )
       throw new Error(
