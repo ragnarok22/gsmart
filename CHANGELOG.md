@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-27
+
+### Added
+
+- Added non-interactive generation with `--output message` or `--output json`, stdin diff input, branch overrides, explicit `--stage` and `--commit` actions, and a bundled result schema with structured errors and exit statuses
+- Added `gsmart plan --staged` for advisory commit-split plans with change accounting, dependency ordering, and manual-review guidance
+- Added commit-message validation against repository conventions before committing, with actionable review diagnostics and structured validation errors for automation
+- Added oversized-context recovery with minimum budget recommendations and an interactive option to increase the budget for the current session
+- Added an offline commit-message evaluation corpus and developer harness, with opt-in live generation and human quality scoring
+
+### Fixed
+
+- Fixed commit-message parsing for custom and Unicode types, multiline breaking-change footers, and ticket references, preserving prose and ignoring fenced examples during trailer and ticket validation
+- Fixed inconsistent commit-plan header validation by sharing the commit-message parser
+- Fixed unbounded AI retries when the retry limit is zero or invalid
+- Fixed staging and unstaging large file selections that exceed operating-system command-line limits, preserving literal filenames through NUL-delimited stdin
+- Fixed staged submodule changes being omitted or expanded by local Git settings
+- Preserved validated message formatting when committing and retained Git hook diagnostics from both output streams
+- Fixed machine-workflow argument inspection so missing option values still produce the requested structured error output
+
+### Changed
+
+- Improved large-diff processing by compiling generated-file and exclusion patterns once per operation
+- Raised the minimum supported Git version to 2.25 for stdin pathspec support
+- Updated AI SDK packages and TypeScript ESLint tooling, upgraded pnpm to 12.6.0, and refreshed the lockfile
+
 ## [0.16.0] - 2026-09-23
 
 ### Added
@@ -534,7 +560,8 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/ragnarok22/gsmart/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/ragnarok22/gsmart/compare/v0.15.1...v0.16.0
 [0.15.1]: https://github.com/ragnarok22/gsmart/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/ragnarok22/gsmart/compare/v0.14.7...v0.15.0
