@@ -1,0 +1,20 @@
+diff --git a/.github/workflows/node18.yml b/.github/workflows/node18.yml
+deleted file mode 100644
+index 927c89b..0000000
+--- a/.github/workflows/node18.yml
++++ /dev/null
+@@ -1,14 +0,0 @@
+-name: Node 18 compatibility
+-on:
+-  schedule:
+-    - cron: '0 4 * * 1'
+-jobs:
+-  test:
+-    runs-on: ubuntu-latest
+-    steps:
+-      - uses: actions/checkout@v4
+-      - uses: actions/setup-node@v4
+-        with:
+-          node-version: 18
+-      - run: npm ci
+-      - run: npm test

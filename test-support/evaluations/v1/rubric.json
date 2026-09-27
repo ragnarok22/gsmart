@@ -1,0 +1,30 @@
+{
+  "version": "v1",
+  "dimensions": {
+    "accuracy": {
+      "0": "The central change is wrong, reversed, or contradicted by the diff.",
+      "1": "The central change is recognizable, but an important fact is misstated or omitted.",
+      "2": "Correctly conveys the material change and its impact, consistent with the case facts."
+    },
+    "specificity": {
+      "0": "Generic wording such as update code gives no useful identification of the change.",
+      "1": "Names the area or action but omits a distinguishing mechanism, behavior, or relevant secondary change.",
+      "2": "Identifies the concrete action and affected behavior or symbol; covers material mixed changes concisely."
+    },
+    "typeScope": {
+      "0": "Type or scope misrepresents the change, or violates the case's structured conventions.",
+      "1": "Broad but defensible type/scope, with a less informative choice than the evidence supports.",
+      "2": "Type and scope match the change and conventions; listed acceptable choices are guidance, not exact wording requirements."
+    },
+    "breakingChanges": {
+      "0": "Misses a real compatibility break, or invents one for a non-breaking case.",
+      "1": "Recognizes a real break but incompletely explains impact/migration or omits a required marker/footer.",
+      "2": "Accurately marks and explains the real break and migration as required, or correctly makes no breaking claim for a non-breaking case."
+    },
+    "unsupportedClaims": {
+      "0": "Makes a substantial unsupported claim, such as security remediation, speedup, or compatibility guarantees.",
+      "1": "Adds a minor unsupported inference or unjustifiably certain motivation without changing the central meaning.",
+      "2": "Every substantive claim is supported by supplied evidence; no invented motivation, outcomes, tickets, or functionality."
+    }
+  }
+}

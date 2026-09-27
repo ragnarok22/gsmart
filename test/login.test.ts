@@ -2,93 +2,289 @@ import "../test-support/setup-env";
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import esmock from "esmock";
+import { stripVTControlCharacters } from "node:util";
+import { createLoginCommand } from "../src/commands/login.ts";
+
+const activeProviders = [
+  { title: "OpenAI", value: "openai", description: "OpenAI", active: true },
+  {
+    title: "Anthropic",
+    value: "anthropic",
+    description: "Anthropic",
+    active: true,
+  },
+] as const;
+
+const createSpinner = (messages: string[]) => {
+  const spinner = {
+    start: () => spinner,
+    fail: (message: string) => {
+      messages.push(stripVTControlCharacters(message));
+      return spinner;
+    },
+    succeed: (message: string) => {
+      messages.push(stripVTControlCharacters(message));
+      return spinner;
+    },
+  };
+  return spinner;
+};
 
 test("login stores API key for selected provider", async () => {
   let storedProvider = "";
   let storedKey = "";
+  let authMode = "";
+  const messages: string[] = [];
 
-  const LoginCommand = (
-    await esmock("../src/commands/login.ts", {
-      prompts: async (opts: { name: string }) => {
-        if (opts.name === "provider") return { provider: "openai" };
-        if (opts.name === "key") return { key: "sk-test-123" };
-        return {};
+  const LoginCommand = createLoginCommand({
+    providers: [...activeProviders],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "openai" };
+      if (name === "authMethod") return { authMethod: "api-key" };
+      if (name === "key") return { key: "sk-test-123" };
+      return {};
+    },
+    config: {
+      setKey: (provider: string, key: string) => {
+        storedProvider = provider;
+        storedKey = key;
       },
-      "../src/utils/config.ts": {
-        default: {
-          setKey: (provider: string, key: string) => {
-            storedProvider = provider;
-            storedKey = key;
-          },
-        },
+      setOpenAIAuthMode: (mode: "api-key" | "oauth") => {
+        authMode = mode;
       },
-    })
-  ).default;
+      setOpenAIOAuthTokens: () => undefined,
+    },
+  });
 
   await LoginCommand.action({});
 
   assert.equal(storedProvider, "openai");
   assert.equal(storedKey, "sk-test-123");
+  assert.equal(authMode, "api-key");
+  assert.deepEqual(messages, ["API key saved successfully"]);
+});
+
+test("login offers only active providers", async () => {
+  let providerChoices: unknown;
+  const messages: string[] = [];
+
+  const LoginCommand = createLoginCommand({
+    providers: [
+      ...activeProviders,
+      {
+        title: "Inactive",
+        value: "google",
+        description: "Inactive",
+        active: false,
+      },
+    ],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async (opts: unknown) => {
+      const question = opts as { name: string; choices?: unknown };
+      if (question.name === "provider") {
+        providerChoices = question.choices;
+      }
+      return { provider: undefined };
+    },
+    config: {
+      setKey: () => undefined,
+      setOpenAIAuthMode: () => undefined,
+      setOpenAIOAuthTokens: () => undefined,
+    },
+  });
+
+  await LoginCommand.action({});
+
+  assert.deepEqual(providerChoices, [
+    { title: "OpenAI", value: "openai" },
+    { title: "Anthropic", value: "anthropic" },
+  ]);
 });
 
 test("login aborts when no provider selected", async () => {
   let setKeyCalled = false;
+  const messages: string[] = [];
 
-  const LoginCommand = (
-    await esmock("../src/commands/login.ts", {
-      prompts: async () => ({ provider: undefined }),
-      "../src/utils/config.ts": {
-        default: {
-          setKey: () => {
-            setKeyCalled = true;
-          },
-        },
+  const LoginCommand = createLoginCommand({
+    providers: [...activeProviders],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async () => ({ provider: undefined }),
+    config: {
+      setKey: () => {
+        setKeyCalled = true;
       },
-    })
-  ).default;
+      setOpenAIAuthMode: () => undefined,
+      setOpenAIOAuthTokens: () => undefined,
+    },
+  });
 
   await LoginCommand.action({});
 
   assert.equal(setKeyCalled, false);
+  assert.deepEqual(messages, ["No provider selected"]);
 });
 
 test("login aborts when no API key provided", async () => {
   let setKeyCalled = false;
+  const messages: string[] = [];
 
-  const LoginCommand = (
-    await esmock("../src/commands/login.ts", {
-      prompts: async (opts: { name: string }) => {
-        if (opts.name === "provider") return { provider: "anthropic" };
-        if (opts.name === "key") return { key: undefined };
-        return {};
+  const LoginCommand = createLoginCommand({
+    providers: [...activeProviders],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "anthropic" };
+      if (name === "key") return { key: undefined };
+      return {};
+    },
+    config: {
+      setKey: () => {
+        setKeyCalled = true;
       },
-      "../src/utils/config.ts": {
-        default: {
-          setKey: () => {
-            setKeyCalled = true;
-          },
-        },
-      },
-    })
-  ).default;
+      setOpenAIAuthMode: () => undefined,
+      setOpenAIOAuthTokens: () => undefined,
+    },
+  });
 
   await LoginCommand.action({});
 
   assert.equal(setKeyCalled, false);
+  assert.deepEqual(messages, ["No API key provided"]);
 });
 
-test("login command has correct metadata", async () => {
-  const LoginCommand = (
-    await esmock("../src/commands/login.ts", {
-      prompts: async () => ({}),
-      "../src/utils/config.ts": {
-        default: { setKey: () => {} },
-      },
-    })
-  ).default;
+test("login command has correct metadata", () => {
+  const LoginCommand = createLoginCommand();
 
   assert.equal(LoginCommand.name, "login");
   assert.equal(typeof LoginCommand.description, "string");
   assert.equal(typeof LoginCommand.action, "function");
 });
+
+test("login stores ChatGPT OAuth tokens for OpenAI", async () => {
+  let storedTokens: unknown;
+  const messages: string[] = [];
+
+  const LoginCommand = createLoginCommand({
+    providers: [...activeProviders],
+    spinner: () => createSpinner(messages) as never,
+    prompt: async (opts: unknown) => {
+      const name = (opts as { name: string }).name;
+      if (name === "provider") return { provider: "openai" };
+      if (name === "authMethod") return { authMethod: "oauth" };
+      return {};
+    },
+    loginWithOpenAIOAuth: async () => ({
+      idToken: "id-token",
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      accountId: "account-id",
+    }),
+    config: {
+      setOpenAIOAuthTokens: (tokens: unknown) => {
+        storedTokens = tokens;
+      },
+      setKey: () => undefined,
+      setOpenAIAuthMode: () => undefined,
+    },
+  });
+
+  await LoginCommand.action({});
+
+  assert.deepEqual(storedTokens, {
+    idToken: "id-token",
+    accessToken: "access-token",
+    refreshToken: "refresh-token",
+    accountId: "account-id",
+  });
+  assert.deepEqual(messages, ["ChatGPT login saved successfully"]);
+});
+
+const customSetupFailures: {
+  name: string;
+  responses: Record<string, unknown>[];
+  questions: string[];
+  failure?: unknown;
+  message: string;
+}[] = [
+  {
+    name: "an endpoint containing credentials",
+    responses: [
+      { provider: "custom" },
+      { baseURL: "https://user:secret-url-password@example.test/v1" },
+    ],
+    questions: ["provider", "baseURL"],
+    message:
+      "Endpoint must use HTTP or HTTPS without credentials, a query, or a fragment. Configure authentication separately.",
+  },
+  {
+    name: "a malformed model",
+    responses: [
+      { provider: "custom" },
+      { baseURL: "http://localhost:1234/v1" },
+      { model: "new-model\nsecret-model-data" },
+    ],
+    questions: ["provider", "baseURL", "model"],
+    message:
+      "Model must be a non-empty model ID without control characters. Use --model <model>.",
+  },
+  ...[
+    new Error("API key input failed", {
+      cause: new Error("secret-prompt-details"),
+    }),
+    "API key input failed",
+  ].map((failure) => ({
+    name: `a rejected key prompt (${failure instanceof Error ? "Error" : "string"})`,
+    responses: [
+      { provider: "custom" },
+      { baseURL: "http://localhost:1234/v1" },
+      { model: "replacement-model" },
+    ],
+    questions: ["provider", "baseURL", "model", "key"],
+    failure,
+    message: "API key input failed",
+  })),
+];
+
+for (const scenario of customSetupFailures) {
+  test(`custom login reports ${scenario.name} without changing saved settings`, async (t) => {
+    const messages: string[] = [];
+    const questions: string[] = [];
+    const write = t.mock.fn();
+    const oauthLogin = t.mock.fn(async () =>
+      assert.fail("Custom endpoint setup must not start OAuth login"),
+    );
+    const command = createLoginCommand({
+      spinner: () => createSpinner(messages) as never,
+      prompt: async (question) => {
+        assert.ok(!Array.isArray(question));
+        questions.push(String(question.name));
+        const response = scenario.responses[questions.length - 1];
+        if (!response) {
+          throw scenario.failure ?? new Error("Unexpected prompt");
+        }
+        return response;
+      },
+      loginWithOpenAIOAuth: oauthLogin,
+      config: {
+        getCustomBaseURL: () => "http://localhost:11434/v1",
+        getModel: () => "saved-model",
+        setCustomBaseURL: write,
+        setModel: write,
+        setKey: write,
+        clearKey: write,
+        setOpenAIAuthMode: write,
+        setOpenAIOAuthTokens: write,
+      },
+    });
+
+    await command.action({});
+
+    assert.deepEqual(questions, scenario.questions);
+    assert.equal(write.mock.callCount(), 0, "preserve all existing settings");
+    assert.equal(oauthLogin.mock.callCount(), 0);
+    assert.deepEqual(messages, [scenario.message]);
+    assert.doesNotMatch(messages.join("\n"), /secret-/);
+  });
+}

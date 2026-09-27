@@ -1,0 +1,33 @@
+diff --git a/package.json b/package.json
+index 9f7c293..e1b28fa 100644
+--- a/package.json
++++ b/package.json
+@@ -2,5 +2,5 @@
+   "name": "config-reader",
+   "dependencies": {
+-    "yaml": "2.5.0"
++    "yaml": "2.6.1"
+   }
+ }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index e2f0b11..a2b4b3c 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -4,13 +4,13 @@ importers:
+   .:
+     dependencies:
+       yaml:
+-        specifier: 2.5.0
+-        version: 2.5.0
++        specifier: 2.6.1
++        version: 2.6.1
+ 
+ packages:
+-  yaml@2.5.0:
++  yaml@2.6.1:
+     engines: {node: '>= 14'}
+     hasBin: true
+ 
+ snapshots:
+-  yaml@2.5.0: {}
++  yaml@2.6.1: {}

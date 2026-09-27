@@ -1,9 +1,15 @@
 import Conf from "conf";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync } from "node:fs";
 import path from "node:path";
 import { Provider, ProviderKeys } from "../definitions";
-import { providers } from "./providers";
+import {
+  providers,
+  validateProvider,
+  validateModel,
+  validateBaseURL,
+} from "./providers";
 import { debugLog } from "./debug";
+import { OpenAIOAuthTokens } from "./openai-oauth";
 
 const MIN_KEY_LENGTH = 10;
 
@@ -35,27 +41,102 @@ export function validateApiKey(provider: Provider, key: string): string | null {
   return null;
 }
 
-const resolveConfigDirectory = (): string | undefined => {
-  const override = process.env.GSMART_CONFIG_DIR;
-  if (!override) {
-    return undefined;
-  }
+const createConfigStore = (): Conf => {
+  const originalUmask = process.umask();
+  try {
+    // Conf creates directories synchronously, including its platform-default path.
+    // Restrict only newly created directories; existing directories keep their mode.
+    process.umask(originalUmask | 0o077);
+    const override = process.env.GSMART_CONFIG_DIR;
+    const store = new Conf({
+      projectName: "gsmart",
+      configFileMode: 0o600,
+      ...(override ? { cwd: path.resolve(override) } : {}),
+    });
 
-  if (!existsSync(override)) {
-    mkdirSync(override, { recursive: true });
+    // configFileMode applies to writes, so also protect credentials on read-only startup.
+    if (existsSync(store.path)) chmodSync(store.path, 0o600);
+    return store;
+  } finally {
+    process.umask(originalUmask);
   }
-
-  return path.resolve(override);
 };
 
-const configDirectory = resolveConfigDirectory();
+const conf = createConfigStore();
 
-const conf = new Conf({
-  projectName: "gsmart",
-  ...(configDirectory ? { cwd: configDirectory } : {}),
-});
+const completeOAuthTokens = (
+  tokens: OpenAIOAuthTokens | null | undefined,
+): OpenAIOAuthTokens | null =>
+  tokens?.accessToken && tokens.refreshToken && tokens.idToken ? tokens : null;
 
 class Config {
+  /** A fresh, read-only provider view for one operation; never cached. */
+  getProviderSnapshot() {
+    debugLog("config", "read provider preferences snapshot");
+    const values = conf.store as Partial<
+      Record<Provider, { key?: string; model?: string }>
+    > & {
+      defaultProvider?: string;
+      custom?: { baseURL?: string };
+      openai?: {
+        authMode?: "api-key" | "oauth";
+        oauth?: OpenAIOAuthTokens;
+      };
+    };
+
+    return {
+      getDefaultProvider: (): Provider | undefined =>
+        values.defaultProvider
+          ? validateProvider(values.defaultProvider)
+          : undefined,
+      getModel: (provider: Provider): string => values[provider]?.model ?? "",
+      getKey: (provider: Provider): string => values[provider]?.key ?? "",
+      getCustomBaseURL: (): string => values.custom?.baseURL ?? "",
+      getOpenAIAuthMode: (): "api-key" | "oauth" =>
+        values.openai?.authMode ?? "api-key",
+      getOpenAIOAuthTokens: (): OpenAIOAuthTokens | null =>
+        completeOAuthTokens(values.openai?.oauth),
+    };
+  }
+
+  setDefaultProvider(provider: Provider): void {
+    this.__set("defaultProvider", validateProvider(provider));
+  }
+
+  getDefaultProvider(): Provider | undefined {
+    const value = this.__get("defaultProvider");
+    return value ? validateProvider(value) : undefined;
+  }
+
+  clearDefaultProvider(): void {
+    this.__delete("defaultProvider");
+  }
+
+  setModel(provider: Provider, model: string): void {
+    this.__set(`${validateProvider(provider)}.model`, validateModel(model));
+  }
+
+  getModel(provider: Provider): string {
+    return this.__get(`${provider}.model`);
+  }
+
+  clearModel(provider: Provider): void {
+    this.__delete(`${validateProvider(provider)}.model`);
+  }
+
+  setCustomBaseURL(baseURL: string): void {
+    this.__set("custom.baseURL", validateBaseURL(baseURL));
+  }
+
+  getCustomBaseURL(): string {
+    return this.__get("custom.baseURL");
+  }
+
+  clearCustomEndpoint(): void {
+    this.__delete("custom");
+    if (this.getDefaultProvider() === "custom") this.clearDefaultProvider();
+  }
+
   /**
    * Set the API key for the specified provider in the config
    * @param provider - The provider to set the key for
@@ -84,6 +165,28 @@ class Config {
     return this.__delete(`${provider}.key`);
   }
 
+  setOpenAIOAuthTokens(tokens: OpenAIOAuthTokens): void {
+    this.__set("openai.oauth", tokens);
+    this.__set("openai.authMode", "oauth");
+  }
+
+  getOpenAIOAuthTokens(): OpenAIOAuthTokens | null {
+    const tokens = conf.get("openai.oauth", null) as OpenAIOAuthTokens | null;
+    return completeOAuthTokens(tokens);
+  }
+
+  clearOpenAIOAuthTokens(): void {
+    this.__delete("openai.oauth");
+  }
+
+  setOpenAIAuthMode(mode: "api-key" | "oauth"): void {
+    this.__set("openai.authMode", mode);
+  }
+
+  getOpenAIAuthMode(): "api-key" | "oauth" {
+    return conf.get("openai.authMode", "api-key") as "api-key" | "oauth";
+  }
+
   /**
    * Get all the API keys from the config
    * @returns - All the API keys
@@ -107,6 +210,14 @@ class Config {
 
   clearPrompt(): void {
     return this.__delete("defaultPrompt");
+  }
+
+  getWelcomeShown(): boolean {
+    return (conf.get("welcomeShown", false) as boolean) ?? false;
+  }
+
+  setWelcomeShown(val: boolean): void {
+    this.__set("welcomeShown", val);
   }
 
   private __get(key: string): string {

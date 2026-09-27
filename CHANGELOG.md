@@ -7,6 +7,198 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-09-27
+
+### Added
+
+- Added non-interactive generation with `--output message` or `--output json`, stdin diff input, branch overrides, explicit `--stage` and `--commit` actions, and a bundled result schema with structured errors and exit statuses
+- Added `gsmart plan --staged` for advisory commit-split plans with change accounting, dependency ordering, and manual-review guidance
+- Added commit-message validation against repository conventions before committing, with actionable review diagnostics and structured validation errors for automation
+- Added oversized-context recovery with minimum budget recommendations and an interactive option to increase the budget for the current session
+- Added an offline commit-message evaluation corpus and developer harness, with opt-in live generation and human quality scoring
+
+### Fixed
+
+- Fixed commit-message parsing for custom and Unicode types, multiline breaking-change footers, and ticket references, preserving prose and ignoring fenced examples during trailer and ticket validation
+- Fixed inconsistent commit-plan header validation by sharing the commit-message parser
+- Fixed unbounded AI retries when the retry limit is zero or invalid
+- Fixed staging and unstaging large file selections that exceed operating-system command-line limits, preserving literal filenames through NUL-delimited stdin
+- Fixed staged submodule changes being omitted or expanded by local Git settings
+- Preserved validated message formatting when committing and retained Git hook diagnostics from both output streams
+- Fixed machine-workflow argument inspection so missing option values still produce the requested structured error output
+
+### Changed
+
+- Improved large-diff processing by compiling generated-file and exclusion patterns once per operation
+- Raised the minimum supported Git version to 2.25 for stdin pathspec support
+- Updated AI SDK packages and TypeScript ESLint tooling, upgraded pnpm to 12.6.0, and refreshed the lockfile
+
+## [0.16.0] - 2026-09-23
+
+### Added
+
+- Added editable commit message candidates, feedback-driven regeneration, and candidate history with preview and restore
+- Added staged-content checks before committing, with an option to regenerate outdated messages during review
+- Added shared repository conventions through `.gsmartrc.json`, a bundled JSON Schema, compatible commitlint rule imports, and `config --show-effective`
+- Added output language selection and opt-in recent commit subjects as style examples through `--language` and `--history-examples`
+- Added saved default providers, per-provider model preferences, and a per-run `--model` override
+- Added custom OpenAI-compatible endpoints with optional authentication, including local inference with Ollama and LM Studio
+- Added model-aware request budgets, local reduction of large diffs, context exclusions, opt-in AI summarization, and per-file reporting through `--show-context`
+
+### Fixed
+
+- Fixed update notifications recommending npm instead of pnpm when a global installation resolves to the pnpm store
+- Fixed Bash, Zsh, and Fish completions for `gsmart` without an explicit `generate` subcommand, including provider values, chained options, and `config`
+- Kept welcome and update messages out of generated shell completion scripts, including on first run
+- Fixed duplicated Zsh options and detached descriptions when completing `gsmart -` with multiple matchers, including Oh My Zsh's defaults
+- Fixed generation and commit failures returning a successful exit status; failed commits now show Git diagnostics and preserve the generated message for recovery
+- Fixed Git path handling for filenames with spaces and special characters, including staging, dry-run cleanup, and large-diff context reduction
+- Restricted credential files to owner-only permissions on macOS/Linux, including existing files when GSmart starts
+- Fixed ChatGPT OAuth browser-launch failures so login can continue using the printed authorization URL
+- Fixed cancellation and shutdown handling during review, including waiting for editor cleanup before exiting on SIGTERM
+
+### Changed
+
+- Made `gsmart` the primary generation command, with generation options in `gsmart --help`; retained `gsmart generate` as a hidden compatibility alias
+- Raised the minimum supported Node.js version to 22.12.0 for commitlint compatibility
+- Moved provider, model, repository configuration, and context-budget validation ahead of file selection and auto-staging
+- Streamed staged-index fingerprinting and staged-diff capture to support large repositories and avoid redundant Git reads
+- Expanded documentation with review workflows, repository configuration, provider defaults, local endpoints, and large-diff guidance
+
+## [0.15.1] - 2026-09-21
+
+### Changed
+
+- Updated AI SDK packages for Anthropic, Google, Mistral, and OpenAI, along with the core AI SDK
+- Updated development tooling, including ESLint, globals, tsx, and typescript-eslint
+- Upgraded pnpm to 12.5.1 and refreshed the lockfile
+
+## [0.15.0] - 2026-08-17
+
+### Changed
+
+- Upgraded Chalk to v6 and updated the AI SDK packages for all supported providers
+- Updated development tooling, upgraded pnpm to 11.22.0, and refreshed the lockfile
+
+## [0.14.7] - 2026-07-24
+
+### Fixed
+
+- Fixed OpenAI ChatGPT subscription requests by routing OAuth traffic through the Codex backend and replacing the unavailable GPT-5 Codex model
+
+### Changed
+
+- Updated the default OpenAI, Anthropic, Google, and Fireworks models to active, supported alternatives
+- Updated AI SDK packages, runtime dependencies, development tooling, and the pnpm lockfile
+
+## [0.14.6] - 2026-06-29
+
+### Changed
+
+- Updated AI SDK packages to the latest v4 provider generation and `ai` v7
+- Raised the runtime requirement to Node.js 22 for compatibility with the updated AI SDK packages
+- Updated runtime and development dependencies and refreshed the pnpm lockfile
+
+## [0.14.5] - 2026-06-12
+
+### Fixed
+
+- Fixed React Doctor-reported performance and maintainability issues in command, AI retry, Git, and OpenAI OAuth flows
+
+## [0.14.4] - 2026-06-02
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.78→3.0.81, @ai-sdk/google 3.0.78→3.0.80, @ai-sdk/openai 3.0.64→3.0.67, ai 6.0.189→6.0.193)
+- Updated development tooling (eslint 10.4.0→10.4.1, esmock 2.7.5→2.7.6, tsx 4.22.3→4.22.4, typescript-eslint 8.59.4→8.60.0)
+- Upgraded pnpm package manager metadata to 11.5.1 and refreshed the lockfile
+
+## [0.14.3] - 2026-05-22
+
+### Fixed
+
+- Fixed OpenAI ChatGPT OAuth logins being treated as unconfigured when generating commit messages without an API key
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/google 3.0.75→3.0.78, ai 6.0.184→6.0.189)
+- Updated development tooling (tsx 4.22.1→4.22.3, typescript-eslint 8.59.3→8.59.4)
+- Upgraded pnpm package manager metadata to 11.2.2 and refreshed the lockfile
+
+## [0.14.2] - 2026-05-18
+
+### Added
+
+- Added ChatGPT OAuth login support for OpenAI accounts
+- Added pnpm-aware update instructions when GSmart is installed with pnpm
+
+### Fixed
+
+- Fixed command prompt handling for typed responses across login, config, reset, and generate flows
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.76→3.0.78, @ai-sdk/google 3.0.71→3.0.75, @ai-sdk/mistral 3.0.36→3.0.37, @ai-sdk/openai 3.0.63→3.0.64, ai 6.0.177→6.0.184)
+- Updated development tooling (eslint 10.3.0→10.4.0, tsx 4.21.0→4.22.1, typescript-eslint 8.59.2→8.59.3)
+- Expanded CI Node.js coverage and test coverage for OpenAI OAuth, completions, config, and version-check flows
+- Upgraded pnpm package manager metadata to 11.1.2 and refreshed the lockfile
+- Improved the first-run welcome message with quick-start steps for configuring an AI provider, staging files, and generating a commit message
+
+## [0.14.1] - 2026-05-12
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.74→3.0.76, @ai-sdk/google 3.0.67→3.0.71, @ai-sdk/mistral 3.0.34→3.0.36, ai 6.0.175→6.0.177)
+- Updated development tooling (esmock 2.7.4→2.7.5)
+- Upgraded pnpm package manager metadata to 11.1.1 and refreshed workspace configuration
+- Pinned CI Node.js matrix versions and corrected the Codecov condition
+- Normalized config command console output assertions
+
+## [0.14.0] - 2026-05-05
+
+### Added
+
+- Added interactive config command coverage for custom prompt flows and cancellation paths
+- Added contributors and star history sections to the README
+
+### Fixed
+
+- Guarded config prompt raw-mode setup so config commands no longer crash in non-TTY environments
+
+### Changed
+
+- Updated AI SDK and runtime dependency ranges (@ai-sdk/anthropic 3.0.66→3.0.74, @ai-sdk/google 3.0.58→3.0.67, @ai-sdk/mistral 3.0.28→3.0.34, @ai-sdk/openai 3.0.50→3.0.60, ai 6.0.146→6.0.175, ora 9.3.0→9.4.0)
+- Updated development tooling (eslint 10.2.0→10.3.0, esmock 2.7.3→2.7.4, globals 17.4.0→17.6.0, prettier 3.8.1→3.8.3, typescript 6.0.2→6.0.3, typescript-eslint 8.58.0→8.59.2)
+- Updated package manager metadata from pnpm 10.33.0 to 10.33.3
+- Refreshed the pnpm lockfile with dependency updates
+
+## [0.13.2] - 2026-04-13
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.63→3.0.69, @ai-sdk/google 3.0.52→3.0.62, @ai-sdk/mistral 3.0.27→3.0.30, ai 6.0.116→6.0.146)
+- Updated development tooling (eslint 10.0.3→10.2.0, typescript-eslint 8.54.0→8.58.1, globals 17.3.0→17.5.0)
+- Updated CI workflows (Codecov action to v6, pnpm action to v5)
+- Skipped format check for Dependabot runs in CI
+- Regenerated pnpm lockfile
+
+## [0.13.1] - 2026-03-26
+
+### Fixed
+
+- Show shell completion instructions on first run instead of postinstall
+- Fallback to default timeout when `GSMART_TIMEOUT` env var contains an invalid value
+- Stop staging original file paths for renamed files
+
+### Changed
+
+- Updated AI SDK packages (@ai-sdk/anthropic 3.0.58→3.0.63, @ai-sdk/google 3.0.43→3.0.52, @ai-sdk/mistral 3.0.24→3.0.27)
+- Updated AI SDK dependencies and adjusted tsconfig paths
+- Updated development tooling (@eslint/json 1.1.0→1.2.0)
+- Bumped picomatch and flatted in the npm_and_yarn group
+- Refreshed project structure overview in README
+- Added test coverage for auto-staging unstaged renames
+
 ## [0.13.0] - 2026-03-15
 
 ### Added
@@ -368,7 +560,21 @@ GSmart is built with modern technologies:
 - AI SDK for provider integrations
 - Various utilities for enhanced UX
 
-[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/ragnarok22/gsmart/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/ragnarok22/gsmart/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/ragnarok22/gsmart/compare/v0.15.1...v0.16.0
+[0.15.1]: https://github.com/ragnarok22/gsmart/compare/v0.15.0...v0.15.1
+[0.15.0]: https://github.com/ragnarok22/gsmart/compare/v0.14.7...v0.15.0
+[0.14.7]: https://github.com/ragnarok22/gsmart/compare/v0.14.6...v0.14.7
+[0.14.6]: https://github.com/ragnarok22/gsmart/compare/v0.14.5...v0.14.6
+[0.14.5]: https://github.com/ragnarok22/gsmart/compare/v0.14.4...v0.14.5
+[0.14.4]: https://github.com/ragnarok22/gsmart/compare/v0.14.3...v0.14.4
+[0.14.3]: https://github.com/ragnarok22/gsmart/compare/v0.14.2...v0.14.3
+[0.14.2]: https://github.com/ragnarok22/gsmart/compare/v0.14.1...v0.14.2
+[0.14.1]: https://github.com/ragnarok22/gsmart/compare/v0.14.0...v0.14.1
+[0.14.0]: https://github.com/ragnarok22/gsmart/compare/v0.13.2...v0.14.0
+[0.13.2]: https://github.com/ragnarok22/gsmart/compare/v0.13.1...v0.13.2
+[0.13.1]: https://github.com/ragnarok22/gsmart/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/ragnarok22/gsmart/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/ragnarok22/gsmart/compare/v0.11.3...v0.12.0
 [0.11.3]: https://github.com/ragnarok22/gsmart/compare/v0.11.2...v0.11.3

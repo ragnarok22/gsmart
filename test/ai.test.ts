@@ -8,6 +8,7 @@ import {
   DEFAULT_MAX_RETRIES,
 } from "../src/utils/constants.ts";
 import type { Provider } from "../src/definitions.ts";
+import { resolveConventions } from "../src/utils/conventions.ts";
 
 // ---------------------------------------------------------------------------
 // Helper: create an esmock'd AIBuilder with a fake generateText and config
@@ -29,7 +30,7 @@ async function buildMockedAI(
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -110,6 +111,46 @@ test("generateCommitMessage falls back to default timeout for zero GSMART_TIMEOU
   }
 });
 
+test("generateCommitMessage falls back to default timeout for negative GSMART_TIMEOUT", async () => {
+  const originalTimeout = process.env.GSMART_TIMEOUT;
+  process.env.GSMART_TIMEOUT = "-5000";
+
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff content");
+
+  assert.deepStrictEqual(capturedOptions().timeout, {
+    totalMs: DEFAULT_TIMEOUT_MS,
+  });
+
+  if (originalTimeout === undefined) {
+    delete process.env.GSMART_TIMEOUT;
+  } else {
+    process.env.GSMART_TIMEOUT = originalTimeout;
+  }
+});
+
+test("generateCommitMessage falls back to default timeout for Infinity GSMART_TIMEOUT", async () => {
+  const originalTimeout = process.env.GSMART_TIMEOUT;
+  process.env.GSMART_TIMEOUT = "Infinity";
+
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff content");
+
+  assert.deepStrictEqual(capturedOptions().timeout, {
+    totalMs: DEFAULT_TIMEOUT_MS,
+  });
+
+  if (originalTimeout === undefined) {
+    delete process.env.GSMART_TIMEOUT;
+  } else {
+    process.env.GSMART_TIMEOUT = originalTimeout;
+  }
+});
+
 // ===========================================================================
 // Return type contract: string | {error: string}
 // ===========================================================================
@@ -136,7 +177,7 @@ test("generateCommitMessage returns {error} on timeout", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -159,7 +200,7 @@ test("generateCommitMessage returns {error} on generic failure", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -185,7 +226,7 @@ test("error includes provider name in message", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "bad-key" },
+      default: { getKey: () => "bad-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -207,7 +248,7 @@ test("handles non-Error thrown values gracefully", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -231,7 +272,7 @@ test("handles Error with empty message", async () => {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -253,12 +294,12 @@ test("handles Error with empty message", async () => {
 
 test("each provider creates the correct model", async () => {
   const providerModels: Record<string, { model: string; baseURL?: string }> = {
-    openai: { model: "gpt-5-codex" },
-    anthropic: { model: "claude-3-5-haiku-latest" },
-    google: { model: "gemini-2.0-flash" },
+    openai: { model: "gpt-5.6-luna" },
+    anthropic: { model: "claude-haiku-4-5-20251001" },
+    google: { model: "gemini-3.5-flash-lite" },
     mistral: { model: "mistral-large-latest" },
     fireworks: {
-      model: "accounts/fireworks/models/firefunction-v1",
+      model: "accounts/fireworks/models/deepseek-v4-flash",
       baseURL: "https://api.fireworks.ai/inference/v1",
     },
     plataformia: {
@@ -270,15 +311,17 @@ test("each provider creates the correct model", async () => {
   for (const [provider, expected] of Object.entries(providerModels)) {
     let capturedModelId = "";
     let capturedBaseURL: string | undefined;
+    let savedModel = "";
 
     const createFake =
       (isOpenAICompat: boolean) =>
       (opts: { apiKey?: string; baseURL?: string }) => {
         if (isOpenAICompat) capturedBaseURL = opts.baseURL;
-        return (modelId: string) => {
+        const model = (modelId: string) => {
           capturedModelId = modelId;
           return { modelId };
         };
+        return Object.assign(model, { chat: model, responses: model });
       };
 
     const { AIBuilder } = await esmock("../src/utils/ai.ts", {
@@ -290,7 +333,7 @@ test("each provider creates the correct model", async () => {
         generateText: async () => ({ text: "feat: test" }),
       },
       "../src/utils/config.ts": {
-        default: { getKey: () => "fake-key" },
+        default: { getKey: () => "fake-key", getModel: () => savedModel },
         validateApiKey: () => null,
       },
     });
@@ -311,8 +354,132 @@ test("each provider creates the correct model", async () => {
         `${provider} should use baseURL ${expected.baseURL}`,
       );
     }
+    savedModel = `${provider}-saved-model`;
+    await builder.generateCommitMessage("main", "diff");
+    assert.equal(capturedModelId, savedModel);
+    await builder.generateCommitMessage("main", "diff", {
+      model: "invocation-model",
+    });
+    assert.equal(capturedModelId, "invocation-model");
   }
 });
+
+test("OpenAI can authenticate with ChatGPT OAuth tokens", async () => {
+  let capturedOptions: Record<string, unknown> = {};
+  let capturedModelId = "";
+  let response = "feat: oauth";
+
+  const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+    "@ai-sdk/openai": {
+      createOpenAI: (opts: Record<string, unknown>) => {
+        capturedOptions = opts;
+        const model = (modelId: string) => {
+          capturedModelId = modelId;
+          return { modelId };
+        };
+        return { responses: model };
+      },
+    },
+    ai: {
+      streamText: () => ({
+        fullStream: (async function* () {
+          yield { type: "text-delta", text: response };
+          yield { type: "raw", rawValue: { type: "response.completed" } };
+          yield { type: "finish", finishReason: "stop" };
+        })(),
+      }),
+    },
+    "../src/utils/openai-oauth.ts": {
+      ensureFreshOpenAIOAuthTokens: async (tokens: unknown) => tokens,
+    },
+    "../src/utils/config.ts": {
+      default: {
+        getKey: () => "",
+        getModel: () => "",
+        getOpenAIAuthMode: () => "oauth",
+        getOpenAIOAuthTokens: () => ({
+          idToken: "id-token",
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          accountId: "account-id",
+          expiresAt: Date.now() + 60_000,
+        }),
+        setOpenAIOAuthTokens: () => {},
+      },
+      validateApiKey: () => {
+        throw new Error("API key validation should not run for OAuth");
+      },
+    },
+  });
+
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff");
+
+  assert.equal(result, "feat: oauth");
+  assert.equal(capturedOptions.apiKey, "access-token");
+  assert.equal(
+    capturedOptions.baseURL,
+    "https://chatgpt.com/backend-api/codex",
+  );
+  assert.deepEqual(capturedOptions.headers, {
+    "ChatGPT-Account-ID": "account-id",
+    originator: "gsmart_cli",
+  });
+  assert.equal(capturedModelId, "gpt-5-codex");
+  // Completed malformed candidates must reach the shared review validator so
+  // users can edit them, just like completed non-streaming responses.
+  for (response of ["", "   ", "```\nfeat: oauth\n```"])
+    assert.equal(await builder.generateCommitMessage("main", "diff"), response);
+});
+
+for (const scenario of ["missing", "expired"] as const) {
+  test(`OpenAI OAuth ${scenario} credentials stop generation with login instructions`, async () => {
+    let generationCalls = 0;
+    let refreshCalls = 0;
+    const { AIBuilder } = await esmock("../src/utils/ai.ts", {
+      ai: {
+        generateText: async () => {
+          generationCalls++;
+          return { text: "unexpected message" };
+        },
+      },
+      "../src/utils/openai-oauth.ts": {
+        ensureFreshOpenAIOAuthTokens: async () => {
+          refreshCalls++;
+          throw new Error("Refresh token expired");
+        },
+      },
+      "../src/utils/config.ts": {
+        default: {
+          getOpenAIAuthMode: () => "oauth",
+          getOpenAIOAuthTokens: () =>
+            scenario === "missing"
+              ? null
+              : {
+                  idToken: "id-token",
+                  accessToken: "expired-access-token",
+                  refreshToken: "expired-refresh-token",
+                },
+        },
+        validateApiKey: () =>
+          assert.fail("OAuth must not fall back to API-key validation"),
+      },
+    });
+    const result = await new AIBuilder("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+    );
+    assert.deepEqual(result, {
+      code: "AUTHENTICATION",
+      error:
+        scenario === "missing"
+          ? "openai - ChatGPT login is not configured. Run `gsmart login` and choose ChatGPT subscription."
+          : "openai - ChatGPT login expired. Run `gsmart login` and choose ChatGPT subscription again.",
+    });
+    assert.equal(generationCalls, 0);
+    assert.equal(refreshCalls, scenario === "missing" ? 0 : 1);
+  });
+}
 
 test("invalid provider throws an error", async () => {
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
@@ -320,13 +487,13 @@ test("invalid provider throws an error", async () => {
       generateText: async () => ({ text: "feat: test" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
 
   const builder = new AIBuilder("invalid-provider" as Provider, "");
-  assert.throws(() => builder.generateCommitMessage("main", "diff"), {
+  await assert.rejects(() => builder.generateCommitMessage("main", "diff"), {
     message: "Invalid provider",
   });
 });
@@ -358,6 +525,125 @@ test("appends custom prompt as additional instructions", async () => {
   assert.ok(prompt.includes("Keep it under 50 characters"));
 });
 
+test("refinement includes the previous multiline message, feedback, diff, and custom instructions", async () => {
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+  const builder = new AIBuilder("openai", "Mention the ticket number");
+  const previousMessage =
+    "feat(db): add accounts\n\nCreate the accounts table.";
+  await builder.generateCommitMessage(
+    "feature/migration",
+    "+ migration changes",
+    {
+      refinement: {
+        previousMessage,
+        feedback: "shorter; mention the migration",
+      },
+    },
+  );
+  const prompt = capturedOptions().prompt as string;
+  for (const text of [
+    previousMessage,
+    "shorter; mention the migration",
+    "feature/migration",
+    "+ migration changes",
+    "Mention the ticket number",
+  ]) {
+    assert.ok(prompt.includes(text), `Missing prompt context: ${text}`);
+  }
+});
+
+test("blank refinement feedback requests an alternative without leaking context into later calls", async () => {
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+  const builder = new AIBuilder("openai", "");
+  await builder.generateCommitMessage("main", "diff", {
+    refinement: { previousMessage: "feat: previous candidate", feedback: "" },
+  });
+  assert.match(capturedOptions().prompt as string, /alternative/i);
+  await builder.generateCommitMessage("main", "fresh diff");
+  assert.ok(
+    !(capturedOptions().prompt as string).includes("previous candidate"),
+  );
+});
+
+test("explicit cancellation is forwarded to the SDK and is not retried as a timeout", async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+  const { AIBuilder } = await buildMockedAI(async (options) => {
+    attempts++;
+    assert.equal(options.abortSignal, controller.signal);
+    controller.abort();
+    throw new DOMException("Canceled", "AbortError");
+  });
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    abortSignal: controller.signal,
+    delayFn: async () => assert.fail("Canceled requests must not retry"),
+  });
+  assert.deepEqual(result, { error: "Generation canceled." });
+  assert.equal(attempts, 1);
+});
+
+test("cancellation during retry backoff prevents further AI requests", async () => {
+  const controller = new AbortController();
+  let attempts = 0;
+  const { AIBuilder } = await buildMockedAI(async () => {
+    attempts++;
+    throw new Error("fetch failed");
+  });
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    abortSignal: controller.signal,
+    delayFn: async () => {
+      controller.abort();
+    },
+  });
+  assert.deepEqual(result, { error: "Generation canceled." });
+  assert.equal(attempts, 1);
+});
+
+test("a pre-canceled generation does not make an AI request", async () => {
+  const { AIBuilder } = await buildMockedAI(async () =>
+    assert.fail("Unexpected AI request"),
+  );
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    abortSignal: AbortSignal.abort(),
+  });
+  assert.deepEqual(result, { error: "Generation canceled." });
+});
+
+test("cancellation interrupts the default retry delay", async () => {
+  let attempts = 0;
+  const controller = new AbortController();
+  const { AIBuilder } = await buildMockedAI(async () => {
+    attempts++;
+    throw new Error("fetch failed");
+  });
+  const builder = new AIBuilder("openai", "");
+  const result = await builder.generateCommitMessage("main", "diff", {
+    abortSignal: controller.signal,
+    onRetry: () => controller.abort(),
+  });
+  assert.deepEqual(result, { error: "Generation canceled." });
+  assert.equal(attempts, 1);
+});
+
+test("a response arriving after cancellation is discarded rather than accepted", async () => {
+  const controller = new AbortController();
+  const { AIBuilder } = await buildMockedAI(async () => {
+    controller.abort();
+    return { text: "feat: late response" };
+  });
+  const result = await new AIBuilder("openai", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      abortSignal: controller.signal,
+    },
+  );
+  assert.deepEqual(result, { error: "Generation canceled." });
+});
+
 test("system prompt contains conventional commits instruction", async () => {
   const { AIBuilder, capturedOptions } = await buildMockedAI();
 
@@ -382,6 +668,49 @@ test("prompt includes branch name and changes", async () => {
 // ===========================================================================
 // Constructor and changeProvider
 // ===========================================================================
+
+test("resolved conventions and history reach the SDK for generation and refinement", async () => {
+  const { AIBuilder, capturedOptions } = await buildMockedAI();
+  const builder = new AIBuilder("openai", "Obsolete user prompt");
+  const { conventions } = resolveConventions([
+    {
+      source: "repository",
+      settings: {
+        types: ["improve"],
+        scopes: ["engine"],
+        language: "pt-BR",
+        instructions: "Team instructions",
+        headerMaxLength: 70,
+        body: { presence: "forbidden" },
+        history: { enabled: true },
+      },
+    },
+  ]);
+  for (const refinement of [
+    undefined,
+    { previousMessage: "improve(engine): old message", feedback: "shorter" },
+  ]) {
+    await builder.generateCommitMessage("feature/APP-1", "+ changes", {
+      conventions,
+      historyExamples: ["improve(engine): example style"],
+      refinement,
+    });
+    const system = capturedOptions().system as string;
+    const prompt = capturedOptions().prompt as string;
+    assert.match(system, /Allowed types: improve/);
+    assert.match(system, /Allowed scopes: engine/);
+    assert.match(system, /language pt-BR/);
+    assert.match(system, /at most 70/);
+    assert.match(system, /body is forbidden/);
+    assert.match(prompt, /Team instructions/);
+    assert.match(prompt, /improve\(engine\): example style/);
+    assert.doesNotMatch(
+      prompt,
+      /Obsolete user prompt|A multiline body is allowed/,
+    );
+    if (refinement) assert.match(prompt, /shorter/);
+  }
+});
 
 test("constructor sets provider and prompt", async () => {
   const { AIBuilder } = await buildMockedAI();
@@ -412,10 +741,11 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
   let capturedModelId = "";
 
   const createFake = () => () => {
-    return (modelId: string) => {
+    const model = (modelId: string) => {
       capturedModelId = modelId;
       return { modelId };
     };
+    return Object.assign(model, { chat: model, responses: model });
   };
 
   const { AIBuilder } = await esmock("../src/utils/ai.ts", {
@@ -427,18 +757,18 @@ test("changeProvider affects subsequent generateCommitMessage calls", async () =
       generateText: async () => ({ text: "feat: test" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
 
   const builder = new AIBuilder("openai", "");
   await builder.generateCommitMessage("main", "diff");
-  assert.equal(capturedModelId, "gpt-5-codex");
+  assert.equal(capturedModelId, "gpt-5.6-luna");
 
   builder.changeProvider("google");
   await builder.generateCommitMessage("main", "diff");
-  assert.equal(capturedModelId, "gemini-2.0-flash");
+  assert.equal(capturedModelId, "gemini-3.5-flash-lite");
 });
 
 // ===========================================================================
@@ -509,7 +839,7 @@ test("generateCommitMessage proceeds when API key is valid", async () => {
       generateText: async () => ({ text: "feat: valid key" }),
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "sk-1234567890abcdef" },
+      default: { getKey: () => "sk-1234567890abcdef", getModel: () => "" },
       validateApiKey: (await import("../src/utils/config.ts")).validateApiKey,
     },
   });
@@ -534,6 +864,7 @@ test("passes correct provider to config.getKey", async () => {
     },
     "../src/utils/config.ts": {
       default: {
+        getModel: () => "",
         getKey: (provider: string) => {
           capturedProvider = provider;
           return "fake-key";
@@ -563,7 +894,7 @@ async function buildMockedAIWithError(errorFactory: () => unknown) {
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -1034,242 +1365,15 @@ test("returns generic error for non-network plain Error", async () => {
 // Retryable error detection
 // ===========================================================================
 
-async function getIsRetryableError() {
+test("ai utility does not export private retry detection", async () => {
   const mod = await esmock("../src/utils/ai.ts", {
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
-  return mod.isRetryableError as (error: unknown) => boolean;
-}
 
-test("isRetryableError returns true for AbortError", async () => {
-  const isRetryableError = await getIsRetryableError();
-  const err = new Error("The operation was aborted.");
-  err.name = "AbortError";
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError with status 429", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Too Many Requests",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 429,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError with status 500", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Internal Server Error",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 500,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError with status 502", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Bad Gateway",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 502,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError with status 503", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Service Unavailable",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 503,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError without status and fetch failed", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "fetch failed",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: undefined as unknown as number,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for APICallError without status and ECONNREFUSED", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "connect ECONNREFUSED 127.0.0.1:443",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: undefined as unknown as number,
-  });
-  assert.equal(isRetryableError(err), true);
-});
-
-test("isRetryableError returns true for TypeError with network keyword", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError(new TypeError("fetch failed")), true);
-});
-
-test("isRetryableError returns false for non-network TypeError", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(
-    isRetryableError(new TypeError("Expected string but received object")),
-    false,
-  );
-  assert.equal(
-    isRetryableError(
-      new TypeError("Cannot read properties of undefined (reading 'foo')"),
-    ),
-    false,
-  );
-});
-
-test("isRetryableError returns false for TypeError with empty message", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError(new TypeError("")), false);
-  assert.equal(isRetryableError(new TypeError()), false);
-});
-
-test("isRetryableError returns true for plain Error with network keyword", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(
-    isRetryableError(new Error("connect ECONNREFUSED 127.0.0.1:443")),
-    true,
-  );
-  assert.equal(
-    isRetryableError(new Error("getaddrinfo ENOTFOUND api.openai.com")),
-    true,
-  );
-  assert.equal(isRetryableError(new Error("fetch failed")), true);
-});
-
-test("isRetryableError returns false for APICallError with status 401", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Unauthorized",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 401,
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for APICallError with status 403", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Forbidden",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 403,
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for APICallError with status 400", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Bad Request",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 400,
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for APICallError with status 404", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "Not Found",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: 404,
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for NoSuchModelError", async () => {
-  const { NoSuchModelError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new NoSuchModelError({
-    modelId: "gpt-99",
-    modelType: "languageModel",
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for EmptyResponseBodyError", async () => {
-  const { EmptyResponseBodyError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError(new EmptyResponseBodyError()), false);
-});
-
-test("isRetryableError returns false for InvalidResponseDataError", async () => {
-  const { InvalidResponseDataError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new InvalidResponseDataError({
-    data: {},
-    message: "invalid data",
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for JSONParseError", async () => {
-  const { JSONParseError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new JSONParseError({ text: "{bad", message: "parse error" });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for NoContentGeneratedError", async () => {
-  const { NoContentGeneratedError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError(new NoContentGeneratedError()), false);
-});
-
-test("isRetryableError returns false for APICallError without status and non-network message", async () => {
-  const { APICallError } = await import("ai");
-  const isRetryableError = await getIsRetryableError();
-  const err = new APICallError({
-    message: "unexpected internal error",
-    url: "https://api.openai.com/v1/chat/completions",
-    requestBodyValues: {},
-    statusCode: undefined as unknown as number,
-  });
-  assert.equal(isRetryableError(err), false);
-});
-
-test("isRetryableError returns false for generic Error", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError(new Error("some random failure")), false);
-});
-
-test("isRetryableError returns false for non-Error values", async () => {
-  const isRetryableError = await getIsRetryableError();
-  assert.equal(isRetryableError("string error"), false);
-  assert.equal(isRetryableError(42), false);
-  assert.equal(isRetryableError(null), false);
+  assert.equal("isRetryableError" in mod, false);
 });
 
 // ===========================================================================
@@ -1277,6 +1381,59 @@ test("isRetryableError returns false for non-Error values", async () => {
 // ===========================================================================
 
 const noDelay = async () => {};
+
+test("zero maxRetries stops after the first failed request without backoff", async () => {
+  let attempts = 0;
+  const delays: number[] = [];
+  const retries: number[] = [];
+  const { AIBuilder } = await buildMockedAI(async () => {
+    // Bound a broken retry loop so this regression fails without hanging.
+    if (++attempts > 5) throw new Error("test request limit reached");
+    throw new Error("fetch failed");
+  });
+  const result = await new AIBuilder("openai", "").generateCommitMessage(
+    "main",
+    "diff",
+    {
+      maxRetries: 0,
+      delayFn: async (ms: number) => {
+        delays.push(ms);
+      },
+      onRetry: (attempt: number) => {
+        retries.push(attempt);
+      },
+    },
+  );
+  assert.equal(attempts, 1);
+  assert.deepEqual(delays, []);
+  assert.deepEqual(retries, []);
+  assert.equal(result.code, "GENERATION");
+  assert.match(result.error, /Could not reach/);
+});
+
+test("invalid retry limits fail configuration before making a request", async () => {
+  let requests = 0;
+  const { AIBuilder } = await buildMockedAI(async () => {
+    requests++;
+    return { text: "feat: unexpected request" };
+  });
+  for (const maxRetries of [
+    -1,
+    0.5,
+    NaN,
+    Infinity,
+    Number.MAX_SAFE_INTEGER + 1,
+  ]) {
+    const result = await new AIBuilder("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+      { maxRetries },
+    );
+    assert.equal(result.code, "CONFIGURATION");
+    assert.match(result.error, /maxRetries/);
+  }
+  assert.equal(requests, 0);
+});
 
 async function buildRetryAI(
   generateTextFake: (
@@ -1293,7 +1450,7 @@ async function buildRetryAI(
       },
     },
     "../src/utils/config.ts": {
-      default: { getKey: () => "fake-key" },
+      default: { getKey: () => "fake-key", getModel: () => "" },
       validateApiKey: () => null,
     },
   });
@@ -1622,7 +1779,7 @@ test("does not retry JSONParseError", async () => {
   const { JSONParseError } = await import("ai");
 
   const { AIBuilder, getCallCount } = await buildRetryAI(async () => {
-    throw new JSONParseError({ text: "{bad", message: "parse error" });
+    throw new JSONParseError({ text: "{bad", cause: new Error("parse error") });
   });
 
   const builder = new AIBuilder("openai", "");

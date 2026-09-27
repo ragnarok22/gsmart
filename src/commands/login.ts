@@ -1,50 +1,154 @@
 import chalk from "chalk";
 import ora from "ora";
 import prompts from "prompts";
-import { ICommand } from "../definitions";
-import { providers } from "../utils/providers";
+import { ICommand, IProvider } from "../definitions";
+import { providers as providerDefinitions } from "../utils/providers";
 import config from "../utils/config";
+import { loginWithOpenAIOAuth, OpenAIOAuthTokens } from "../utils/openai-oauth";
+import { configureCustomEndpoint } from "../utils/custom-endpoint";
+
+type LoginConfig = {
+  setKey(provider: string, key: string): void;
+  setOpenAIAuthMode(mode: "api-key" | "oauth"): void;
+  setOpenAIOAuthTokens(tokens: OpenAIOAuthTokens): void;
+} & Pick<
+  typeof config,
+  "getCustomBaseURL" | "getModel" | "setCustomBaseURL" | "setModel" | "clearKey"
+>;
+
+type PromptFn = (question: Parameters<typeof prompts>[0]) => Promise<{
+  [key: string]: unknown;
+}>;
+
+type LoginCommandDeps = {
+  prompt: PromptFn;
+  spinner: typeof ora;
+  providers: IProvider[];
+  config: LoginConfig;
+  loginWithOpenAIOAuth: typeof loginWithOpenAIOAuth;
+};
+
+const defaultDeps: LoginCommandDeps = {
+  prompt: prompts,
+  spinner: ora,
+  providers: providerDefinitions,
+  config,
+  loginWithOpenAIOAuth,
+};
 
 /**
  * Login command to paste the API key
  **/
-const LoginCommand: ICommand = {
-  name: "login",
-  description: "Login to a provider to use their AI service",
-  action: async () => {
-    const { provider } = await prompts({
-      type: "select",
-      name: "provider",
-      message: "Select a provider",
-      hint: "Use arrow keys to navigate",
-      choices: providers
-        .filter((p) => p.active)
-        .map((p) => ({
-          title: p.title,
-          value: p.value,
-        })),
-    });
+export const createLoginCommand = (
+  deps: Partial<LoginCommandDeps> = {},
+): ICommand => {
+  const services = { ...defaultDeps, ...deps };
 
-    if (!provider) {
-      ora().fail(chalk.red("No provider selected"));
-      return;
-    }
+  return {
+    name: "login",
+    description: "Login to a provider to use their AI service",
+    action: async () => {
+      const providerChoices: { title: string; value: string }[] = [];
+      for (const provider of services.providers) {
+        if (!provider.active) continue;
+        providerChoices.push({
+          title: provider.title,
+          value: provider.value,
+        });
+      }
 
-    const { key } = await prompts({
-      type: "password",
-      name: "key",
-      message: "Enter your API key",
-      hint: "This will be stored in your local configuration",
-    });
+      const { provider } = (await services.prompt({
+        type: "select",
+        name: "provider",
+        message: "Select a provider",
+        hint: "Use arrow keys to navigate",
+        choices: providerChoices,
+      })) as { provider?: string };
 
-    if (!key) {
-      ora().fail(chalk.red("No API key provided"));
-      return;
-    }
+      if (!provider) {
+        services.spinner().fail(chalk.red("No provider selected"));
+        return;
+      }
 
-    config.setKey(provider, key);
-    ora().succeed(chalk.green("API key saved successfully"));
-  },
+      if (provider === "custom") {
+        try {
+          const saved = await configureCustomEndpoint(
+            services.prompt,
+            services.config,
+          );
+          if (saved)
+            services
+              .spinner()
+              .succeed(chalk.green("Custom endpoint saved (Chat Completions)"));
+          else services.spinner().fail(chalk.red("Endpoint setup cancelled"));
+        } catch (error) {
+          services
+            .spinner()
+            .fail(
+              chalk.red(error instanceof Error ? error.message : String(error)),
+            );
+        }
+        return;
+      }
+
+      if (provider === "openai") {
+        const { authMethod } = (await services.prompt({
+          type: "select",
+          name: "authMethod",
+          message: "How would you like to authenticate with OpenAI?",
+          choices: [
+            { title: "ChatGPT subscription", value: "oauth" },
+            { title: "API key", value: "api-key" },
+          ],
+        })) as { authMethod?: "oauth" | "api-key" };
+
+        if (!authMethod) {
+          services
+            .spinner()
+            .fail(chalk.red("No authentication method selected"));
+          return;
+        }
+
+        if (authMethod === "oauth") {
+          const spinner = services
+            .spinner("Waiting for ChatGPT authorization")
+            .start();
+          try {
+            const tokens = await services.loginWithOpenAIOAuth();
+            services.config.setOpenAIOAuthTokens(tokens);
+            spinner.succeed(chalk.green("ChatGPT login saved successfully"));
+          } catch (error) {
+            spinner.fail(
+              chalk.red(
+                error instanceof Error ? error.message : "ChatGPT login failed",
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      const { key } = (await services.prompt({
+        type: "password",
+        name: "key",
+        message: "Enter your API key",
+        hint: "This will be stored in your local configuration",
+      })) as { key?: string };
+
+      if (!key) {
+        services.spinner().fail(chalk.red("No API key provided"));
+        return;
+      }
+
+      services.config.setKey(provider, key);
+      if (provider === "openai") {
+        services.config.setOpenAIAuthMode("api-key");
+      }
+      services.spinner().succeed(chalk.green("API key saved successfully"));
+    },
+  };
 };
+
+const LoginCommand = createLoginCommand();
 
 export default LoginCommand;

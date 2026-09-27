@@ -1,6 +1,6 @@
 {
   "name": "gsmart",
-  "version": "0.13.0",
+  "version": "0.17.0",
   "description": "CLI to generate smart commit messages using AI.",
   "repository": {
     "type": "git",
@@ -25,7 +25,7 @@
   "author": "Reinier Hernández <sasuke.reinier@gmail.com>",
   "license": "GPL-3.0-only",
   "engines": {
-    "node": ">=20",
+    "node": ">=22.12.0",
     "pnpm": ">=10"
   },
   "publishConfig": {
@@ -34,7 +34,7 @@
   },
   "files": [
     "dist",
-    "scripts",
+    "schemas",
     "LICENSE",
     "README.md"
   ],
@@ -44,7 +44,9 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./schemas/gsmartrc.schema.json": "./schemas/gsmartrc.schema.json",
+    "./schemas/generation-result.schema.json": "./schemas/generation-result.schema.json"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -57,11 +59,11 @@
     "build": "tsup",
     "clean": "rimraf dist",
     "start": "node dist/index.js",
-    "test": "node --import tsx --test test/*.test.ts",
-    "test:coverage": "node --import tsx --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=coverage/lcov.info --test-reporter=spec --test-reporter-destination=stdout test/*.test.ts",
+    "test": "node --import ./test-support/register-esmock.mjs --import tsx --test --test-reporter=dot test/*.test.ts",
+    "test:coverage": "c8 --include \"src/**/*.ts\" --reporter=lcov --reporter=text pnpm test",
+    "eval": "tsx src/evaluate.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "postinstall": "node scripts/postinstall.js || true",
     "prepublishOnly": "pnpm run build",
     "pretypecheck": "node prebuild.js",
     "typecheck": "tsc --noEmit",
@@ -70,34 +72,38 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.58",
-    "@ai-sdk/google": "^3.0.43",
-    "@ai-sdk/mistral": "^3.0.24",
-    "@ai-sdk/openai": "^3.0.41",
-    "ai": "^6.0.116",
-    "chalk": "5.6.2",
-    "clipboardy": "^5.3.1",
-    "commander": "^14.0.3",
+    "@ai-sdk/anthropic": "^4.0.65",
+    "@ai-sdk/google": "^4.0.82",
+    "@ai-sdk/mistral": "^4.0.52",
+    "@ai-sdk/openai": "^4.0.78",
+    "@ai-sdk/openai-compatible": "^3.0.57",
+    "@commitlint/load": "^21.2.3",
+    "ai": "^7.0.116",
+    "ajv": "^8.20.0",
+    "chalk": "6.0.0",
+    "clipboardy": "^5.3.2",
+    "commander": "^15.0.0",
     "conf": "^15.1.0",
-    "ora": "^9.3.0",
+    "ora": "^9.4.1",
     "prompts": "^2.4.2",
     "update-notifier": "^7.3.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@eslint/json": "^1.1.0",
+    "@eslint/json": "^2.1.0",
     "@types/prompts": "^2.4.9",
     "@types/update-notifier": "^6.0.8",
-    "eslint": "^10.0.3",
+    "c8": "^12.0.0",
+    "eslint": "^10.11.0",
     "eslint-config-prettier": "^10.1.8",
-    "esmock": "^2.7.3",
-    "globals": "^17.4.0",
-    "prettier": "3.8.1",
+    "esmock": "^2.7.6",
+    "globals": "^17.12.0",
+    "prettier": "3.9.6",
     "rimraf": "^6.1.3",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.57.0"
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.1"
   },
-  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be"
+  "packageManager": "pnpm@12.6.0+sha512.3ef68f951cb111ac204b4a5a16f0b2ddf0da56a96e0413e81d855d9f0b55ef926714709028e1cd00c405c2c5fb7b9e8ec4dc46777c805d0373c2f2ff00fd20ec"
 }

@@ -2,13 +2,15 @@ import "../test-support/setup-env";
 
 import test, { mock } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "fs";
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { execSync } from "child_process";
 import { copyToClipboard, retrieveFilesToCommit } from "../src/utils/index.ts";
 import chalk from "chalk";
 import esmock from "esmock";
+import { repository, git } from "../test-support/repository.ts";
+import { getGitChanges } from "../src/utils/git.ts";
 
 // Import internal functions by testing their effects through public APIs
 // We'll test the helper functions indirectly through retrieveFilesToCommit
@@ -688,6 +690,109 @@ test("retrieveFilesToCommit in dry-run unstages files after reading changes", as
     0,
     "dry-run should not show succeed message",
   );
+});
+
+test("retrieveFilesToCommit preserves the real index and worktree when the initial diff read fails", async (t) => {
+  const root = repository(t);
+  const cwd = process.cwd();
+  t.after(() => process.chdir(cwd));
+  process.chdir(root);
+  writeFileSync("partial.txt", "staged content\n");
+  git(root, "add", "partial.txt");
+  writeFileSync("partial.txt", "unstaged content\n");
+  writeFileSync("untracked.txt", "must not be staged\n");
+  const beforeIndex = readFileSync(".git/index");
+  const failure = new Error("Unable to read staged diff");
+  const getGitStatus = mock.fn();
+  const stageFile = mock.fn();
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => {
+          throw failure;
+        },
+        getGitStatus,
+        stageFile,
+      },
+    },
+  );
+  await assert.rejects(
+    () => retrieveWithMock({}, { autoStage: true, dryRun: true }),
+    (error) => error === failure,
+  );
+  assert.equal(getGitStatus.mock.callCount(), 0);
+  assert.equal(stageFile.mock.callCount(), 0);
+  assert.deepEqual(readFileSync(".git/index"), beforeIndex);
+  assert.equal(readFileSync("partial.txt", "utf8"), "unstaged content\n");
+  assert.equal(readFileSync("untracked.txt", "utf8"), "must not be staged\n");
+});
+
+test("retrieveFilesToCommit cleans up real dry-run staging when the diff read fails", async (t) => {
+  const root = repository(t);
+  const cwd = process.cwd();
+  t.after(() => process.chdir(cwd));
+  process.chdir(root);
+  writeFileSync("tracked.txt", "baseline\n");
+  git(root, "add", ".");
+  git(root, "commit", "-qm", "baseline");
+  writeFileSync("tracked.txt", "modified\n");
+  writeFileSync("new.txt", "new content\n");
+  const beforeIndex = git(root, "ls-files", "--stage", "-z");
+  const failure = new Error("Unable to read staged diff");
+  let reads = 0;
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => {
+          if (++reads === 1) return getGitChanges();
+          assert.match(await getGitChanges(), /modified/);
+          throw failure;
+        },
+      },
+    },
+  );
+  const spinner = { warn: mock.fn() };
+  await assert.rejects(
+    () => retrieveWithMock(spinner, { autoStage: true, dryRun: true }),
+    (error) => error === failure,
+  );
+  assert.equal(reads, 2);
+  assert.equal(spinner.warn.mock.callCount(), 0);
+  assert.equal(git(root, "ls-files", "--stage", "-z"), beforeIndex);
+  assert.equal(await getGitChanges(), "");
+  assert.equal(readFileSync("tracked.txt", "utf8"), "modified\n");
+  assert.equal(readFileSync("new.txt", "utf8"), "new content\n");
+});
+
+test("retrieveFilesToCommit preserves the read error and warns when dry-run cleanup fails", async () => {
+  const failure = new Error("Unable to read staged diff");
+  let reads = 0;
+  const unstageFiles = mock.fn(async () => false);
+  const { retrieveFilesToCommit: retrieveWithMock } = await esmock(
+    "../src/utils/index.ts",
+    {
+      "../src/utils/git.ts": {
+        getGitChanges: async () => {
+          if (++reads === 1) return "";
+          throw failure;
+        },
+        getGitStatus: async () => [
+          { status: "??", file_name: "new.txt", file_path: "new.txt" },
+        ],
+        stageFile: async () => true,
+        unstageFiles,
+      },
+    },
+  );
+  const spinner = { warn: mock.fn() };
+  await assert.rejects(
+    () => retrieveWithMock(spinner, { autoStage: true, dryRun: true }),
+    (error) => error === failure,
+  );
+  assert.deepEqual(unstageFiles.mock.calls[0].arguments, [["new.txt"]]);
+  assert.match(spinner.warn.mock.calls[0].arguments[0], /failed to unstage/);
 });
 
 test("retrieveFilesToCommit in dry-run warns when unstaging fails", async () => {

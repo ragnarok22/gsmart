@@ -37,6 +37,7 @@ describe("providers", () => {
       "mistral",
       "fireworks",
       "plataformia",
+      "custom",
     ];
 
     for (const providerValue of expectedProviders) {

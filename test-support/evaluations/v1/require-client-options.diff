@@ -1,0 +1,22 @@
+diff --git a/src/client.ts b/src/client.ts
+index 7a3c15f..f5c61d8 100644
+--- a/src/client.ts
++++ b/src/client.ts
+@@ -1,5 +1,5 @@
+ import { Client } from './transport';
+ 
+-export function createClient(baseUrl: string) {
+-  return new Client(baseUrl);
++export function createClient(options: { baseUrl: string }) {
++  return new Client(options.baseUrl);
+ }
+diff --git a/README.md b/README.md
+index 7b725bc..893d2ca 100644
+--- a/README.md
++++ b/README.md
+@@ -3,4 +3,4 @@
+ ```ts
+ import { createClient } from './src/client';
+-const client = createClient('https://api.example.test');
++const client = createClient({ baseUrl: 'https://api.example.test' });
+ ```

@@ -11,12 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GSMART_CONFIG_DIR: ${{ github.workspace }}/.tmp/gsmart-config
+      GSMART_REQUIRE_SHELL_TESTS: "1"
     strategy:
       matrix:
-        node-version: [20, 22, 24]
+        node-version: ["22.14.0", "22.22.3", "24.15.0", "25.9.0", "26.1.0"]
     steps:
       - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
+      - name: Install completion test runtimes
+        run: sudo apt-get update && sudo apt-get install -y bash zsh fish python3
+      - uses: pnpm/action-setup@v5
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
@@ -24,13 +27,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
       - run: pnpm run format:check
+        if: github.actor != 'dependabot[bot]'
       - run: pnpm run prebuild
       - run: pnpm run typecheck
       - run: mkdir -p coverage
       - run: pnpm run test:coverage
       - name: Upload coverage to Codecov
-        if: matrix.node-version == 24
-        uses: codecov/codecov-action@v5
+        if: matrix.node-version == '24.15.0'
+        uses: codecov/codecov-action@v6
         with:
           files: ./coverage/lcov.info
           flags: unittests

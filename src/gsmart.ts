@@ -4,6 +4,7 @@ import {
   ResetCommand,
   CompletionsCommand,
   ConfigCommand,
+  PlanCommand,
 } from "./commands";
 
 export default [
@@ -12,4 +13,5 @@ export default [
   ResetCommand,
   CompletionsCommand,
   ConfigCommand,
+  PlanCommand,
 ];
