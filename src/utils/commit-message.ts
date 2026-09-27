@@ -78,6 +78,11 @@ export function validateCommitMessage(
     );
 
   const lines = text.split("\n");
+  // Match the same token alphabet allowed in repository configuration, including
+  // custom/Unicode types. Membership and scope requirements are separate rules.
+  const header = /^([^\s():!]+)(?:\(([^\s():!]+)\))?(!)?: ([^\s].*)$/.exec(
+    lines[0],
+  );
   let fence: string | undefined;
   // Exclude fenced examples from trailer parsing and ticket scanning.
   const fencedLines = lines.map((line, index) => {
@@ -96,8 +101,10 @@ export function validateCommitMessage(
     return inFence || Boolean(marker);
   });
   // Only leading prose can be a preamble; body/footer text may discuss messages.
+  // An exact configured type may itself contain wrapper-like punctuation.
   if (
-    /^\s*(?:["'`[{]|~{3,}|\*\*|__|<[^>]+>)/.test(text) ||
+    ((!header || !c.types?.includes(header[1])) &&
+      /^\s*(?:["'`[{]|~{3,}|\*\*|__|<[^>]+>)/.test(text)) ||
     /^\s*(?:Here(?:'s| is) (?:the|your|a|an) (?:(?:suggested|generated) )?commit message\b|(?:This|The) (?:(?:suggested|generated) )?commit message (?:follows|uses|summarizes|describes)\b|Let me know if\b|Would you like me to\b|Validation checklist:)/i.test(
       text,
     )
@@ -107,11 +114,6 @@ export function validateCommitMessage(
       "Return only the commit message; remove surrounding quotes, Markdown fences, or explanations and validation checklists before the header.",
     );
   }
-  // Match the same token alphabet allowed in repository configuration, including
-  // custom/Unicode types. Membership and scope requirements are separate rules.
-  const header = /^([^\s():!]+)(?:\(([^\s():!]+)\))?(!)?: ([^\s].*)$/.exec(
-    lines[0],
-  );
   if (!header) {
     add(
       "header",
@@ -172,7 +174,7 @@ export function validateCommitMessage(
     const line = lines[index];
     const breakingMarker =
       !fencedLines[index] &&
-      /^(?:BREAKING CHANGE|BREAKING-CHANGE)(?=[: \t]|$)/.test(line);
+      /^(?:BREAKING CHANGE|BREAKING-CHANGE)(?=[ \t]*(?::|$))/.test(line);
     const breakingFooter = breakingMarker
       ? /^(BREAKING CHANGE|BREAKING-CHANGE): (.*)$/.exec(line)
       : null;
@@ -189,6 +191,8 @@ export function validateCommitMessage(
       : null;
     if (
       footer &&
+      // Breaking tokens cannot use the generic Token #reference separator.
+      (!breakingToken(footer[1]) || breakingFooter) &&
       (index === 1 ||
         blank(lines[index - 1]) ||
         footerStart >= 0 ||
