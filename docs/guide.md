@@ -1,0 +1,981 @@
+# GSmart guide
+
+[← Back to the README](../README.md)
+
+Detailed workflows, configuration, and CLI reference. For installation and your first commit, start with the [quick start](../README.md#quick-start).
+
+## Contents
+
+- [How it works](#how-it-works)
+- [Everyday workflows](#everyday-workflows)
+  - [Editing, feedback, and candidate history](#edit-and-refine-a-message)
+  - [Commit planning](#plan-coherent-commits-from-mixed-changes)
+  - [Automatic committing and staging rules](#skip-the-generation-prompts)
+  - [Scripting, JSON output, and Git hooks](#scripting-editors-and-hooks)
+- [Configuration](#configuration)
+  - [Provider and model defaults](#provider-and-model-defaults)
+  - [Ollama, LM Studio, and custom endpoints](#local-inference-and-custom-endpoints)
+  - [Shared repository conventions](#shared-repository-conventions)
+  - [Commitlint compatibility](#commitlint-compatibility)
+  - [Message validation](#message-validation)
+  - [Large diffs and AI context](#large-diffs-and-ai-context)
+  - [Environment variables and separate profiles](#environment-variables)
+- [Providers and built-in models](#providers)
+- [Command reference](#command-reference)
+- [Troubleshooting](#troubleshooting)
+- [Shell completions](#shell-completions)
+- [Development](#development)
+
+## How it works
+
+```text
+Stage or select changes → Generate a message → Review → Edit, refine, restore, copy, or commit
+```
+
+1. **Read the changes.** GSmart uses your staged diff—the changes Git is ready to commit. If that diff is empty, it offers to stage files for you.
+2. **Ask your provider.** It sends the diff, current branch name, resolved commit conventions, and any custom instructions to the selected AI provider. Recent commit subjects are also sent when you enable history examples.
+3. **Choose the next step.** You review the message before committing. Commits use `git commit`, so your Git hooks still run; pushing remains a separate Git step.
+
+Already staged part of a file with `git add -p`? GSmart uses that staged diff. Other unstaged edits are left out. Files staged through the interactive picker stay staged if you choose **Copy** or **Do nothing**.
+
+### A quick guide to Conventional Commits
+
+The format makes a project's history easier to scan:
+
+```text
+feat(auth): add password reset
+│    │     └─ Short description of the change
+│    └─────── Optional scope: the area affected
+└──────────── Type: the kind of change
+```
+
+Common types include `feat` for new functionality, `fix` for a bug fix, `docs` for documentation, and `refactor` for restructuring code without changing its behavior. GSmart asks the model to follow this format; review the suggestion for accuracy before committing.
+
+**For better suggestions:** stage one logical change at a time and use a [custom prompt](#configuration) to explain context the diff cannot show.
+
+## Everyday workflows
+
+### Edit and refine a message
+
+Choose **Edit message** to change the subject and multiline body in an external editor. The first line is the subject; separate the body with a blank line. Save and close the file to return to review, then select **Commit** when satisfied.
+
+Choose **Regenerate with feedback** for targeted changes such as “shorter”, “mention the migration”, or “this fixes a bug”. Submit blank feedback for another version. Refinement reuses the selected provider and model, captured branch and diff, custom instructions, and current candidate—including manual edits.
+
+Example review session:
+
+```text
+Candidate #1 (generated):
+feat(db): add accounts migration and initialize account records
+? What would you like to do? › Regenerate with feedback
+? What should change? › shorter; mention the migration
+✔ Message generated
+
+Candidate #2 (refined):
+feat(db): add accounts migration
+? What would you like to do? › Edit message
+
+Candidate #3 (edited):
+feat(db): add accounts migration
+
+Preserve existing account IDs during migration.
+? What would you like to do? › Commit
+✔ Changes committed successfully
+```
+
+**Browse / restore candidates** previews complete messages alongside the current candidate. Confirm **Restore** to select one without another AI request. History includes generated, edited, and refined messages and lasts for the current invocation only. Editing, refining, and restoring always return to review.
+
+Press **Esc** to cancel feedback or candidate browsing. Press **Ctrl+C** during a refinement request to cancel it and return to the current candidate. Errors and canceled operations preserve the current candidate and never create a commit.
+
+**SIGTERM** requests shutdown instead of returning to review. GSmart cancels the active editor or refinement operation, finishes cleanup, and exits.
+
+#### Configure your editor
+
+GSmart uses the first non-empty setting in `$VISUAL`, then `$EDITOR`. If neither is set, it uses `vi` on macOS/Linux or `notepad` on Windows. Editor arguments and quoted executable paths are supported. Configure GUI editors to wait until you close the message file:
+
+```bash
+# VS Code (Bash/Zsh)
+export VISUAL="code --wait"
+
+# Or use a terminal editor
+export EDITOR="nano"
+```
+
+```powershell
+# VS Code (Windows PowerShell)
+$env:VISUAL = "code --wait"
+```
+
+To cancel editing, quit the editor without saving (for example, `:q!` in `vi`); an unchanged file leaves the current candidate selected. If you already saved changes, restore the earlier candidate from history. Editor failures keep the current candidate and display an error so you can retry. Empty or invalid edits remain selected as drafts: correct them with **Edit message**, regenerate, or restore an earlier candidate. Temporary editor files are cleaned up afterward.
+
+#### If staged content changes during review
+
+Before committing, GSmart checks the staged content and its Git base again. If they have changed, it marks the candidate as outdated and offers to generate a fresh message using the same provider. Review that message and select **Commit** again. Earlier candidates remain available for comparison or copying; restoring or editing one does not bypass this check. Declining or canceling the refresh keeps the current candidate.
+
+### Choose a provider for this run
+
+After configuring it with `gsmart login`:
+
+```bash
+gsmart --provider anthropic
+gsmart --provider anthropic --model claude-haiku-4-5-20251001
+```
+
+Use the exact identifier from the [provider table](#providers). These options select a provider and model for the current run without changing saved preferences. See [provider and model defaults](#provider-and-model-defaults) to make the choice persistent.
+
+### Preview before committing
+
+Generate a message and list the files in the analyzed diff:
+
+```bash
+gsmart --dry-run
+```
+
+Dry run still makes an AI request and needs a configured provider (authentication is optional for custom endpoints). It skips committing and the final action menu. If nothing is staged, GSmart temporarily stages your selected files to read their diff, then attempts to unstage them. Existing staged changes stay staged.
+
+### Plan coherent commits from mixed changes
+
+Request an advisory split plan for the **existing staged diff**:
+
+```bash
+gsmart plan --staged
+gsmart plan --staged --provider anthropic --model claude-haiku-4-5-20251001
+gsmart plan --staged --context-budget 16384 --show-context
+```
+
+`--staged` explicitly selects the scope: all staged changes throughout the repository, including when run from a subdirectory. Unstaged and untracked content is not included. Planning, reading the plan, and canceling with Ctrl+C leave HEAD, the index, and working-tree files unchanged. An empty staged diff is an error.
+
+The plan suggests Conventional Commit messages, identifies the files or hunks assigned to each commit, explains the grouping, and lists ordering dependencies and uncertainties. A coherent diff can receive one commit. For example, a dependency update coupled to a retry feature could produce:
+
+```text
+Staged commit plan (advisory)
+2 proposed commit(s). Scope: captured staged diff only.
+Repository unchanged. Review grouping and ordering; independent applicability/builds are not guaranteed.
+Mixed concerns within a hunk or whole-file unit require manual splitting; each unit is assigned intact here.
+
+1. [deps] build(deps): update retry library
+   Why: Keep the dependency manifest and lockfile in sync.
+   - f1.h1: "package.json" — modified, source; @@ -12,3 +12,3 @@
+   - f2: "pnpm-lock.yaml" — modified, lockfile; whole file (keep together)
+
+2. [retry] feat(api): retry transient request failures
+   Why: Group the retry implementation with its regression tests.
+   - f3.h1: "src/request.ts" — modified, source; @@ -20,7 +20,12 @@
+   - f4: "test/request.test.ts" — added, source; whole file (keep together)
+   Depends on [deps]: Uses the newly introduced retry API.
+   Review: Verify retry timing and failure behavior before committing.
+
+Accounting: 4 change unit(s) assigned exactly once; 0 excluded unit(s) listed for manual review.
+```
+
+Change IDs and hunk ranges refer to the captured staged snapshot. Ordinary modified source files are identified by hunk. Renames/copies (including their original paths), additions, deletions, binaries, mode changes, submodule updates, lockfiles, and generated files are kept as whole-file units. A file assigned across several commits is explicitly marked for manual splitting. Mixed concerns inside one hunk or whole-file unit also need manual review; the plan does not provide executable patches. Review dependencies and make the intended staging selections yourself before committing.
+
+Every included unit must appear exactly once. Invalid responses with missing, duplicated, or invented IDs, malformed messages, or invalid dependency ordering fail instead of displaying a partial plan. GSmart also checks the staged snapshot again before displaying the result; if staging, HEAD, or the branch changed during generation, rerun the command.
+
+Planning uses the configured provider, model, repository conventions, language, and optional history examples. Provider selection is prompt-free: explicit `--provider`, saved default, then the first configured provider. `--prompt`, `--language`, `--history-examples`, and the [context options](#large-diffs-and-ai-context) are supported. The human-readable plan goes to stdout; diagnostics, debug output, and `--show-context` go to stderr. Planning rejects `--yes`, `--dry-run`, `--stage`, `--commit`, `--stdin`, `--branch`, and `--output`.
+
+**Large or excluded changes:** the complete ID inventory is retained even when diff context is condensed or summarized, and affected groups receive a review note. Excluded paths and contents are not sent to the provider; those files appear separately as unassigned manual-review items with an explicit accounting total. If all files are excluded, the result lists only manual-review items and makes no AI request; no configured provider, credentials, model, or endpoint is required. This applies to CLI and repository exclusions, and the local result still checks snapshot freshness before display. If the inventory cannot fit, increase `--context-budget`, shorten instructions/history, or plan a smaller staged scope. If a plan exhausts its output allowance, increase `context.outputTokens` in `.gsmartrc.json` (and the total budget if needed), then retry. Plan quality still depends on the available diff evidence and model.
+
+Exit status is `0` for a displayed plan, `1` for a configuration/Git/generation failure, `2` for invalid usage, `130` for SIGINT, and `143` for SIGTERM.
+
+### Skip the generation prompts
+
+Use `--yes` when you're ready to generate and commit in one step:
+
+```bash
+gsmart --yes --provider openai
+```
+
+A hosted login or custom endpoint must already be configured. GSmart uses an explicit `--provider`, then your saved default provider, then the first configured provider in the [table's order](#providers). Provider selection, model resolution, and model-specific context-budget validation happen before file selection or auto-staging.
+
+`--yes` skips message review and editing. Invalid messages, changed staged content, or an unverifiable staged snapshot stop the command with exit status `1` before committing. Correct the reported issue and rerun GSmart.
+
+Initial generation failures and failed commits also exit with status `1`, so automation can detect them. A failed commit displays Git's diagnostic (including hook failures) and attempts to copy the generated message to the clipboard; if copying fails, it prints the message for recovery.
+
+| Command                  | If a staged diff exists | If nothing is staged                          | Creates a commit? |
+| ------------------------ | ----------------------- | --------------------------------------------- | ----------------- |
+| `gsmart`                 | Uses it                 | Prompts you to select files to stage          | If you choose it  |
+| `gsmart --dry-run`       | Uses it                 | Prompts, temporarily stages, then unstages    | No                |
+| `gsmart --yes`           | Uses it                 | Stages all detected changes                   | Automatically     |
+| `gsmart --yes --dry-run` | Uses it                 | Temporarily stages all changes, then unstages | No                |
+
+**The staging rule:** an existing staged diff always takes priority. `--yes` only auto-stages all detected changes when that diff is empty. Dry-run cleanup reports a warning if files could not be unstaged.
+
+### Scripting, editors, and hooks
+
+Use `--output message` or `--output json` for a prompt-free generation workflow. These modes read the existing staged diff by default and leave the index, working tree, and HEAD untouched. An empty index is an error; files are never selected or staged implicitly.
+
+```bash
+# Capture only the commit message, preserving multiline output
+message=$(gsmart --output message) || exit $?
+printf '%s\n' "$message"
+
+# Save one machine-readable result, including failures
+gsmart --output json > result.json
+
+# Generate from a supplied diff, including outside a Git repository
+gsmart --stdin --branch feature/SHOP-142 --output json < changes.patch
+
+# Describe unstaged tracked changes without staging them (Bash/Zsh)
+set -o pipefail
+git diff --no-ext-diff --no-textconv --no-color | gsmart --stdin
+
+# Explicit staging and committing are independent
+gsmart --stage --output message          # Stage all changes and generate only
+gsmart --commit --output json            # Generate and commit existing staged changes
+gsmart --stage --commit --output json    # Stage all, generate, and commit
+```
+
+`--stdin`, `--branch`, `--stage`, and `--commit` also select this noninteractive workflow; output defaults to `message`. These flags apply only to generation, including the compatibility alias `gsmart generate`.
+
+- **Output:** message mode writes only the generated message with a final newline to stdout. On failure stdout is empty. JSON mode writes exactly one JSON object followed by a newline, on success or failure. Diagnostics, configuration-loader logging, and `--debug` output go to stderr; greetings, update notices, holiday messages, spinners, and menus are suppressed. Explicit `--help` and `--version` requests still print their normal text instead of a generation result.
+- **Input:** `--stdin` reads UTF-8 until EOF, up to 64 MiB. Empty input and terminal input are errors. It neither requires Git nor infers a branch; `--branch` supplies optional branch context. Repository conventions and history settings apply when the current directory is inside a repository; otherwise personal/default conventions and CLI overrides apply. It cannot be combined with `--stage` or `--commit`.
+- **Provider:** selection follows explicit `--provider` → saved default → first configured provider in the [provider table](#providers). Missing configuration fails immediately with setup guidance. Machine workflows never prompt to select a provider or enlarge the context budget; context failures include retry guidance.
+- **Staging:** `--stage` stages all tracked and untracked changes throughout the repository, even when some changes were already partially staged. Configuration is validated first. Explicitly staged changes remain staged if subsequent generation or committing fails.
+- **Committing:** `--commit` verifies the original staged snapshot before committing. A changed snapshot stops the operation. Hook and signing failures preserve Git's diagnostic; JSON also retains the generated message. Machine workflows do not use the clipboard.
+
+The existing `--yes` and `--dry-run` workflows retain the behavior in the table above. They cannot be combined with machine-workflow flags: use `--output message` for generation-only operation and explicitly add `--stage` or `--commit` as needed. In particular, legacy `--yes` auto-stages only when the index is empty, whereas explicit `--stage` always stages all changes.
+
+#### JSON result contract
+
+The versioned schema is published as [`schemas/generation-result.schema.json`](../schemas/generation-result.schema.json), also available from the npm package at `gsmart/schemas/generation-result.schema.json`.
+
+Success:
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "message": "fix(api): retry failed requests",
+  "provider": "custom",
+  "model": "local-model",
+  "input": { "source": "index", "branch": "main" },
+  "staged": false,
+  "committed": false
+}
+```
+
+`input.source` is `index` or `stdin`; `input.branch` is `null` when no branch context is available. `staged` means explicit staging was performed by this invocation, not that the index contains staged files. `--show-context` adds the existing per-file `context` report to the JSON object; in message mode that report goes to stderr.
+
+Failure:
+
+```json
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "error": {
+    "code": "NO_INPUT",
+    "message": "No diff received on stdin. Pipe or redirect a non-empty diff."
+  }
+}
+```
+
+Stable `error.code` values are `USAGE`, `CONFIGURATION`, `AUTHENTICATION`, `INPUT`, `NO_INPUT`, `CONTEXT`, `GENERATION`, `VALIDATION`, `GIT`, `CANCELED`, and `INTERNAL`. Human-readable error text may change. A failure after generation may include a top-level `message` for recovery. Validation failures retain the rejected candidate and include `error.diagnostics`: entries have `code`, `severity` (`1` warning, `2` error), and `message`, with optional one-based `line`, configuration `source`, and imported `rule`. Warnings alone permit success and are printed to stderr. Metadata-overflow errors include `error.recovery` with current/required/maximum budgets and, when possible, `suggestedBudgetTokens`.
+
+| Exit status | Meaning in machine workflows                                                          |
+| ----------- | ------------------------------------------------------------------------------------- |
+| `0`         | Generation and any requested commit succeeded                                         |
+| `1`         | Configuration, authentication, input, context, generation, Git, or unexpected failure |
+| `2`         | Invalid arguments or incompatible options                                             |
+| `130`       | Canceled by SIGINT (Ctrl+C)                                                           |
+| `143`       | Canceled by SIGTERM                                                                   |
+
+SIGINT/SIGTERM cancel stdin reading or the active AI request and emit a failure result. Completed explicit staging remains in the index. Check exit status and `ok` before using a message:
+
+```bash
+if result=$(gsmart --output json); then
+  printf '%s\n' "$result" | jq -r '.message'
+else
+  status=$?
+  printf '%s\n' "$result" | jq -r '.error.message' >&2
+  exit "$status"
+fi
+```
+
+For an optional `.git/hooks/prepare-commit-msg` integration, generate from the existing index and let Git perform the commit:
+
+```sh
+#!/bin/sh
+# Preserve messages supplied by -m/-F, merges, and other explicit sources.
+[ -z "${2:-}" ] || exit 0
+message=$(gsmart --output message) || exit $?
+printf '%s\n' "$message" > "$1"
+```
+
+### Give one commit extra context
+
+Explain the intent behind a change:
+
+```bash
+gsmart --prompt "This fixes checkout retries after a payment timeout; reference SHOP-142."
+```
+
+This replaces repository or saved personal custom instructions for this run. Structured conventions such as allowed types and length limits still apply. To reuse a style across commits, [configure repository conventions or save a default prompt](#configuration).
+
+### Stay up to date
+
+Use the package manager you installed with:
+
+```bash
+# npm
+npm install -g gsmart@latest
+
+# pnpm
+pnpm add -g gsmart@latest
+```
+
+Check your installation with `gsmart --version`. The [changelog](https://github.com/ragnarok22/gsmart/blob/main/CHANGELOG.md) covers new features, model updates, fixes, and runtime requirement changes.
+
+## Configuration
+
+### Provider and model defaults
+
+Use the `gsmart config` menu to save a default provider, choose a model, or configure a custom endpoint. The equivalent flags work without interactive prompts:
+
+```bash
+gsmart config --default-provider anthropic
+gsmart config --provider anthropic --model claude-haiku-4-5-20251001
+gsmart config --show
+
+# One invocation; does not change the saved settings
+gsmart --provider openai --model gpt-5-codex --dry-run
+
+# Return to automatic provider selection or a built-in model
+gsmart config --clear-default-provider
+gsmart config --provider anthropic --clear-model
+```
+
+Provider and prompt settings can be updated together. Add `--show` to inspect the saved result:
+
+```bash
+gsmart config --default-provider anthropic --add-custom-prompt "Use Spanish" --show
+```
+
+In the **Set preferred model** menu, the current model is displayed for reference. Submit blank input to clear it, or press Esc to keep it.
+
+Selection precedence is:
+
+| Setting  | First choice          | Second choice                         | Fallback                                                                                                   |
+| -------- | --------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Provider | Explicit `--provider` | Saved default provider                | One configured provider automatically; a chooser if several exist; first configured provider under `--yes` |
+| Model    | Explicit `--model`    | Saved model for the selected provider | [Built-in model](#which-models-does-gsmart-use), with a separate ChatGPT OAuth fallback                    |
+
+An explicit or saved provider must be configured; GSmart reports setup instructions rather than silently choosing another provider. A `custom` endpoint is configured when it has a valid base URL and a saved model (or a `--model` override). It does not need a hosted-provider login. Custom endpoints have no built-in model because model IDs depend on the server.
+
+Model IDs are trimmed and must be nonempty. Availability is checked by the provider during generation, so new or private models do not need to be added to GSmart's source code. `--model` does not change the API operation or authentication mode. Provider and model selection remain the same during refinement and staged-change regeneration.
+
+### Local inference and custom endpoints
+
+The `custom` provider uses **OpenAI-compatible Chat Completions** (`POST <base-url>/chat/completions`). Configure the base URL, including `/v1` when required, rather than the full operation URL. You can save one custom endpoint per configuration directory; use `GSMART_CONFIG_DIR` for separate profiles.
+
+#### Ollama
+
+Install [Ollama](https://ollama.com/), start its server (`ollama serve`, or the desktop app), and download a model. With the server running:
+
+```bash
+ollama pull llama3.2
+gsmart config --provider custom \
+  --base-url http://localhost:11434/v1 \
+  --model llama3.2 --clear-api-key
+gsmart config --default-provider custom
+
+# Run inside a Git repository with staged changes
+gsmart --dry-run
+```
+
+The local Ollama server does not require a key. Use the exact installed model ID, including its tag. Ollama's native `/api/chat` endpoint is not the OpenAI-compatible URL. See [Ollama's compatibility documentation](https://docs.ollama.com/api/openai-compatibility).
+
+#### LM Studio
+
+Download and load a text-generation model in [LM Studio](https://lmstudio.ai/), then start the server from its Developer tab. With the default port and authentication disabled:
+
+```bash
+# Find the model identifier returned by your server
+curl http://localhost:1234/v1/models
+
+# Replace MODEL_ID with that identifier
+gsmart config --provider custom \
+  --base-url http://localhost:1234/v1 \
+  --model MODEL_ID --clear-api-key
+gsmart config --default-provider custom
+gsmart --dry-run
+```
+
+See [LM Studio's OpenAI-compatible endpoints](https://lmstudio.ai/docs/developer/openai-compat). If server authentication is enabled, configure its token instead of `--clear-api-key`.
+
+#### Optional authentication and compatibility
+
+```bash
+# Set the custom server's bearer token; hosted keys are configured through login
+gsmart config --provider custom --api-key YOUR_ENDPOINT_KEY
+
+# Remove authentication; requests will contain no Authorization header
+gsmart config --provider custom --clear-api-key
+
+# Remove the URL, model, key, and default-provider selection if it points to custom
+gsmart config --clear-custom-endpoint
+```
+
+You can also choose **Custom (OpenAI-compatible)** in `gsmart login`, or **Configure custom / local endpoint** in `gsmart config`, to enter the key through a password prompt. A blank key clears any previous custom key. Custom keys have no hosted-provider prefix or minimum-length requirement. Custom requests use only the custom key; they never inherit OpenAI API keys or ChatGPT tokens.
+
+The server must accept text system/user messages and return a standard Chat Completions response. GSmart's custom integration does not use the Responses API, native Ollama/LM Studio APIs, legacy text completions, or automatic protocol detection. A Responses-only model needs a provider/API integration that supports it. Local models must be downloaded/loaded separately and have enough context for the diff and instructions. Model quality, context limits, and hardware determine results and latency; increase `GSMART_TIMEOUT` for slow inference.
+
+### Save your preferred commit style
+
+Use `gsmart config` for the interactive menu, or set instructions directly:
+
+```bash
+gsmart config --add-custom-prompt "Use imperative mood, keep the subject concise, and use directory names as scopes."
+
+# Read your saved prompt
+gsmart config --show
+
+# Clear it and return to the built-in instructions
+gsmart config --clear-custom-prompt
+```
+
+Custom instructions are selected in this order:
+
+1. A nonempty `--prompt` for the current run.
+2. The repository's `instructions` setting, if present in `.gsmartrc.json`.
+3. Your saved default prompt.
+4. Built-in instructions alone.
+
+The selected text is added to the resolved Conventional Commits instructions. These custom-instruction sources replace each other rather than concatenate. Repository `"instructions": ""` explicitly clears inherited personal instructions. `config --show` displays the saved personal prompt and provider/model preferences, with authentication status but no credential values.
+
+### Shared repository conventions
+
+Create and commit `.gsmartrc.json` at your **Git root**. GSmart uses that same file from the root or any nested directory, including in Git worktrees. Nested `.gsmartrc.json` files do not override the root file.
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/ragnarok22/gsmart/main/schemas/gsmartrc.schema.json",
+  "types": ["feat", "fix", "docs", "refactor", "test", "chore"],
+  "scopes": ["cli", "utils", "deps"],
+  "scope": "optional",
+  "headerMaxLength": 72,
+  "subjectMaxLength": 60,
+  "language": "en",
+  "tickets": {
+    "prefixes": ["APP-"],
+    "required": false,
+    "placement": "footer",
+    "footerToken": "Refs"
+  },
+  "body": {
+    "presence": "optional",
+    "maxLineLength": 100,
+    "instructions": "Explain why the change is needed when it is not obvious."
+  },
+  "breakingChanges": {
+    "requireFooter": true,
+    "instructions": "Describe the impact and any migration steps."
+  },
+  "instructions": "Use imperative mood and describe observable changes.",
+  "commitlint": true,
+  "history": { "enabled": false, "limit": 5 }
+}
+```
+
+The [JSON Schema](../schemas/gsmartrc.schema.json) is included in the npm package as `gsmart/schemas/gsmartrc.schema.json`. Use the `$schema` URL for editor support; runtime validation uses the bundled schema without a network request. All settings are optional. Unknown properties, malformed JSON, and invalid values stop generation with the config path and setting to correct, before file selection or auto-staging.
+
+| Setting               | Meaning and default                                                                                                                                                                                                                                                                                  |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types`               | Allowed types; defaults to `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `build`, `ci`, `chore`, `revert`. `null` allows any Conventional Commit type.                                                                                                                                 |
+| `scopes`              | Allowed scopes, or `null` for unrestricted scopes (default). For multiple scopes separated by `/`, `\` or `,`, each component must be allowed.                                                                                                                                                       |
+| `scope`               | `optional` (default), `required`, or `forbidden`.                                                                                                                                                                                                                                                    |
+| `headerMaxLength`     | Maximum length of the entire first line, including type and scope. Positive integer or `null` (default: no limit).                                                                                                                                                                                   |
+| `subjectMaxLength`    | Maximum length of the description **after** `type(scope): `. Positive integer or `null` (default: no limit).                                                                                                                                                                                         |
+| `language`            | Output language tag, such as `en` (default), `es`, or `pt-BR`. Type tokens, scopes, ticket IDs and footer labels retain their configured spelling.                                                                                                                                                   |
+| `tickets`             | `prefixes` (default `null`, unrestricted), `required` (default `false`), `placement` (`subject`, `body`, or default `footer`), and `footerToken` (default `Refs`). Configured prefixes are followed by numeric IDs. Supply IDs in the branch, changes, or prompt; historical IDs must not be reused. |
+| `body`                | `presence` (`optional`, `required`, `forbidden`), `leadingBlank` (default `true`), `maxLineLength` (default `null`; URL-containing lines are exempt), and optional `instructions`.                                                                                                                   |
+| `footer.leadingBlank` | Separate footers from preceding content with a blank line (default `true`).                                                                                                                                                                                                                          |
+| `breakingChanges`     | `requireFooter` (default `false`) requires a `BREAKING CHANGE:` footer for breaking changes even with a `!` header; `instructions` supplies migration/impact guidance.                                                                                                                               |
+| `instructions`        | Additional generation instructions, up to 10,000 characters. Body and breaking-change instructions have the same limit.                                                                                                                                                                              |
+| `commitlint`          | Import compatible rules from a root commitlint configuration (default `true`). Set to `false` to skip discovery and loading.                                                                                                                                                                         |
+| `history`             | `enabled` (default `false`) and `limit` (1–20, default `5`).                                                                                                                                                                                                                                         |
+| `context`             | Request budgets, context exclusions, generated-file patterns, and opt-in AI summarization. See [Large diffs and AI context](#large-diffs-and-ai-context).                                                                                                                                            |
+
+Configuration is merged **per setting**, from highest to lowest priority:
+
+1. Explicit CLI options (`--prompt`, `--language`, `--history-examples`, and context overrides).
+2. `.gsmartrc.json` settings.
+3. Compatible rules imported from the repository's commitlint configuration.
+4. User settings (currently the saved default prompt).
+5. Built-in defaults.
+
+Nested objects merge by individual field; arrays replace rather than concatenate. Explicit `false`, `null` where allowed, and empty instruction strings override inherited values. CLI options override their corresponding settings, not the entire repository configuration. Structured conventions take precedence over conflicting free-text instructions or refinement feedback. The resolved settings are reused throughout generation, refinement, and staged-change regeneration.
+
+Inspect the effective configuration, including source paths, imported rule severity, and compatibility diagnostics:
+
+```bash
+gsmart config --show-effective
+gsmart config --show-effective --language es --history-examples 0
+```
+
+Run `--show-effective` separately from flags that save or clear settings. Conflicting update options are rejected before any settings are saved.
+
+Conventions guide AI generation and deterministic [message validation](#message-validation). Review the result for accuracy; Git hooks still run and can enforce additional project rules.
+
+Repository configuration accepts no API keys, OAuth tokens, or provider credentials. Login continues to use the active user-level store selected by `GSMART_CONFIG_DIR`; `gsmart reset` clears that store. Repository files are maintained through Git.
+
+#### Commitlint compatibility
+
+GSmart uses `@commitlint/load` to resolve presets and synchronous/asynchronous rule factories. Referenced presets and plugins must be installed in your repository. JavaScript and TypeScript configuration executes through the standard loader when integration is enabled.
+
+Discovery is limited to the Git root, in this order: the `commitlint` field in `package.json`; `.commitlintrc`, `.commitlintrc.json`, `.commitlintrc.yaml`, `.commitlintrc.yml`; `.commitlintrc.{js,cjs,mjs}`; `commitlint.config.{js,cjs,mjs}`; `.commitlintrc.{ts,cts,mts}`; `commitlint.config.{ts,cts,mts}`. Parent/global and nested configurations are not searched. `package.yaml` manifests are not a discovery source.
+
+| Rule                   | Supported form                                                                    | GSmart setting                              |
+| ---------------------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
+| `type-enum`            | `always` with a string array                                                      | `types`                                     |
+| `scope-enum`           | `always` with a string array, using commitlint's default `/`, `\`, `,` delimiters | `scopes`                                    |
+| `scope-empty`          | `always` / `never`                                                                | `scope: "forbidden"` / `"required"`         |
+| `header-max-length`    | `always` with a positive integer or `Infinity`                                    | `headerMaxLength`                           |
+| `subject-max-length`   | `always` with a positive integer or `Infinity`                                    | `subjectMaxLength`                          |
+| `body-empty`           | `always` / `never`                                                                | `body.presence: "forbidden"` / `"required"` |
+| `body-leading-blank`   | `always` / `never`                                                                | `body.leadingBlank: true` / `false`         |
+| `body-max-line-length` | `always` with a positive integer or `Infinity`                                    | `body.maxLineLength`                        |
+| `footer-leading-blank` | `always` / `never`                                                                | `footer.leadingBlank: true` / `false`       |
+
+Severity `0` disables import of that rule; severities `1` and `2` supply generation conventions and retain warning/error metadata for validation. Empty enum arrays map to `null` (unrestricted), and `Infinity` removes a length limit. Disabled rules contribute no override. Explicit `.gsmartrc.json` values replace mapped rules, including their severity metadata.
+
+Imported values must also fit the schema's bounds (for example, up to 100 enum entries with 100 characters per name). Other rules, inverted enum/length rules, and object-form `scope-enum` values are not translated. Their active rule names appear in `config --show-effective` diagnostics and `--debug` logs. Custom parser formats, plugin behavior, and commitlint ignore predicates do not change GSmart's Conventional Commit format. Invalid config or missing presets produce an actionable load error.
+
+#### Output language and history examples
+
+```bash
+# Language override for a single run
+gsmart --language es
+gsmart --language pt-BR
+
+# Use five recent subjects as style examples
+gsmart --history-examples 5
+
+# Disable examples even when the repository enables them
+gsmart --history-examples 0
+```
+
+Language changes generated commit prose, while CLI help and documentation remain in their existing language.
+
+History is opt-in. When enabled, GSmart reads recent non-merge commit subjects reachable from `HEAD`, bounded to **20 subjects, 200 characters each, and 4,000 subject characters total**. It excludes bodies, labels the subjects as style examples, and sends them to the selected provider alongside the diff. Explicit conventions override historical style. A repository without commits contributes no examples, and disabling history skips the history read entirely.
+
+### Message validation
+
+Generated, edited, refined, and restored candidates use the same offline validator before they can be committed. It checks:
+
+- Nonempty Conventional Commit headers, optional scopes, and `!` breaking markers.
+- Recognizable output wrappers at the start of the output (quotes, JSON, Markdown fences around the whole message, and common model preambles before the header) and control characters.
+- Effective allowed types/scopes, scope presence, header/description lengths, body presence and line lengths, and body/footer blank-line rules.
+- Configured ticket references and breaking-change footer requirements. Both `BREAKING CHANGE:` and `BREAKING-CHANGE:` are supported, including multiline values and adjacent trailers.
+
+Schema-valid punctuation in an explicitly configured type (for example, `[bot]`, `<release>`, or `**meta`) is accepted when the parsed header type matches exactly. This exception does not apply to `types: null` or to wrappers around a configured header; all other validation rules still apply.
+
+Multiline bodies and Markdown code examples inside bodies are supported. After a valid header, body and footer prose such as “The commit message uses the configured format.” or “Let me know if…” is treated as message content, not rejected as a wrapper; it still must satisfy the configured body/footer rules. CRLF/CR line endings become LF and terminal newlines are removed consistently; meaningful whitespace and content are retained. GSmart passes `--cleanup=verbatim` to Git so cleanup settings cannot strip a validated body or Markdown hard breaks; Git hooks still run. Length limits count JavaScript UTF-16 units, matching commitlint.
+
+Footer parsing recognizes unindented `Token: value` or `Token #reference` lines outside fenced code at section boundaries. Generic colon-prefixed prose within a body paragraph stays in the body. Recognizable reference, breaking-change, and sign-off/review trailers are checked even when their required blank separator is missing. With `footer.leadingBlank: false`, trailers may follow body text directly. Subsequent lines continue a footer until another trailer starts. Trailer values must contain non-whitespace content, which can begin on a continuation line. A footer does not satisfy a required body, and breaking markers require the colon-space separator. Bare `BREAKING CHANGE`/`BREAKING-CHANGE` tokens and incorrectly spaced colons are invalid markers. Ordinary prose such as `BREAKING CHANGE handling is documented below.` remains body text or a footer continuation: it does not satisfy a required breaking footer and remains subject to the rules for its section.
+
+Ticket recognition covers configured **literal prefixes followed by digits** (for example, `"APP-"` recognizes `APP-42`) and common `#42` references. Bare uppercase `PROJ-42` shapes are recognized in reference footers, or in an explicitly required subject/body ticket section when prefixes are unrestricted. This avoids treating ordinary prose such as `UTF-8` or `SHA-256` as tickets by default. Recognized tickets must use an allowed prefix when configured, the configured placement, and the configured footer label. Ticket IDs inside backtick- or tilde-fenced examples, including fence info strings and footer continuations, are ignored: they neither satisfy required tickets nor trigger ticket-rule errors. References after a closing fence are checked normally; an unclosed fence keeps the remaining lines excluded from ticket checks. Fenced body examples still count toward body presence and line-length rules. For other ticket formats, configure their literal prefix. Validation cannot prove an ID was supplied by the diff or branch, detect an unmarked breaking change, or determine semantic accuracy, language quality, or arbitrary free-text instructions. Review those against the diff; the [evaluation guide](../test-support/evaluations/README.md) provides a repeatable rubric. Syntactically valid prose is not proof of a faithful message.
+
+Rule precedence matches generation. Imported commitlint severity `1` produces a visible warning; severity `2`, built-in syntax failures, and explicit repository rules block committing. An explicit setting replaces the imported rule's severity. Unsupported commitlint rules remain covered by the [compatibility contract](#commitlint-compatibility), rather than being silently treated as enforced.
+
+In interactive review, invalid drafts stay available for **Edit message**, **Regenerate with feedback**, and candidate history. **Commit** is disabled until the candidate passes. For example:
+
+```text
+Candidate #1 (generated):
+Added accounts
+Invalid commit message:
+error [header] line 1: Use <type>[optional scope][!]: <description>, for example: feat(api): add pagination.
+Edit the message or regenerate with feedback before committing. ...
+? What would you like to do? › Edit message
+
+Candidate #2 (edited):
+feat(accounts): add account creation
+? What would you like to do? › Commit
+✔ Changes committed successfully
+```
+
+Automation never silently accepts invalid output: `--yes` exits `1` without committing; `--dry-run` labels the invalid preview and exits `1`; machine message output leaves stdout empty, while JSON output returns `ok: false` with `error.code: "VALIDATION"`. Invalid candidates in a non-TTY session exit without a recovery prompt. Correct the message interactively or adjust the instructions/conventions and rerun. Validation does not undo files already staged by an explicitly requested staging operation.
+
+### Large diffs and AI context
+
+GSmart budgets the **complete request**: system instructions, branch, changes, custom instructions, history examples, refinement feedback, an output reserve, and request overhead. Small diffs that fit keep their full content and use one generation request.
+
+Oversized diffs are reduced locally by default. Each included file keeps its path, change type, line counts, rename origin, and relevant mode/binary metadata. Small patches stay intact where possible; larger patches receive representative excerpts. Lockfiles and generated files receive at most 1 KiB of excerpts so they cannot dominate source changes. Excerpts are incomplete evidence, and the prompt tells the model not to infer unseen details. Lockfile-only, binary, rename-only, and deletion changes remain usable context.
+
+**AI summarization is opt-in.** `--summarize` allows extra requests for oversized source files. Each chunk request is independently budgeted and uses the selected model, authentication, timeout, cancellation, and retry policy. Summaries are composed within the final budget. The default limit is eight summary attempts **including retries**, in addition to final-generation attempts. If a file requires more chunks than its share of the limit, chunks are sampled across the file and its report marks the summary as partial. Large combined summaries can also be shortened for the final request. Lockfiles and generated files continue to use local compaction.
+
+```bash
+# Generate and inspect per-file context treatment without committing
+gsmart --dry-run --show-context
+
+# Set a total request budget and exclude paths from AI context
+gsmart --dry-run --context-budget 16384 --context-exclude 'vendor/**' '*.map'
+
+# Allow additional AI calls for this run
+gsmart --dry-run --summarize --show-context
+
+# Override repository opt-in; only local reduction is used
+gsmart --dry-run --no-summarize
+
+# Inspect configuration overrides and their sources
+gsmart config --show-effective --context-budget 16384 --no-summarize
+```
+
+`--show-context` prints a JSON report with the resolved budget and its source, input estimate, output/overhead reserves, summary-attempt count, and each file's treatment (`full`, `condensed`, `summarized`, or `excluded`), reason, byte sizes, and partial-coverage flag. A brief notice appears whenever files are reduced or excluded. This report describes the final context; it does not print source contents. `--dry-run` still makes the final AI request and any opted-in summary requests.
+
+Add a `context` section to the root `.gsmartrc.json` to share settings:
+
+```json
+{
+  "context": {
+    "budgetTokens": 16384,
+    "outputTokens": 1024,
+    "summarize": false,
+    "maxSummaryRequests": 8,
+    "exclude": ["vendor/**"],
+    "generated": [
+      "**/*.min.js",
+      "**/*.min.css",
+      "**/*.map",
+      "**/*.generated.*",
+      "**/generated/**",
+      "**/dist/**"
+    ]
+  }
+}
+```
+
+| Setting              | Default and behavior                                                                                                                                                                                                   |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `budgetTokens`       | `null`: resolve from the selected provider/model. An explicit integer from 1,024 to 1,048,576 overrides it; it must leave room for instructions and exceed output plus overhead. Known model windows are upper bounds. |
+| `outputTokens`       | `1024`: reserved output tokens, also passed to the provider as its output limit; configurable from 256 to 32,768. Increase it if a model exhausts its output/reasoning allowance.                                      |
+| `summarize`          | `false`: use local reduction only. `true` permits additional AI calls when needed.                                                                                                                                     |
+| `maxSummaryRequests` | `8`: maximum summary attempts per generation/refinement, including retries; range 1–64.                                                                                                                                |
+| `exclude`            | `[]`: omit matching files entirely from AI context, including summary requests. For renames/copies, both original and destination paths are checked.                                                                   |
+| `generated`          | The six patterns shown above. Recognized generated-code markers also trigger compaction. Setting `[]` disables pattern matching, but retains marker and lockfile detection.                                            |
+
+Patterns match complete repository-relative paths using `/` separators: `*` matches within a component, `**` crosses directories, `**/` also matches the root, and `?` matches one non-separator character. Other characters are literal; negation, brace expansion, and character classes are not supported. Quote CLI patterns to prevent shell expansion. Arrays replace inherited values. CLI context settings override their corresponding repository fields; `config` accepts these flags with `--show-effective` for inspection.
+
+#### Model budgets and conservative accounting
+
+Known exact provider/model pairs use a default total budget of **32,768**, below their advertised windows:
+
+| Provider  | Model                                | Known window |
+| --------- | ------------------------------------ | ------------ |
+| OpenAI    | `gpt-4o`, `gpt-4o-mini`              | 128,000      |
+| OpenAI    | `gpt-5-codex`                        | 400,000      |
+| Anthropic | `claude-haiku-4-5-20251001`          | 200,000      |
+| Google    | `gemini-2.5-flash`, `gemini-2.5-pro` | 1,048,576    |
+
+All other IDs, including unlisted built-in defaults and **every custom endpoint**, use an **8,192** total fallback unless overridden. A local server may configure a smaller window than the model supports; set `--context-budget` to that effective limit.
+
+With an automatic budget, an output reserve plus framing overhead that reaches or exceeds the 32,768-token automatic cap is rejected while loading configuration, before file selection or auto-staging. Larger output reserves require an explicit larger `budgetTokens`. Model-specific limits are checked after model selection; valid model-dependent settings retain `budgetTokens: null` in the effective configuration.
+
+GSmart conservatively counts **one token per UTF-8 byte** of request text, plus **512 tokens** for request framing, then reserves `outputTokens`. This intentionally overestimates typical token usage instead of assuming four characters per token. The report is an accounting estimate, not provider billing. Custom tokenizers or server-added templates can differ; account for their overhead with a smaller configured budget.
+
+**Context exclusions and reduction never unstage files or change working-tree contents.** All selected changes still belong to the commit; only their AI representation changes. Existing staging and dry-run selection rules still apply. Git capture supports complete diffs up to 64 MiB and returns an explicit error above that limit or on read failure.
+
+If even the file metadata cannot fit, GSmart shows the current budget and the minimum total needed, including instructions/history, output reserve, and request overhead. In an interactive terminal, it offers to increase the budget for the current session and retry the captured changes. Accepting keeps that budget for subsequent candidates without saving it to configuration. With `--yes` or noninteractive input/output, GSmart exits with a concrete `--context-budget <number>` recommendation to use with the same command.
+
+Recommendations respect known model windows and GSmart's maximum budget. If the minimum exceeds those limits, reduce context instead: use `--history-examples 0`, shorten instructions/feedback, add `--context-exclude 'path/to/exclude/**'`, or stage fewer files. For unknown models and custom endpoints, check the model/server's actual capacity before accepting an increase. The minimum budget fits metadata; additional room allows more diff excerpts. `--summarize` cannot fix metadata overflow.
+
+If all usable context is excluded, instructions cannot fit, or an attempted summary is empty, fails, or exhausts retries, generation stops with a clear error. Increase the relevant limit, shorten instructions/history/feedback, adjust exclusions, or use `--no-summarize` to retry with local reduction. GSmart does not silently continue after a failed summary.
+
+### Environment variables
+
+| Variable            | Purpose                                        | Default                                   |
+| ------------------- | ---------------------------------------------- | ----------------------------------------- |
+| `GSMART_TIMEOUT`    | Timeout per AI generation attempt, in ms       | `30000` (30 seconds)                      |
+| `GSMART_CONFIG_DIR` | Directory for GSmart's local configuration     | Your OS's user configuration location     |
+| `VISUAL`            | Preferred editor command for message editing   | Unset                                     |
+| `EDITOR`            | Editor command when `VISUAL` is unset or blank | `vi` on macOS/Linux; `notepad` on Windows |
+
+For example, allow up to 60 seconds per generation attempt in Bash or Zsh:
+
+```bash
+GSMART_TIMEOUT=60000 gsmart
+```
+
+Invalid or nonpositive timeout values fall back to 30 seconds. GSmart retries transient failures, including network errors, rate limits, and server errors, so a complete run can take longer than one timeout period.
+
+ChatGPT streaming responses must complete successfully before becoming commit candidates. Timeouts and interrupted connections discard partial text before retrying. Explicit cancellation stops retries; responses cut short by output limits or content filtering return an error.
+
+<details>
+<summary><strong>Where settings live, separate configurations, and resetting</strong></summary>
+
+GSmart stores API keys, ChatGPT login tokens, provider/model preferences, the custom endpoint, and your default prompt in a local, user-level configuration file managed by `conf`. These settings are shared across repositories when you use the same configuration directory. Provider preferences and endpoint credentials are not read from `.gsmartrc.json`.
+
+To keep a separate configuration, set `GSMART_CONFIG_DIR` consistently for login and generation. For example, in Bash or Zsh:
+
+```bash
+export GSMART_CONFIG_DIR="$HOME/.config/gsmart-work"
+gsmart login
+gsmart
+```
+
+To clear the active configuration:
+
+```bash
+gsmart reset
+```
+
+This asks for confirmation, then clears all settings in that configuration store, including provider credentials, ChatGPT login tokens, provider/model defaults, the custom endpoint, and the saved prompt. `gsmart reset --force` skips the confirmation. Resetting clears local settings; credential revocation is managed through your provider.
+
+</details>
+
+## Providers
+
+Run `gsmart login` to configure any of these providers:
+
+| Provider       | `--provider` value | Authentication                                                                          |
+| -------------- | ------------------ | --------------------------------------------------------------------------------------- |
+| OpenAI         | `openai`           | ChatGPT subscription login or [API key](https://platform.openai.com/api-keys)           |
+| Anthropic      | `anthropic`        | [API key](https://console.anthropic.com/settings/keys)                                  |
+| Google Gemini  | `google`           | [API key](https://aistudio.google.com/apikey)                                           |
+| Mistral        | `mistral`          | [API key](https://console.mistral.ai/api-keys/)                                         |
+| Fireworks AI   | `fireworks`        | [API key](https://fireworks.ai/api-keys)                                                |
+| PlataformIA    | `plataformia`      | [API key](https://console.plataformia.com/api-keys)                                     |
+| Custom / local | `custom`           | Optional bearer token; [configure URL and model](#local-inference-and-custom-endpoints) |
+
+An explicit `--provider` takes precedence over your saved default. Without either, GSmart selects a single configured provider automatically or offers a chooser when several exist. Prompt-free workflows (`--yes`, machine output, and planning) use the first configured entry in the order above when no explicit or saved choice exists.
+
+Credentials are saved locally for future runs. On macOS/Linux, credential files are restricted to your user (`0600`), including existing files when GSmart starts. Run `gsmart login` again to add another provider or update your authentication.
+
+**Using ChatGPT?** Choose **OpenAI → ChatGPT subscription** during login. GSmart prints an authorization URL and attempts to open it in your browser. Complete authorization on the machine running the CLI so the local callback can finish. Tokens refresh automatically; if the login expires, run `gsmart login` again.
+
+ChatGPT login uses the Codex Responses endpoint with streaming and storage disabled. Its model access differs from the public OpenAI API. Saved OpenAI models and `--model` overrides must be supported by the active authentication mode; use API-key login for API-only models. Fireworks and PlataformIA use Chat Completions, while OpenAI API-key requests use Responses.
+
+### Which models does GSmart use?
+
+When neither `--model` nor a saved model is set, the built-in fallbacks are:
+
+| Provider             | Model ID                                                |
+| -------------------- | ------------------------------------------------------- |
+| OpenAI API key       | `gpt-5.6-luna`                                          |
+| OpenAI ChatGPT OAuth | `gpt-5-codex`                                           |
+| Anthropic            | `claude-haiku-4-5-20251001`                             |
+| Google               | `gemini-3.5-flash-lite`                                 |
+| Mistral              | `mistral-large-latest`                                  |
+| Fireworks AI         | `accounts/fireworks/models/deepseek-v4-flash`           |
+| PlataformIA          | `radiance`                                              |
+| Custom / local       | No fallback; configure a model available on your server |
+
+Use `gsmart config --provider <provider> --model <model>` to save another model, or `--model <model>` for one run. `gsmart config --show` identifies saved and built-in models. Availability depends on the provider account, authentication mode, and API operation. Consult your provider's model catalog; an unsupported model produces guidance for selecting another model.
+
+## Command reference
+
+Run `gsmart` to generate a commit message. `gsmart --help` shows generation options and the available subcommands.
+
+| Command                      | Purpose                                                       |
+| ---------------------------- | ------------------------------------------------------------- |
+| `gsmart`                     | Generate a message and choose what to do with it              |
+| `gsmart plan --staged`       | Suggest coherent commits for the existing staged diff         |
+| `gsmart login`               | Configure a provider's authentication                         |
+| `gsmart config`              | Manage prompts, provider/model defaults, and custom endpoints |
+| `gsmart reset`               | Clear the active local configuration after confirmation       |
+| `gsmart completions <shell>` | Print a completion script for `bash`, `zsh`, or `fish`        |
+| `gsmart help [command]`      | Show help for a command                                       |
+
+**Generation options** — use directly with `gsmart`:
+
+| Option                            | Short | Purpose                                                               |
+| --------------------------------- | ----- | --------------------------------------------------------------------- |
+| `--provider <provider>`           | `-P`  | Choose an already-configured provider                                 |
+| `--model <model>`                 |       | Override the selected provider's saved or built-in model for this run |
+| `--prompt <prompt>`               | `-p`  | Supply custom instructions for this run                               |
+| `--language <tag>`                |       | Override the generated message's language (`en`, `es`, `pt-BR`)       |
+| `--history-examples <count>`      |       | Include 0–20 recent subjects as style examples; `0` disables them     |
+| `--context-budget <tokens>`       |       | Set the total request budget, including instructions and output       |
+| `--context-exclude <patterns...>` |       | Exclude matching paths from AI context only                           |
+| `--summarize` / `--no-summarize`  |       | Enable or disable extra AI summarization requests                     |
+| `--show-context`                  |       | Print per-file context treatment and budget accounting                |
+| `--yes`                           | `-y`  | Skip generation prompts and commit automatically                      |
+| `--dry-run`                       | `-d`  | Generate a message and show analyzed files without committing         |
+| `--output <message\|json>`        |       | Generate without prompts; write only the message or a JSON result     |
+| `--stdin`                         |       | Read a diff from stdin; works outside a Git repository                |
+| `--branch <name>`                 |       | Supply branch context in a machine workflow                           |
+| `--stage`                         |       | Explicitly stage all changes before noninteractive generation         |
+| `--commit`                        |       | Explicitly commit verified staged changes after generation            |
+
+**Other options:**
+
+| Command and option                                    | Short | Purpose                                                                         |
+| ----------------------------------------------------- | ----- | ------------------------------------------------------------------------------- |
+| `gsmart --debug`                                      | `-D`  | Enable diagnostic logging and timing                                            |
+| `gsmart --version`                                    | `-V`  | Print the installed version                                                     |
+| `gsmart --help`                                       | `-h`  | Show help; also available on subcommands                                        |
+| `gsmart config --show`                                | `-s`  | Display prompt, provider/model preferences, endpoint, and authentication status |
+| `gsmart config --default-provider <provider>`         |       | Save the default provider                                                       |
+| `gsmart config --clear-default-provider`              |       | Return to automatic selection                                                   |
+| `gsmart config --provider <provider> --model <model>` |       | Save a model for a provider                                                     |
+| `gsmart config --provider <provider> --clear-model`   |       | Remove a saved model                                                            |
+| `gsmart config --provider custom --base-url <url>`    |       | Set the Chat Completions base URL                                               |
+| `gsmart config --provider custom --api-key <key>`     |       | Set custom endpoint authentication                                              |
+| `gsmart config --provider custom --clear-api-key`     |       | Remove custom endpoint authentication                                           |
+| `gsmart config --clear-custom-endpoint`               |       | Remove custom endpoint settings and its default-provider selection              |
+| `gsmart config --show-effective`                      |       | Display resolved conventions, sources, and diagnostics                          |
+| `gsmart config --add-custom-prompt <text>`            |       | Save default writing instructions                                               |
+| `gsmart config --clear-custom-prompt`                 |       | Clear default writing instructions                                              |
+| `gsmart reset --force`                                | `-f`  | Reset local settings without confirmation                                       |
+
+## Troubleshooting
+
+| What you see                                      | What to try                                                                                                                                                                                        |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gsmart: command not found`                       | Confirm the global installation completed and your package manager's global executable directory is on `PATH`.                                                                                     |
+| No changes found                                  | Run `git status` in the repository and check that you have changes to describe.                                                                                                                    |
+| No configured providers / provider not configured | Run `gsmart login` or configure a custom endpoint URL and model. Inspect saved defaults with `gsmart config --show`.                                                                               |
+| Invalid API key or expired ChatGPT login          | Run `gsmart login` again to update the key or repeat browser authorization.                                                                                                                        |
+| Request timed out / could not reach API           | Check connectivity and start your local server if applicable; verify the host/port and increase `GSMART_TIMEOUT` for slow models.                                                                  |
+| Rate limited / model unavailable                  | Wait before retrying a rate limit. Check model access or load/download the local model; select another with `--model`.                                                                             |
+| Endpoint unsupported / unexpected response        | Check that the custom base URL includes `/v1` if required and serves OpenAI-compatible Chat Completions. Native API URLs and Responses-only servers are not supported by `custom`.                 |
+| Failed to commit changes                          | Check your Git identity, repository state, and hook output. Interactive and `--yes` workflows attempt to copy the message to your clipboard; machine workflows preserve it in JSON when available. |
+| Could not copy message to clipboard               | Copy the printed message directly from the terminal.                                                                                                                                               |
+| Failed to unstage files after dry-run             | Run `git status` to inspect the index and unstage the files you intended only to preview.                                                                                                          |
+| Editor failed or edits did not appear             | Check `VISUAL` / `EDITOR` and add a wait flag for GUI editors, such as `code --wait`, then retry **Edit message**.                                                                                 |
+| Staged content has changed                        | Regenerate for the updated changes, review the new message, then choose **Commit** again.                                                                                                          |
+| Invalid conventions or malformed JSON             | Fix the reported setting in the root `.gsmartrc.json`; inspect `gsmart config --show-effective` after correcting it.                                                                               |
+| Could not load commitlint configuration           | Correct the root config or install its referenced presets/plugins; `"commitlint": false` disables this integration.                                                                                |
+
+For more detail, combine debug logging with a preview:
+
+```bash
+gsmart --debug --dry-run
+```
+
+Still stuck? [Open an issue](https://github.com/ragnarok22/gsmart/issues) with your GSmart version, Node.js version, provider, command, and relevant output.
+
+## Shell completions
+
+Enable tab completion for your shell, then start a new terminal session.
+
+Completions work directly with `gsmart`: try `gsmart --<Tab>`, `gsmart --provider <Tab>`, or `gsmart config --<Tab>`. The older `gsmart generate` invocation remains available as a hidden compatibility alias, but is omitted from command suggestions and the main help listing.
+
+**Updating an existing setup?** For Bash and Zsh, reload the completion definition with the `eval` command below or start a new terminal. For Fish, regenerate the saved completion file and start a new terminal.
+
+If your shell startup caches generated completion scripts, regenerate that cached copy after updating GSmart so new sessions load the current definitions too.
+
+<details>
+<summary><strong>Bash</strong> — add to <code>~/.bashrc</code></summary>
+
+```bash
+eval "$(gsmart completions bash)"
+```
+
+</details>
+
+<details>
+<summary><strong>Zsh</strong> — add to <code>~/.zshrc</code></summary>
+
+Initialize Zsh's completion system first if your shell configuration doesn't already do so:
+
+```zsh
+autoload -Uz compinit
+compinit
+eval "$(gsmart completions zsh)"
+```
+
+</details>
+
+<details>
+<summary><strong>Fish</strong> — save a completion file</summary>
+
+```fish
+mkdir -p ~/.config/fish/completions
+gsmart completions fish > ~/.config/fish/completions/gsmart.fish
+```
+
+</details>
+
+## Development
+
+Use **Node.js 22.12.0+** (`.nvmrc` pins the development version) and the **pnpm version pinned in `package.json`**.
+
+```bash
+git clone https://github.com/ragnarok22/gsmart.git
+cd gsmart
+pnpm install --frozen-lockfile
+pnpm run prebuild
+
+# Run the CLI from source
+pnpm exec tsx src/index.ts --help
+pnpm exec tsx src/index.ts login
+pnpm exec tsx src/index.ts --dry-run
+```
+
+`prebuild` generates the build metadata needed by source execution. Use `pnpm exec tsx src/index.ts login` for local GSmart authentication; `pnpm login` and `npm login` authenticate with the package registry.
+
+<details>
+<summary><strong>Build, checks, and coverage</strong></summary>
+
+```bash
+# Build the CLI, then run the bundle
+pnpm run build
+node dist/index.js --help
+
+# Watch and rebuild the bundle as you edit
+pnpm run dev
+
+# Lint, typecheck, and run tests
+pnpm run check
+
+# Check formatting separately
+pnpm run format:check
+
+# Run tests and generate coverage/lcov.info
+mkdir -p coverage
+pnpm run test:coverage
+```
+
+`pnpm run dev` watches the bundle; run the CLI in another terminal to try your changes. Build and typecheck run the metadata-generation hook automatically. Coverage runs the full suite once under c8, which maps results back to the TypeScript source and merges coverage from mocked module instances. New `test/*.test.ts` files are included automatically.
+
+Native completion tests use Bash, Zsh, Fish, and Python 3 (for Zsh's terminal harness). Locally, suites for unavailable shells are skipped. CI installs all three shells and sets `GSMART_REQUIRE_SHELL_TESTS=1` so missing runtimes fail the checks. Set `GSMART_TEST_BASH`, `GSMART_TEST_ZSH`, or `FISH` to test a specific shell executable.
+
+Planning fixtures live in `test-support/split-plan-fixtures.ts`. Offline tests check mixed/coherent plans, exact change accounting, context reduction, and repository preservation using mocked providers. When comparing live model or prompt changes, also review semantic accuracy, useful grouping, manifest/lockfile and implementation/test coupling, justified dependency ordering, and explicit uncertainty. Several messages or groupings can be valid; exact wording is not a quality score.
+
+For commit-message prompt/model changes, use the versioned six-case corpus and human scoring rubric in the [evaluation guide](../test-support/evaluations/README.md):
+
+```sh
+# Offline corpus and syntax checks; also covered by normal tests
+pnpm run eval --check
+
+# Opt-in live evaluation: choose a model and configure credentials first
+pnpm run eval --live --provider openai --model <model-id> --runs 3 --output report.json
+
+# Human annotation and aggregation are offline
+pnpm run eval --template report.json --output annotations.json
+pnpm run eval --score report.json --annotations annotations.json --output scored.json
+```
+
+Live calls are separate from normal tests and CI. Reports retain failures and record provider/model, prompt version and actual request hashes, corpus/rubric identity, effective settings, source revision, and results. Compare all runs on the same corpus and rubric, including syntax failures, score ranges, and review coverage; different valid sentences are not regressions. Bump `COMMIT_PROMPT_VERSION` when changing the generation instruction contract.
+
+</details>
+
+<details>
+<summary><strong>Find your way around the code</strong></summary>
+
+| Location                      | Responsibility                                              |
+| ----------------------------- | ----------------------------------------------------------- |
+| `src/index.ts`                | CLI startup, lifecycle output, and signal handling          |
+| `src/program.ts`              | Testable command registration, root action, and alias       |
+| `src/gsmart.ts`               | Command registration                                        |
+| `src/commands/`               | Generation, login, configuration, reset, and completions    |
+| `src/utils/ai.ts`             | Provider models, prompts, timeouts, and retries             |
+| `src/utils/commit-message.ts` | Shared deterministic message validation                     |
+| `src/evaluate.ts`             | Opt-in developer evaluation command                         |
+| `src/utils/openai-oauth.ts`   | ChatGPT browser login and token refresh                     |
+| `src/utils/git.ts`            | Git operations and diff parsing                             |
+| `src/utils/split-plan.ts`     | Staged-change inventory, plan validation, and review output |
+| `src/utils/editor.ts`         | External message editing and temporary-file cleanup         |
+| `src/utils/interrupt.ts`      | Foreground operation cancellation                           |
+| `src/utils/index.ts`          | File selection, staging, and clipboard helpers              |
+| `src/utils/config.ts`         | Local credentials and settings                              |
+| `src/definitions.ts`          | Shared TypeScript contracts                                 |
+| `test/`                       | Unit and integration tests                                  |
+
+`src/build-info.ts` and `dist/` are generated. See [AGENTS.md](https://github.com/ragnarok22/gsmart/blob/main/AGENTS.md) for implementation conventions and focused test commands.
+
+</details>
+
+---
+
+[Back to the README](../README.md) · [Contribution guide](../CONTRIBUTING.md) · [Report an issue](https://github.com/ragnarok22/gsmart/issues)
