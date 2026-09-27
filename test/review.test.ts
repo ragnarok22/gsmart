@@ -31,6 +31,7 @@ function setup({
   edits = [],
   snapshots = [initialSnapshot],
   onGenerate,
+  onSnapshot,
   effective,
   interactive = true,
 }: {
@@ -39,7 +40,8 @@ function setup({
   edits?: EditResult[];
   snapshots?: (StagedSnapshot | Error)[];
   effective?: EffectiveConventions;
-  interactive?: boolean;
+  interactive?: boolean | (() => boolean);
+  onSnapshot?: (readNumber: number) => void;
   onGenerate?: (
     requestNumber: number,
     options?: Parameters<AIBuilder["generateCommitMessage"]>[2],
@@ -96,7 +98,8 @@ function setup({
         { source: "CLI", settings: cli },
       ]),
     spinner: (() => spinner) as never,
-    isInteractive: () => interactive,
+    isInteractive: () =>
+      typeof interactive === "function" ? interactive() : interactive,
     prompt: async (question) => {
       assert.ok(!Array.isArray(question));
       questions.push(String(question.name));
@@ -143,6 +146,7 @@ function setup({
     getGitBranch: async () => initialSnapshot.branch,
     getStagedSnapshot: async () => {
       snapshotReads++;
+      onSnapshot?.(snapshotReads);
       const snapshot = snapshots.length > 1 ? snapshots.shift()! : snapshots[0];
       if (snapshot instanceof Error) throw snapshot;
       return snapshot;
@@ -180,6 +184,7 @@ function setup({
     retrievals: () => retrievals,
     snapshotReads: () => snapshotReads,
     exitCode: () => exitCode,
+    spinnerText: () => stripVTControlCharacters(spinner.text),
   };
 }
 
@@ -231,6 +236,94 @@ test("PR 508: a documentation edit can be restored and committed after a wrapped
   assert.equal(run.snapshotReads(), 2);
   assert.equal(run.exitCode(), 0);
   assert.match(run.output(), /error \[wrapper\]/);
+});
+
+test("an invalid refinement stops without another prompt when the review terminal disconnects", async () => {
+  let interactive = true;
+  const run = setup({
+    interactive: () => interactive,
+    results: [original, "An invalid draft"],
+    responses: [{ action: "regenerate" }, { feedback: "Make it shorter" }],
+    onGenerate: (number) => {
+      if (number === 2) interactive = false;
+    },
+  });
+  await run.command.action({});
+  assert.equal(run.exitCode(), 1);
+  assert.deepEqual(run.questions, ["action", "feedback"]);
+  assert.deepEqual(run.committed, []);
+  assert.deepEqual(run.copied, []);
+  assert.equal(run.requests.length, 2);
+  assert.equal(run.snapshotReads(), 1);
+  assert.match(run.output(), /Invalid commit message/);
+});
+
+for (const mode of ["automatic", "interactive", "disconnected"] as const) {
+  test(`the final commit boundary revalidates effective rules after async snapshot verification (${mode})`, async () => {
+    // Dependencies share the effective rule object. Changes while the staged
+    // snapshot is being verified must not bypass the final validation boundary.
+    const effective = resolveConventions();
+    let interactive = true;
+    const repaired = "fix: x";
+    const run = setup({
+      effective,
+      interactive: () => interactive,
+      responses:
+        mode === "automatic"
+          ? []
+          : [
+              { action: "commit" },
+              ...(mode === "interactive"
+                ? [{ action: "edit" }, { action: "commit" }]
+                : []),
+            ],
+      edits:
+        mode === "interactive" ? [{ status: "edited", message: repaired }] : [],
+      onSnapshot: (number) => {
+        if (number === 2) {
+          effective.conventions.headerMaxLength = 10;
+          if (mode === "disconnected") interactive = false;
+        }
+      },
+    });
+    await run.command.action({ yes: mode === "automatic" });
+    assert.deepEqual(run.committed, mode === "interactive" ? [repaired] : []);
+    assert.equal(run.exitCode(), mode === "interactive" ? 0 : 1);
+    assert.equal(run.requests.length, 1);
+    assert.deepEqual(run.copied, []);
+    assert.match(run.output(), /header-max-length/);
+    if (mode === "interactive") {
+      assert.deepEqual(run.commitEnabled, [true, false, true]);
+      assert.deepEqual(run.editorInputs, [original]);
+      assert.equal(run.snapshotReads(), 3);
+    } else {
+      assert.deepEqual(run.questions, mode === "automatic" ? [] : ["action"]);
+      assert.equal(run.snapshotReads(), 2);
+    }
+  });
+}
+
+test("provider retries update progress while committing waits for a complete candidate", async () => {
+  const progress: string[] = [];
+  const run = setup({
+    onGenerate: (_number, options) => {
+      assert.ok(options?.onRetry);
+      for (const attempt of [1, 2]) {
+        options.onRetry(attempt, 3);
+        progress.push(run.spinnerText());
+        assert.deepEqual(run.committed, []);
+        assert.deepEqual(run.questions, []);
+      }
+    },
+  });
+  await run.command.action({ yes: true });
+  assert.deepEqual(progress, [
+    "Retrying... (attempt 2/3)",
+    "Retrying... (attempt 3/3)",
+  ]);
+  assert.deepEqual(run.committed, [original]);
+  assert.equal(run.requests.length, 1);
+  assert.equal(run.exitCode(), 0);
 });
 
 test("review edits a complete multiline message and waits for Commit", async () => {
