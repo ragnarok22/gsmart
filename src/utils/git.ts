@@ -345,7 +345,7 @@ export const commitChanges = async (
   onError?: (error: Error) => void,
 ): Promise<boolean> => {
   try {
-    runGit(["commit", "-m", message]);
+    runGit(["commit", "--cleanup=verbatim", "-m", message]);
     return true;
   } catch (error) {
     onError?.(error instanceof Error ? error : new Error(String(error)));

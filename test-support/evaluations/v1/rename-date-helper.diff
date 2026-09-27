@@ -1,0 +1,15 @@
+diff --git a/src/internal/format.ts b/src/internal/format-date.ts
+similarity index 100%
+rename from src/internal/format.ts
+rename to src/internal/format-date.ts
+diff --git a/src/views/invoice.ts b/src/views/invoice.ts
+index 49b2081..f325b49 100644
+--- a/src/views/invoice.ts
++++ b/src/views/invoice.ts
+@@ -1,5 +1,5 @@
+-import { formatDate } from '../internal/format';
++import { formatDate } from '../internal/format-date';
+ 
+ export function invoiceDate(date: Date) {
+   return formatDate(date);
+ }

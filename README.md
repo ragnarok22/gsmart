@@ -176,7 +176,7 @@ export EDITOR="nano"
 $env:VISUAL = "code --wait"
 ```
 
-To cancel editing, quit the editor without saving (for example, `:q!` in `vi`); an unchanged file leaves the current candidate selected. If you already saved changes, restore the earlier candidate from history. Empty messages and editor failures keep the current candidate and display an error so you can retry. Temporary editor files are cleaned up afterward.
+To cancel editing, quit the editor without saving (for example, `:q!` in `vi`); an unchanged file leaves the current candidate selected. If you already saved changes, restore the earlier candidate from history. Editor failures keep the current candidate and display an error so you can retry. Empty or invalid edits remain selected as drafts: correct them with **Edit message**, regenerate, or restore an earlier candidate. Temporary editor files are cleaned up afterward.
 
 #### If staged content changes during review
 
@@ -258,7 +258,7 @@ gsmart --yes --provider openai
 
 A hosted login or custom endpoint must already be configured. GSmart uses an explicit `--provider`, then your saved default provider, then the first configured provider in the [table's order](#providers). Provider selection, model resolution, and model-specific context-budget validation happen before file selection or auto-staging.
 
-`--yes` skips message review and editing. If staged content changes before its commit or cannot be verified, it stops with exit status `1` and asks you to rerun GSmart.
+`--yes` skips message review and editing. Invalid messages, changed staged content, or an unverifiable staged snapshot stop the command with exit status `1` before committing. Correct the reported issue and rerun GSmart.
 
 Initial generation failures and failed commits also exit with status `1`, so automation can detect them. A failed commit displays Git's diagnostic (including hook failures) and attempts to copy the generated message to the clipboard; if copying fails, it prints the message for recovery.
 
@@ -340,7 +340,7 @@ Failure:
 }
 ```
 
-Stable `error.code` values are `USAGE`, `CONFIGURATION`, `AUTHENTICATION`, `INPUT`, `NO_INPUT`, `CONTEXT`, `GENERATION`, `GIT`, `CANCELED`, and `INTERNAL`. Human-readable error text may change. A failure after generation may include a top-level `message` for recovery. Metadata-overflow errors include `error.recovery` with current/required/maximum budgets and, when possible, `suggestedBudgetTokens`.
+Stable `error.code` values are `USAGE`, `CONFIGURATION`, `AUTHENTICATION`, `INPUT`, `NO_INPUT`, `CONTEXT`, `GENERATION`, `VALIDATION`, `GIT`, `CANCELED`, and `INTERNAL`. Human-readable error text may change. A failure after generation may include a top-level `message` for recovery. Validation failures retain the rejected candidate and include `error.diagnostics`: entries have `code`, `severity` (`1` warning, `2` error), and `message`, with optional one-based `line`, configuration `source`, and imported `rule`. Warnings alone permit success and are printed to stderr. Metadata-overflow errors include `error.recovery` with current/required/maximum budgets and, when possible, `suggestedBudgetTokens`.
 
 | Exit status | Meaning in machine workflows                                                          |
 | ----------- | ------------------------------------------------------------------------------------- |
@@ -585,7 +585,7 @@ gsmart config --show-effective --language es --history-examples 0
 
 Run `--show-effective` separately from flags that save or clear settings. Conflicting update options are rejected before any settings are saved.
 
-Conventions guide AI generation; review the result for accuracy. Git hooks continue to enforce your project's validation. The shared `ResolvedConventions` and effective rule metadata provide the configuration interface for [message validation (#495)](https://github.com/ragnarok22/gsmart/issues/495).
+Conventions guide AI generation and deterministic [message validation](#message-validation). Review the result for accuracy; Git hooks still run and can enforce additional project rules.
 
 Repository configuration accepts no API keys, OAuth tokens, or provider credentials. Login continues to use the active user-level store selected by `GSMART_CONFIG_DIR`; `gsmart reset` clears that store. Repository files are maintained through Git.
 
@@ -628,6 +628,41 @@ gsmart --history-examples 0
 Language changes generated commit prose, while CLI help and documentation remain in their existing language.
 
 History is opt-in. When enabled, GSmart reads recent non-merge commit subjects reachable from `HEAD`, bounded to **20 subjects, 200 characters each, and 4,000 subject characters total**. It excludes bodies, labels the subjects as style examples, and sends them to the selected provider alongside the diff. Explicit conventions override historical style. A repository without commits contributes no examples, and disabling history skips the history read entirely.
+
+### Message validation
+
+Generated, edited, refined, and restored candidates use the same offline validator before they can be committed. It checks:
+
+- Nonempty Conventional Commit headers, optional scopes, and `!` breaking markers.
+- Recognizable output wrappers (quotes, JSON, Markdown fences around the whole message, and common model introductions or closing explanations) and control characters.
+- Effective allowed types/scopes, scope presence, header/description lengths, body presence and line lengths, and body/footer blank-line rules.
+- Configured ticket references and breaking-change footer requirements. Both `BREAKING CHANGE:` and `BREAKING-CHANGE:` are supported, including multiline values and adjacent trailers.
+
+Multiline bodies and Markdown code examples inside bodies are supported. CRLF/CR line endings become LF and terminal newlines are removed consistently; meaningful whitespace and content are retained. GSmart passes `--cleanup=verbatim` to Git so cleanup settings cannot strip a validated body or Markdown hard breaks; Git hooks still run. Length limits count JavaScript UTF-16 units, matching commitlint.
+
+Footer parsing recognizes unindented `Token: value` or `Token #reference` lines outside fenced code at section boundaries. Generic colon-prefixed prose within a body paragraph stays in the body. Recognizable reference, breaking-change, and sign-off/review trailers are checked even when their required blank separator is missing. With `footer.leadingBlank: false`, trailers may follow body text directly. Subsequent lines continue a footer until another trailer starts. A footer does not satisfy a required body, and breaking markers require the colon-space separator.
+
+Ticket recognition covers configured **literal prefixes followed by digits** (for example, `"APP-"` recognizes `APP-42`) and common `#42` references. Bare uppercase `PROJ-42` shapes are recognized in reference footers, or in an explicitly required subject/body ticket section when prefixes are unrestricted. This avoids treating ordinary prose such as `UTF-8` or `SHA-256` as tickets by default. Recognized tickets must use an allowed prefix when configured, the configured placement, and the configured footer label. For other ticket formats, configure their literal prefix. Validation cannot prove an ID was supplied by the diff or branch, detect an unmarked breaking change, or determine semantic accuracy, language quality, or arbitrary free-text instructions. Review those against the diff; the [evaluation guide](test-support/evaluations/README.md) provides a repeatable rubric. Syntactically valid prose is not proof of a faithful message.
+
+Rule precedence matches generation. Imported commitlint severity `1` produces a visible warning; severity `2`, built-in syntax failures, and explicit repository rules block committing. An explicit setting replaces the imported rule's severity. Unsupported commitlint rules remain covered by the [compatibility contract](#commitlint-compatibility), rather than being silently treated as enforced.
+
+In interactive review, invalid drafts stay available for **Edit message**, **Regenerate with feedback**, and candidate history. **Commit** is disabled until the candidate passes. For example:
+
+```text
+Candidate #1 (generated):
+Added accounts
+Invalid commit message:
+error [header] line 1: Use <type>[optional scope][!]: <description>, for example: feat(api): add pagination.
+Edit the message or regenerate with feedback before committing. ...
+? What would you like to do? › Edit message
+
+Candidate #2 (edited):
+feat(accounts): add account creation
+? What would you like to do? › Commit
+✔ Changes committed successfully
+```
+
+Automation never silently accepts invalid output: `--yes` exits `1` without committing; `--dry-run` labels the invalid preview and exits `1`; machine message output leaves stdout empty, while JSON output returns `ok: false` with `error.code: "VALIDATION"`. Invalid candidates in a non-TTY session exit without a recovery prompt. Correct the message interactively or adjust the instructions/conventions and rerun. Validation does not undo files already staged by an explicitly requested staging operation.
 
 ### Large diffs and AI context
 
@@ -967,27 +1002,45 @@ Native completion tests use Bash, Zsh, Fish, and Python 3 (for Zsh's terminal ha
 
 Planning fixtures live in `test-support/split-plan-fixtures.ts`. Offline tests check mixed/coherent plans, exact change accounting, context reduction, and repository preservation using mocked providers. When comparing live model or prompt changes, also review semantic accuracy, useful grouping, manifest/lockfile and implementation/test coupling, justified dependency ordering, and explicit uncertainty. Several messages or groupings can be valid; exact wording is not a quality score.
 
+For commit-message prompt/model changes, use the versioned six-case corpus and human scoring rubric in the [evaluation guide](test-support/evaluations/README.md):
+
+```sh
+# Offline corpus and syntax checks; also covered by normal tests
+pnpm run eval --check
+
+# Opt-in live evaluation: choose a model and configure credentials first
+pnpm run eval --live --provider openai --model <model-id> --runs 3 --output report.json
+
+# Human annotation and aggregation are offline
+pnpm run eval --template report.json --output annotations.json
+pnpm run eval --score report.json --annotations annotations.json --output scored.json
+```
+
+Live calls are separate from normal tests and CI. Reports retain failures and record provider/model, prompt version and actual request hashes, corpus/rubric identity, effective settings, source revision, and results. Compare all runs on the same corpus and rubric, including syntax failures, score ranges, and review coverage; different valid sentences are not regressions. Bump `COMMIT_PROMPT_VERSION` when changing the generation instruction contract.
+
 </details>
 
 <details>
 <summary><strong>Find your way around the code</strong></summary>
 
-| Location                    | Responsibility                                              |
-| --------------------------- | ----------------------------------------------------------- |
-| `src/index.ts`              | CLI startup, lifecycle output, and signal handling          |
-| `src/program.ts`            | Testable command registration, root action, and alias       |
-| `src/gsmart.ts`             | Command registration                                        |
-| `src/commands/`             | Generation, login, configuration, reset, and completions    |
-| `src/utils/ai.ts`           | Provider models, prompts, timeouts, and retries             |
-| `src/utils/openai-oauth.ts` | ChatGPT browser login and token refresh                     |
-| `src/utils/git.ts`          | Git operations and diff parsing                             |
-| `src/utils/split-plan.ts`   | Staged-change inventory, plan validation, and review output |
-| `src/utils/editor.ts`       | External message editing and temporary-file cleanup         |
-| `src/utils/interrupt.ts`    | Foreground operation cancellation                           |
-| `src/utils/index.ts`        | File selection, staging, and clipboard helpers              |
-| `src/utils/config.ts`       | Local credentials and settings                              |
-| `src/definitions.ts`        | Shared TypeScript contracts                                 |
-| `test/`                     | Unit and integration tests                                  |
+| Location                      | Responsibility                                              |
+| ----------------------------- | ----------------------------------------------------------- |
+| `src/index.ts`                | CLI startup, lifecycle output, and signal handling          |
+| `src/program.ts`              | Testable command registration, root action, and alias       |
+| `src/gsmart.ts`               | Command registration                                        |
+| `src/commands/`               | Generation, login, configuration, reset, and completions    |
+| `src/utils/ai.ts`             | Provider models, prompts, timeouts, and retries             |
+| `src/utils/commit-message.ts` | Shared deterministic message validation                     |
+| `src/evaluate.ts`             | Opt-in developer evaluation command                         |
+| `src/utils/openai-oauth.ts`   | ChatGPT browser login and token refresh                     |
+| `src/utils/git.ts`            | Git operations and diff parsing                             |
+| `src/utils/split-plan.ts`     | Staged-change inventory, plan validation, and review output |
+| `src/utils/editor.ts`         | External message editing and temporary-file cleanup         |
+| `src/utils/interrupt.ts`      | Foreground operation cancellation                           |
+| `src/utils/index.ts`          | File selection, staging, and clipboard helpers              |
+| `src/utils/config.ts`         | Local credentials and settings                              |
+| `src/definitions.ts`          | Shared TypeScript contracts                                 |
+| `test/`                       | Unit and integration tests                                  |
 
 `src/build-info.ts` and `dist/` are generated. See [AGENTS.md](https://github.com/ragnarok22/gsmart/blob/main/AGENTS.md) for implementation conventions and focused test commands.
 

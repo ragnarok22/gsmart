@@ -37,6 +37,12 @@ import {
 import { createMachineWorkflow } from "./machine";
 import { resolveContextBudget } from "../utils/context-budget";
 import { conventionsFromOptions } from "../utils/conventions";
+import {
+  formatCommitMessageDiagnostics,
+  normalizeCommitMessage,
+  validateCommitMessage,
+  type CommitMessageValidation,
+} from "../utils/commit-message";
 
 type MainCommandOptions = GenerationCommandOptions;
 
@@ -411,16 +417,8 @@ const mainAction = async (
             spinner.start("Generating commit message...");
             continue;
           }
-          if (!message.trim()) {
-            spinner.fail(
-              chalk.red(
-                "The AI returned an empty commit message. Please try again.",
-              ),
-            );
-            return null;
-          }
           spinner.succeed(chalk.green("Message generated"));
-          return message;
+          return normalizeCommitMessage(message);
         }
         return null;
       } catch (error) {
@@ -452,14 +450,35 @@ const mainAction = async (
     return;
   }
 
+  const showValidation = (validation: CommitMessageValidation) => {
+    if (!validation.diagnostics.length) return;
+    const details = stripVTControlCharacters(
+      formatCommitMessageDiagnostics(validation),
+    );
+    if (validation.valid) spinner.warn(chalk.yellow(details));
+    else spinner.fail(chalk.red(`Invalid commit message:\n${details}`));
+  };
+  const initialValidation = validateCommitMessage(message, effective);
   if (options.dryRun) {
-    deps.log(chalk.green(message));
+    showValidation(initialValidation);
+    if (!initialValidation.valid) {
+      deps.log(chalk.yellow("Invalid commit message preview:"));
+      deps.setExitCode(1);
+    }
+    deps.log(stripVTControlCharacters(message));
     const fileNames = deps.parseDiffFileNames(changes);
     if (fileNames.length > 0) {
       deps.log(chalk.cyan("\nStaged files:"));
       for (const file of fileNames) deps.log(chalk.grey(`  ${file}`));
     }
     return;
+  }
+  if (options.yes || !deps.isInteractive()) {
+    showValidation(initialValidation);
+    if (!initialValidation.valid) {
+      deps.setExitCode(1);
+      return;
+    }
   }
 
   const copy = async (text: string) => {
@@ -471,6 +490,13 @@ const mainAction = async (
     }
   };
   const commit = async (text: string) => {
+    text = normalizeCommitMessage(text);
+    const validation = validateCommitMessage(text, effective);
+    if (!validation.valid) {
+      showValidation(validation);
+      if (options.yes || !deps.isInteractive()) deps.setExitCode(1);
+      return false;
+    }
     let detail: string | undefined;
     if (
       await deps.commitChanges(text, (error) => {
@@ -489,6 +515,7 @@ const mainAction = async (
       deps.setExitCode(1);
       await copy(text);
     }
+    return true;
   };
 
   if (options.yes) {
@@ -515,7 +542,11 @@ const mainAction = async (
     source: Candidate["source"],
     context: StagedSnapshot,
   ) => {
-    candidates.push({ message: text, source, snapshot: context });
+    candidates.push({
+      message: normalizeCommitMessage(text),
+      source,
+      snapshot: context,
+    });
     selected = candidates.length - 1;
   };
   const label = (candidate: Candidate, index: number) =>
@@ -523,14 +554,20 @@ const mainAction = async (
 
   while (true) {
     const current = candidates[selected];
+    const validation = validateCommitMessage(current.message, effective);
     deps.log(chalk.cyan(`\nCandidate ${label(current, selected)}:`));
-    deps.log(current.message);
+    deps.log(stripVTControlCharacters(current.message));
+    showValidation(validation);
+    if (!validation.valid && !deps.isInteractive()) {
+      deps.setExitCode(1);
+      return;
+    }
     const { action } = await deps.prompt({
       type: "select",
       name: "action",
       message: "What would you like to do?",
       choices: [
-        { title: "Commit", value: "commit" },
+        { title: "Commit", value: "commit", disabled: !validation.valid },
         { title: "Edit message", value: "edit" },
         { title: "Regenerate with feedback", value: "regenerate" },
         { title: "Browse / restore candidates", value: "history" },
@@ -541,6 +578,8 @@ const mainAction = async (
 
     switch (action) {
       case "commit": {
+        // Enforce the guard even if a prompt adapter returns a disabled choice.
+        if (!validateCommitMessage(current.message, effective).valid) continue;
         const latest = await readSnapshot(current.snapshot);
         if (!latest) continue;
         latestFingerprint = latest.fingerprint;
@@ -565,8 +604,8 @@ const mainAction = async (
           if (next !== null) addCandidate(next, "generated", refreshed);
           continue;
         }
-        await commit(current.message);
-        return;
+        if (await commit(current.message)) return;
+        break;
       }
       case "edit": {
         const result = await deps.editMessage(current.message);
@@ -600,7 +639,9 @@ const mainAction = async (
           message: "Select a candidate to compare (Esc to go back)",
           initial: selected,
           choices: candidates.map((entry, index) => ({
-            title: `${label(entry, index)} ${entry.message.split(/\r?\n/)[0]}${index === selected ? " [current]" : ""}`,
+            title: stripVTControlCharacters(
+              `${label(entry, index)} ${entry.message.split(/\r?\n/)[0]}${index === selected ? " [current]" : ""}`,
+            ),
             value: index,
           })),
         });
@@ -614,11 +655,12 @@ const mainAction = async (
         deps.log(
           chalk.cyan(`\nCurrent candidate ${label(current, selected)}:`),
         );
-        deps.log(current.message);
+        deps.log(stripVTControlCharacters(current.message));
         deps.log(
           chalk.cyan(`\nPreview candidate ${label(previous, candidate)}:`),
         );
-        deps.log(previous.message);
+        deps.log(stripVTControlCharacters(previous.message));
+        showValidation(validateCommitMessage(previous.message, effective));
         const { restore } = await deps.prompt({
           type: "confirm",
           name: "restore",

@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withInterruptHandler } from "./interrupt";
+import { normalizeCommitMessage } from "./commit-message";
 
 export type EditResult =
   | { status: "edited"; message: string }
@@ -89,12 +90,9 @@ export const createMessageEditor = (overrides: Partial<EditorDeps> = {}) => {
           `Editor "${command}" exited with status ${exit.code ?? "unknown"}.`,
         );
       } else {
-        const message = readFileSync(file, "utf8")
-          .replace(/\r\n?/g, "\n")
-          .trim();
-        if (!message) throw new Error("The edited message is empty.");
+        const message = normalizeCommitMessage(readFileSync(file, "utf8"));
         result =
-          message === currentMessage.replace(/\r\n?/g, "\n").trim()
+          message === normalizeCommitMessage(currentMessage)
             ? { status: "cancelled" }
             : { status: "edited", message };
       }

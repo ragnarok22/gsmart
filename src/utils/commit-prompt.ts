@@ -2,6 +2,9 @@ import type { ResolvedConventions } from "../definitions";
 import { DEFAULT_CONVENTIONS } from "./conventions";
 import { boundHistoryExamples } from "./git";
 
+/** Bump when the commit-generation instruction contract changes. */
+export const COMMIT_PROMPT_VERSION = "1";
+
 export function buildCommitInstructions(
   conventions: ResolvedConventions = DEFAULT_CONVENTIONS,
 ): string {

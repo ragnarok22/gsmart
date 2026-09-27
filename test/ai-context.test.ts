@@ -89,8 +89,10 @@ test("opt-in summarization budgets every request and reports partial coverage", 
       : "fix(api): retry handler requests",
   }));
   let report: ContextReport | undefined;
+  const observed: { system: string; prompt: string }[] = [];
   const result = await ai.generateCommitMessage("main", sourceDiff(), {
     conventions: conventions({ summarize: true, maxSummaryRequests: 2 }),
+    onPromptPrepared: (request) => observed.push(request),
     onContextPrepared: (value) => {
       report = value;
     },
@@ -113,6 +115,9 @@ test("opt-in summarization budgets every request and reports partial coverage", 
     );
   }
   assert.match(requests[2].prompt, /Handlers now retry/);
+  assert.deepEqual(observed, [
+    { system: requests[2].system, prompt: requests[2].prompt },
+  ]);
 });
 
 test("failed, empty and truncated summaries prevent final generation", async () => {

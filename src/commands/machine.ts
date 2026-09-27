@@ -1,6 +1,11 @@
 import { stripVTControlCharacters } from "node:util";
 import { AIBuilder } from "../utils/ai";
 import config from "../utils/config";
+import {
+  formatCommitMessageDiagnostics,
+  normalizeCommitMessage,
+  validateCommitMessage,
+} from "../utils/commit-message";
 import { conventionsFromOptions } from "../utils/conventions";
 import { resolveContextBudget } from "../utils/context-budget";
 import type { ContextReport } from "../utils/diff-context";
@@ -212,12 +217,22 @@ export const createMachineWorkflow = (overrides: Partial<MachineDeps> = {}) => {
               generated.error,
               generated.contextRecovery,
             );
-          if (!generated.trim())
-            throw new WorkflowError(
-              "GENERATION",
-              "The AI returned an empty commit message. Please try again.",
-            );
-          message = generated.replace(/\n*$/, "");
+          message = normalizeCommitMessage(generated);
+          const checkMessage = (candidate: string) => {
+            const validation = validateCommitMessage(candidate, effective);
+            if (!validation.valid)
+              throw new WorkflowError(
+                "VALIDATION",
+                `Invalid commit message:\n${formatCommitMessageDiagnostics(validation)}`,
+                undefined,
+                validation.diagnostics,
+              );
+            return validation;
+          };
+          phase = "VALIDATION";
+          const validation = checkMessage(message);
+          if (validation.diagnostics.length)
+            deps.diagnostic(formatCommitMessageDiagnostics(validation));
 
           if (options.commit) {
             phase = "GIT";
@@ -228,6 +243,7 @@ export const createMachineWorkflow = (overrides: Partial<MachineDeps> = {}) => {
                 "GIT",
                 "Staged content changed during generation. Nothing committed. Run gsmart again for the current changes.",
               );
+            checkMessage(message);
             let detail: string | undefined;
             if (
               !(await deps.commitChanges(message, (error) => {
@@ -269,6 +285,8 @@ export const createMachineWorkflow = (overrides: Partial<MachineDeps> = {}) => {
           );
           if (error instanceof WorkflowError && error.recovery)
             failure.error.recovery = error.recovery;
+          if (error instanceof WorkflowError && error.diagnostics)
+            failure.error.diagnostics = error.diagnostics;
           if (message !== undefined) failure.message = message;
           result = failure;
           exitCode =

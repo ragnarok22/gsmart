@@ -9,6 +9,11 @@ import {
 import { MAX_DIFF_BYTES, readStdinDiff } from "../src/utils/stdin.ts";
 import { createMachineWorkflow } from "../src/commands/machine.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
+import {
+  normalizeCommitMessage,
+  validateCommitMessage,
+} from "../src/utils/commit-message.ts";
+import type { EffectiveConventions } from "../src/definitions.ts";
 import { dispatchInterrupt } from "../src/utils/interrupt.ts";
 import type { GenerationOptions, GenerationError } from "../src/utils/ai.ts";
 import {
@@ -160,6 +165,10 @@ test("stdin accepts an already decoded UTF-8 stream", async () => {
 
 function machineHarness(
   generated: string | GenerationError = "feat: preserve details",
+  {
+    effective,
+    commitResult = false,
+  }: { effective?: EffectiveConventions; commitResult?: boolean } = {},
 ) {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -171,6 +180,7 @@ function machineHarness(
     options?: GenerationOptions;
   }[] = [];
   const committed: string[] = [];
+  let snapshotReads = 0;
   const snapshot = {
     branch: "feature/fixture",
     diff: "+change",
@@ -184,14 +194,18 @@ function machineHarness(
       getKey: () => "fake",
     } as never,
     loadEffectiveConventions: async ({ user = {}, cli = {} } = {}) => ({
-      ...resolveConventions([
-        { source: "user", settings: user },
-        { source: "CLI", settings: cli },
-      ]),
+      ...(effective ??
+        resolveConventions([
+          { source: "user", settings: user },
+          { source: "CLI", settings: cli },
+        ])),
       diagnostics: ["Ignored unsupported commitlint rule: subject-case"],
     }),
     diagnostic: (message) => stderr.push(message + "\n"),
-    getStagedSnapshot: async () => snapshot,
+    getStagedSnapshot: async () => {
+      snapshotReads++;
+      return snapshot;
+    },
     AIBuilder: class {
       constructor(
         _provider: string,
@@ -208,7 +222,7 @@ function machineHarness(
     },
     commitChanges: async (message) => {
       committed.push(message);
-      return false;
+      return commitResult;
     },
     writeResult: (result, format) =>
       writeWorkflowResult(result, format, {
@@ -217,7 +231,15 @@ function machineHarness(
       }),
     setExitCode: (code) => exitCodes.push(code),
   });
-  return { run, stdout, stderr, exitCodes, requests, committed };
+  return {
+    run,
+    stdout,
+    stderr,
+    exitCodes,
+    requests,
+    committed,
+    snapshotReads: () => snapshotReads,
+  };
 }
 
 test("machine generation preserves saved instructions and sends configuration diagnostics only to stderr", async () => {
@@ -235,6 +257,100 @@ test("machine generation preserves saved instructions and sends configuration di
     app.requests[0].prompt,
   );
   assert.deepEqual(app.committed, []);
+});
+
+for (const output of ["message", "json"]) {
+  test(`machine ${output} rejects invalid output before committing`, async () => {
+    const candidate = "Here is the message:\n\nfix: preserve details";
+    const app = machineHarness(candidate);
+    await app.run({ output, commit: true });
+    assert.deepEqual(app.committed, []);
+    assert.deepEqual(app.exitCodes, [1]);
+    assert.match(app.stderr.join(""), /invalid|validation/i);
+    if (output === "message") assert.deepEqual(app.stdout, []);
+    else {
+      const result = JSON.parse(app.stdout[0]);
+      assert.equal(result.ok, false);
+      assert.equal(result.error.code, "VALIDATION");
+      assert.equal(result.message, candidate);
+      assert.deepEqual(
+        result.error.diagnostics,
+        validateCommitMessage(candidate).diagnostics,
+      );
+    }
+    assert.equal(app.snapshotReads(), 1);
+  });
+}
+
+for (const output of ["message", "json"]) {
+  for (const candidate of ["", " \r\n\t ", "  feat: leading spaces\r\n"]) {
+    test(`machine ${output} retains rejected drafts without printing a message: ${JSON.stringify(candidate)}`, async () => {
+      const app = machineHarness(candidate);
+      await app.run({ output });
+      assert.deepEqual(app.exitCodes, [1]);
+      assert.deepEqual(app.committed, []);
+      assert.match(app.stderr.join(""), /invalid commit message/i);
+      if (output === "message") assert.deepEqual(app.stdout, []);
+      else {
+        const result = JSON.parse(app.stdout[0]);
+        assert.equal(result.error.code, "VALIDATION");
+        assert.equal(result.message, normalizeCommitMessage(candidate));
+        assert.deepEqual(
+          result.error.diagnostics,
+          validateCommitMessage(normalizeCommitMessage(candidate)).diagnostics,
+        );
+      }
+    });
+  }
+}
+
+for (const severity of [1, 2] as const) {
+  for (const output of ["message", "json"]) {
+    test(`machine ${output} respects imported rule severity ${severity} when committing`, async () => {
+      const candidate = "feat: preserve details";
+      const effective = resolveConventions([
+        {
+          source: ".commitlintrc.json",
+          settings: { headerMaxLength: 10 },
+          ruleMetadata: {
+            headerMaxLength: { name: "header-max-length", severity },
+          },
+        },
+      ]);
+      const app = machineHarness(candidate, { effective, commitResult: true });
+      await app.run({ output, commit: true });
+      assert.deepEqual(app.exitCodes, [severity === 1 ? 0 : 1]);
+      assert.deepEqual(app.committed, severity === 1 ? [candidate] : []);
+      assert.match(app.stderr.join(""), /header-max-length/);
+      assert.match(app.stderr.join(""), /\.commitlintrc\.json/);
+      if (output === "json") {
+        const result = JSON.parse(app.stdout[0]);
+        assert.equal(result.ok, severity === 1);
+        if (severity === 2) {
+          assert.equal(result.error.code, "VALIDATION");
+          assert.deepEqual(
+            result.error.diagnostics,
+            validateCommitMessage(candidate, effective).diagnostics,
+          );
+        }
+      } else
+        assert.deepEqual(app.stdout, severity === 1 ? [candidate + "\n"] : []);
+    });
+  }
+}
+
+test("machine normalization agrees across JSON, message output and the final commit", async () => {
+  const raw = "feat: preserve details\r\n\r\nKeep a multiline body.\r\n\r\n";
+  const normalized = "feat: preserve details\n\nKeep a multiline body.";
+  for (const output of ["message", "json"]) {
+    const app = machineHarness(raw, { commitResult: true });
+    await app.run({ output, commit: true });
+    assert.deepEqual(app.exitCodes, [0]);
+    assert.deepEqual(app.committed, [normalized]);
+    if (output === "json")
+      assert.equal(JSON.parse(app.stdout[0]).message, normalized);
+    else assert.deepEqual(app.stdout, [normalized + "\n"]);
+  }
 });
 
 test("a generation failure without a structured code still produces a GENERATION error", async () => {

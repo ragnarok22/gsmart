@@ -11,7 +11,11 @@ import type { GenerationOptions } from "../src/utils/ai.ts";
 import { repository } from "../test-support/repository.ts";
 import { createProgram } from "../src/program.ts";
 
-function setup(cwd: string, responses: Record<string, unknown>[] = []) {
+function setup(
+  cwd: string,
+  responses: Record<string, unknown>[] = [],
+  message = "fix(cli): message",
+) {
   const requests: {
     branch: string;
     diff: string;
@@ -54,6 +58,7 @@ function setup(cwd: string, responses: Record<string, unknown>[] = []) {
   };
   const command = createMainCommand({
     spinner: (() => spinner) as never,
+    isInteractive: () => true,
     config: {
       getDefaultProvider: () => undefined,
       getModel: () => "",
@@ -89,7 +94,7 @@ function setup(cwd: string, responses: Record<string, unknown>[] = []) {
         options?: GenerationOptions,
       ) {
         requests.push({ branch, diff, options });
-        return "fix(cli): message";
+        return message;
       }
     },
     prompt: async () => responses.shift() ?? { action: "nothing" },
@@ -259,6 +264,25 @@ test("explicit CLI prompt and history opt-out override their repository fields",
   assert.deepEqual(run.requests[0].options?.historyExamples, []);
 });
 
+for (const severity of [1, 2]) {
+  test(`dry-run honors imported header rule severity ${severity} and reports its source`, async (t) => {
+    const root = repository(t);
+    writeFileSync(
+      join(root, ".commitlintrc.json"),
+      JSON.stringify({
+        rules: { "header-max-length": [severity, "always", 10] },
+      }),
+    );
+    const run = setup(root);
+    await run.command.action({ dryRun: true });
+    assert.equal(run.exitCode(), severity === 1 ? 0 : 1);
+    assert.equal(run.requests.length, 1);
+    assert.match(run.output(), /header-max-length/);
+    assert.match(run.output(), /\.commitlintrc\.json/);
+    if (severity === 2) assert.match(run.output(), /invalid.*preview/i);
+  });
+}
+
 test("initial, refined and refreshed candidates share one resolved configuration and history read", async (t) => {
   const root = repository(t);
   writeFileSync(
@@ -270,13 +294,17 @@ test("initial, refined and refreshed candidates share one resolved configuration
       breakingChanges: { requireFooter: true },
     }),
   );
-  const run = setup(root, [
-    { action: "regenerate" },
-    { feedback: "shorter" },
-    { action: "commit" },
-    { refresh: true },
-    { action: "nothing" },
-  ]);
+  const run = setup(
+    root,
+    [
+      { action: "regenerate" },
+      { feedback: "shorter" },
+      { action: "commit" },
+      { refresh: true },
+      { action: "nothing" },
+    ],
+    "fix(cli): message\n\nInclude the required body.",
+  );
   await run.command.action({ historyExamples: "3", model: "session-model" });
   assert.equal(run.resolutions(), 1);
   assert.deepEqual(run.historyReads, [{ cwd: root, limit: 3 }]);

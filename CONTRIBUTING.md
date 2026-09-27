@@ -27,6 +27,21 @@ Pull requests are the best way to propose changes to the codebase (we use [GitHu
 
 In short, when you submit code changes, your submissions are understood to be under the same [GNU GPLv3 License](https://choosealicense.com/licenses/gpl-3.0/) that covers the project. Feel free to contact the maintainers if that's a concern.
 
+## Evaluating commit-message quality
+
+For prompt or model changes, run `pnpm run eval --check` and the usual lint,
+typecheck, tests, and formatting checks. Deterministic validation and corpus tests
+run offline without API credentials. Use `pnpm run test:coverage` for coverage.
+
+The [evaluation guide](test-support/evaluations/README.md) documents the versioned
+diff corpus, opt-in `--live` command, recorded provider/model and prompt identity,
+and human-scoring workflow. Evaluate accuracy, specificity, type/scope suitability,
+breaking changes, and unsupported claims against the diff rather than comparing
+exact sentences. Include all attempted runs and review coverage when presenting
+a comparison; live evaluations are separate from ordinary CI. Bump
+`COMMIT_PROMPT_VERSION` when the generation instruction contract changes. Include
+a short CLI transcript for behavior-changing PRs.
+
 ## Report bugs using GitHub's [issues](https://github.com/ragnarok22/gsmart/issues)
 
 We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/ragnarok22/gsmart/issues/new/choose); it's that easy!

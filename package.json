@@ -61,6 +61,7 @@
     "start": "node dist/index.js",
     "test": "node --import ./test-support/register-esmock.mjs --import tsx --test --test-reporter=dot test/*.test.ts",
     "test:coverage": "c8 --include \"src/**/*.ts\" --reporter=lcov --reporter=text pnpm test",
+    "eval": "tsx src/evaluate.ts",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "prepublishOnly": "pnpm run build",

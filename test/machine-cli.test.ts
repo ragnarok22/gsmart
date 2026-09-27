@@ -22,6 +22,10 @@ import {
 } from "../test-support/repository.ts";
 import { sourceDiff } from "../test-support/diff-fixtures.ts";
 import type { WorkflowResult } from "../src/utils/workflow-result.ts";
+import {
+  normalizeCommitMessage,
+  validateCommitMessage,
+} from "../src/utils/commit-message.ts";
 
 const validate = new Ajv().compile<WorkflowResult>(schema);
 const message = "feat: support café 界😀\n\nPreserve multiline output.";
@@ -444,8 +448,85 @@ test("empty generation fails instead of printing an empty success", async (t) =>
   assert.equal(result.code, 1);
   const value = json(result);
   assert.ok(!value.ok);
-  assert.equal(value.error.code, "GENERATION");
+  assert.equal(value.error.code, "VALIDATION");
+  assert.equal(value.message, " ");
+  assert.deepEqual(
+    value.error.diagnostics,
+    validateCommitMessage(" ").diagnostics,
+  );
 });
+
+for (const output of ["message", "json"]) {
+  test(`invalid machine ${output} output preserves the candidate and staged snapshot`, async (t) => {
+    const text = "```\r\nfeat: fenced output\r\n```\r\n";
+    const candidate = normalizeCommitMessage(text);
+    const app = await setup(t, { text });
+    stageFixture(app.cwd);
+    const index = readFileSync(join(app.cwd, ".git/index"));
+    const result = await app.run(["--output", output, "--commit"]);
+    assert.equal(result.code, 1, result.stderr);
+    assert.match(result.stderr, /invalid commit message/i);
+    assert.doesNotMatch(
+      result.stderr,
+      /What would you like|Select a candidate/,
+    );
+    if (output === "json") {
+      const value = json(result);
+      assert.ok(!value.ok);
+      assert.equal(value.error.code, "VALIDATION");
+      assert.equal(value.message, candidate);
+      assert.deepEqual(
+        value.error.diagnostics,
+        validateCommitMessage(candidate).diagnostics,
+      );
+      const malformed = structuredClone(value);
+      malformed.error.diagnostics![0].severity = 3 as never;
+      assert.equal(
+        validate(malformed),
+        false,
+        "schema must reject invalid severity",
+      );
+    } else assert.equal(result.stdout, "");
+    assert.equal(git(app.cwd, "rev-parse", "--revs-only", "HEAD"), "");
+    assert.deepEqual(readFileSync(join(app.cwd, ".git/index")), index);
+  });
+}
+
+test("machine JSON keeps validation warnings on stderr and can commit", async (t) => {
+  const app = await setup(t);
+  stageFixture(app.cwd);
+  writeFileSync(
+    join(app.cwd, ".commitlintrc.json"),
+    JSON.stringify({ rules: { "header-max-length": [1, "always", 10] } }),
+  );
+  const result = await app.run(["--output=json", "--commit"]);
+  assert.equal(result.code, 0, result.stderr);
+  const value = json(result);
+  assert.ok(value.ok);
+  assert.equal(value.committed, true);
+  assert.equal(value.message, message);
+  assert.match(result.stderr, /header-max-length/);
+  assert.equal(git(app.cwd, "log", "-1", "--format=%B"), message);
+});
+
+for (const args of [[], ["--yes"], ["--dry-run"]]) {
+  test(`legacy invalid generation fails without a recovery prompt (${args.join(" ") || "no TTY"})`, async (t) => {
+    const app = await setup(t, { text: "not a conventional commit" });
+    stageFixture(app.cwd);
+    const index = readFileSync(join(app.cwd, ".git/index"));
+    const result = await app.run(args);
+    assert.equal(result.code, 1, result.stderr);
+    assert.match(result.stderr, /invalid commit message/i);
+    assert.doesNotMatch(
+      result.stdout + result.stderr,
+      /What would you like|Regenerate with feedback/,
+    );
+    if (args.includes("--dry-run"))
+      assert.match(result.stdout, /invalid commit message preview/i);
+    assert.equal(git(app.cwd, "rev-parse", "--revs-only", "HEAD"), "");
+    assert.deepEqual(readFileSync(join(app.cwd, ".git/index")), index);
+  });
+}
 
 test("metadata overflow includes recovery data without prompting or retrying", async (t) => {
   const app = await setup(t, { outside: true });

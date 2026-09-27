@@ -68,12 +68,17 @@
                 "NO_INPUT",
                 "CONTEXT",
                 "GENERATION",
+                "VALIDATION",
                 "GIT",
                 "CANCELED",
                 "INTERNAL"
               ]
             },
             "message": { "type": "string" },
+            "diagnostics": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/commitMessageDiagnostic" }
+            },
             "recovery": {
               "type": "object",
               "additionalProperties": false,
@@ -98,6 +103,19 @@
     }
   ],
   "definitions": {
+    "commitMessageDiagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "message"],
+      "properties": {
+        "code": { "type": "string" },
+        "severity": { "enum": [1, 2] },
+        "message": { "type": "string" },
+        "line": { "type": "integer", "minimum": 1 },
+        "source": { "type": "string" },
+        "rule": { "type": "string" }
+      }
+    },
     "context": {
       "type": "object",
       "additionalProperties": false,

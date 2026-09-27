@@ -1,6 +1,7 @@
 import { stripVTControlCharacters } from "node:util";
 import type { Provider } from "../definitions";
 import type { ContextRecovery, ContextReport } from "./diff-context";
+import type { CommitMessageDiagnostic } from "./commit-message";
 
 export type WorkflowErrorCode =
   | "USAGE"
@@ -10,6 +11,7 @@ export type WorkflowErrorCode =
   | "NO_INPUT"
   | "CONTEXT"
   | "GENERATION"
+  | "VALIDATION"
   | "GIT"
   | "CANCELED"
   | "INTERNAL";
@@ -19,6 +21,7 @@ export class WorkflowError extends Error {
     readonly code: WorkflowErrorCode,
     message: string,
     readonly recovery?: ContextRecovery,
+    readonly diagnostics?: CommitMessageDiagnostic[],
   ) {
     super(message);
     this.name = "WorkflowError";
@@ -44,6 +47,7 @@ export type WorkflowResult = {
         code: WorkflowErrorCode;
         message: string;
         recovery?: ContextRecovery;
+        diagnostics?: CommitMessageDiagnostic[];
       };
       /** Present when a failure occurs after generation, such as a rejected commit. */
       message?: string;
