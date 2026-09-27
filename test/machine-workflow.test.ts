@@ -306,6 +306,65 @@ for (const output of ["message", "json"]) {
     }
     assert.equal(app.snapshotReads(), 1);
   });
+
+  test(`machine ${output} commits fenced ticket examples with a real reference`, async () => {
+    const candidate =
+      "docs: show references\n\n```text\nfix: address #123 and APP-123\n```\n\nRefs: #456\nExample:\n~~~text\nAPP-789 #789\n~~~";
+    const effective = resolveConventions([
+      {
+        source: "repository",
+        settings: { tickets: { prefixes: ["#"], required: true } },
+      },
+    ]);
+    const app = machineHarness(candidate, { effective, commitResult: true });
+    await app.run({ output, commit: true });
+    assert.deepEqual(app.exitCodes, [0]);
+    assert.deepEqual(app.committed, [candidate]);
+    assert.equal(app.snapshotReads(), 2);
+    assert.deepEqual(app.stderr, [
+      "Ignored unsupported commitlint rule: subject-case\n",
+    ]);
+    if (output === "message") assert.deepEqual(app.stdout, [candidate + "\n"]);
+    else {
+      const result = JSON.parse(app.stdout[0]);
+      assert.equal(result.ok, true);
+      assert.equal(result.message, candidate);
+      assert.equal(result.committed, true);
+    }
+  });
+
+  test(`machine ${output} rejects a required ticket supplied only by a fenced example`, async () => {
+    const candidate =
+      "docs: show references\n\n```text\nfix: address #123\n```";
+    const effective = resolveConventions([
+      {
+        source: "repository",
+        settings: { tickets: { required: true, placement: "body" } },
+      },
+    ]);
+    const app = machineHarness(candidate, { effective, commitResult: true });
+    await app.run({ output, commit: true });
+    assert.deepEqual(app.exitCodes, [1]);
+    assert.deepEqual(app.committed, []);
+    assert.equal(app.snapshotReads(), 1);
+    assert.match(app.stderr.join(""), /ticket-required/);
+    if (output === "message") assert.deepEqual(app.stdout, []);
+    else {
+      const result = JSON.parse(app.stdout[0]);
+      assert.equal(result.ok, false);
+      assert.equal(result.message, candidate);
+      assert.equal(result.error.code, "VALIDATION");
+      assert.deepEqual(result.error.diagnostics, [
+        {
+          code: "ticket-required",
+          severity: 2,
+          message:
+            "Include a supplied ticket ID in the body. Supply the ID yourself; do not invent one.",
+          source: "repository",
+        },
+      ]);
+    }
+  });
 }
 
 for (const output of ["message", "json"]) {

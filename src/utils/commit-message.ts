@@ -79,7 +79,7 @@ export function validateCommitMessage(
 
   const lines = text.split("\n");
   let fence: string | undefined;
-  // Exclude fenced examples from trailer parsing.
+  // Exclude fenced examples from trailer parsing and ticket scanning.
   const fencedLines = lines.map((line, index) => {
     if (index === 0) return false;
     const marker = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
@@ -266,7 +266,7 @@ export function validateCommitMessage(
       "breakingChanges.requireFooter",
     );
 
-  // Literal configured prefixes and #123 are identifiable anywhere. Bare
+  // Literal configured prefixes and #123 are identifiable outside fences. Bare
   // PROJ-123 shapes need an explicit reference context; ordinary prose and
   // unrelated trailers can contain technical terms such as UTF-8 or SHA-256.
   const patterns = [
@@ -293,13 +293,16 @@ export function validateCommitMessage(
       line: bodyStart + index + 1,
       token: undefined,
     })),
-    ...footers.map((footer) => ({
-      placement: "footer",
-      text: footer.value,
-      line: footer.line,
-      token: footer.token,
-    })),
-  ];
+    // Keep continuation lines separate so filtering preserves diagnostic lines.
+    ...footers.flatMap((footer) =>
+      footer.value.split("\n").map((line, index) => ({
+        placement: "footer",
+        text: line,
+        line: footer.line + index,
+        token: footer.token,
+      })),
+    ),
+  ].filter((section) => !fencedLines[section.line - 1]);
   let matchingTicket = false;
   for (const section of sections) {
     const explicitReference =

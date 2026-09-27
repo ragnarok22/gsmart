@@ -14,6 +14,187 @@ const validate = (message: string, settings: CommitConventions = {}) =>
     resolveConventions([{ source: "repository", settings }]),
   );
 
+for (const marker of ["```", "~~~", "````"]) {
+  test(`PR 508: fenced ticket examples do not violate real ticket placement (${marker})`, () => {
+    const message = `docs: show commit examples\n\nExample syntax:\n\n${marker}text\nfix: address #123 and APP-123\n${marker}\n\nRefs: #456`;
+    const result = validate(message, {
+      tickets: { prefixes: ["#"], required: true },
+    });
+    assert.equal(result.valid, true, JSON.stringify(result));
+    assert.deepEqual(result.diagnostics, []);
+  });
+
+  test(`PR 508: fenced examples cannot satisfy a required body ticket (${marker})`, () => {
+    const example = `docs: show commit examples\n\nExample syntax:\n\n${marker}text\nfix: address #123\n${marker}`;
+    const rules = { tickets: { required: true, placement: "body" as const } };
+    const missing = validate(example, rules);
+    assert.equal(missing.valid, false);
+    assert.deepEqual(
+      missing.diagnostics.map(({ code }) => code),
+      ["ticket-required"],
+    );
+    assert.equal(
+      validate(example + "\n\nDocument the change for #456.", rules).valid,
+      true,
+    );
+  });
+}
+
+test("fenced custom tickets and fence info strings are ignored in every placement", () => {
+  for (const marker of ["```", "~~~", "````"]) {
+    for (const placement of ["subject", "body", "footer"] as const) {
+      const example = `docs: show references${placement === "subject" ? " C++-456" : ""}\n\n${marker}text #123 C++-123\nfix: address APP-123 and #123\n${marker}`;
+      const message =
+        example +
+        (placement === "body"
+          ? "\n\nDocument C++-456."
+          : placement === "footer"
+            ? "\n\nTickets: C++-456"
+            : "");
+      const result = validate(message, {
+        tickets: {
+          prefixes: ["APP-", "C++-"],
+          required: true,
+          placement,
+          footerToken: "Tickets",
+        },
+      });
+      assert.deepEqual(result, { valid: true, diagnostics: [] }, message);
+    }
+  }
+});
+
+test("ticket scanning respects nested fence examples and longer closing markers", () => {
+  for (const example of [
+    "````markdown\n```text\n#123 APP-123\n```\n#234 APP-234\n````",
+    "~~~text\n```\n#123 APP-123\n```\n#234 APP-234\n~~~",
+    "```text\n~~~\n#123 APP-123\n~~~\n#234 APP-234\n```",
+    "```text\n```text #123\n#234 APP-234\n````",
+    "~~~~text\n~~~\n#123 APP-123\n~~~~~",
+  ]) {
+    for (const placement of ["body", "footer"] as const) {
+      const message = `docs: show references\n\n${placement === "footer" ? "Refs: Examples\n" : ""}${example}`;
+      const settings = { tickets: { required: true, placement } };
+      const missing = validate(message, settings);
+      assert.equal(missing.valid, false, message);
+      assert.deepEqual(
+        missing.diagnostics.map(({ code }) => code),
+        ["ticket-required"],
+        message,
+      );
+      assert.deepEqual(validate(message + "\nAddress APP-456.", settings), {
+        valid: true,
+        diagnostics: [],
+      });
+    }
+  }
+});
+
+test("unclosed fences exclude remaining ticket examples in bodies and footer continuations", () => {
+  for (const marker of ["```", "~~~", "````"]) {
+    for (const placement of ["body", "footer"] as const) {
+      const message = `docs: show references\n\n${placement === "footer" ? "Refs: Examples\n" : ""}${marker}text #123\n#234 APP-234\n\nRefs: #456`;
+      assert.deepEqual(validate(message), { valid: true, diagnostics: [] });
+      const missing = validate(message, {
+        tickets: { required: true, placement },
+      });
+      assert.equal(missing.valid, false);
+      assert.deepEqual(
+        missing.diagnostics.map(({ code }) => code),
+        ["ticket-required"],
+      );
+    }
+  }
+});
+
+test("real body tickets after a fence retain prefix and placement errors at their original line", () => {
+  const message =
+    "docs: show references\n\nExample syntax:\n\n```text\nAPP-123 #123\n```\nAddress #456.\n\nRefs: APP-789";
+  const result = validate(message, {
+    tickets: { prefixes: ["APP-"], required: true },
+  });
+  assert.equal(result.valid, false);
+  assert.deepEqual(
+    result.diagnostics.map(({ code, line }) => ({ code, line })),
+    [
+      { code: "ticket-prefix", line: 8 },
+      { code: "ticket-placement", line: 8 },
+    ],
+  );
+  for (const diagnostic of result.diagnostics)
+    assert.match(diagnostic.message, /#456/);
+});
+
+test("fenced footer continuations neither satisfy required tickets nor cause ticket errors", () => {
+  const settings = {
+    tickets: {
+      prefixes: ["APP-", "C++-"],
+      required: true,
+      footerToken: "Tickets",
+    },
+  };
+  for (const marker of ["```", "~~~", "````"]) {
+    for (const token of ["Tickets", "Closes", "Notes", "BREAKING CHANGE"]) {
+      const message = `docs: show references\n\n${token}: Examples\n${marker}text #123\nAPP-123 C++-123 #123\n${marker}`;
+      const missing = validate(message, settings);
+      assert.equal(missing.valid, false);
+      assert.deepEqual(
+        missing.diagnostics.map(({ code }) => code),
+        ["ticket-required"],
+        message,
+      );
+      assert.deepEqual(validate(message + "\n\nTickets: C++-456", settings), {
+        valid: true,
+        diagnostics: [],
+      });
+      if (token === "Tickets")
+        assert.deepEqual(validate(message + "\nAddress C++-456.", settings), {
+          valid: true,
+          diagnostics: [],
+        });
+    }
+  }
+});
+
+test("real footer continuation tickets retain their token context and original line", () => {
+  for (const [settings, codes] of [
+    [
+      { tickets: { prefixes: ["APP-"] } },
+      ["ticket-prefix", "ticket-footer-token"],
+    ],
+    [{ tickets: { placement: "body" } }, ["ticket-placement"]],
+  ] satisfies [CommitConventions, string[]][]) {
+    const message =
+      "docs: show references\n\nCloses: Examples\n\n```text\nAPP-123 #123\n```\nAddress OTHER-456.";
+    const result = validate(message, settings);
+    assert.equal(result.valid, false);
+    assert.deepEqual(
+      result.diagnostics.map(({ code, line }) => ({ code, line })),
+      codes.map((code) => ({ code, line: 8 })),
+    );
+    for (const diagnostic of result.diagnostics)
+      assert.match(diagnostic.message, /OTHER-456/);
+  }
+});
+
+test("ignoring fenced tickets preserves body presence and line-length rules", () => {
+  const message = "docs: show references\n\n```text\nfix: address #123\n```";
+  assert.deepEqual(validate(message, { body: { presence: "required" } }), {
+    valid: true,
+    diagnostics: [],
+  });
+  const forbidden = validate(message, { body: { presence: "forbidden" } });
+  assert.deepEqual(
+    forbidden.diagnostics.map(({ code, line }) => ({ code, line })),
+    [{ code: "body-presence", line: 3 }],
+  );
+  const tooLong = validate(message, { body: { maxLineLength: 10 } });
+  assert.deepEqual(
+    tooLong.diagnostics.map(({ code, line }) => ({ code, line })),
+    [{ code: "body-max-line-length", line: 4 }],
+  );
+});
+
 test("PR 508: ordinary body prose about commit messages is not a wrapper", () => {
   for (const body of [
     "The commit message uses the configured format.",
