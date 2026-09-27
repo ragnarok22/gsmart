@@ -79,8 +79,7 @@ export function validateCommitMessage(
 
   const lines = text.split("\n");
   let fence: string | undefined;
-  // Fenced examples are message content, not model wrappers or actual trailers.
-  // Share the mask so all syntax checks agree on where an example ends.
+  // Exclude fenced examples from trailer parsing.
   const fencedLines = lines.map((line, index) => {
     if (index === 0) return false;
     const marker = /^\s*(`{3,}|~{3,})(.*)$/.exec(line);
@@ -96,19 +95,16 @@ export function validateCommitMessage(
     }
     return inFence || Boolean(marker);
   });
+  // Only leading prose can be a preamble; body/footer text may discuss messages.
   if (
     /^\s*(?:["'`[{]|~{3,}|\*\*|__|<[^>]+>)/.test(text) ||
-    lines.some(
-      (line, index) =>
-        !fencedLines[index] &&
-        /^(?:Here(?:'s| is) (?:the|your|a|an) (?:(?:suggested|generated) )?commit message\b|(?:This|The) (?:(?:suggested|generated) )?commit message (?:follows|uses|summarizes|describes)\b|Let me know if\b|Would you like me to\b|Validation checklist:)/i.test(
-          line,
-        ),
+    /^\s*(?:Here(?:'s| is) (?:the|your|a|an) (?:(?:suggested|generated) )?commit message\b|(?:This|The) (?:(?:suggested|generated) )?commit message (?:follows|uses|summarizes|describes)\b|Let me know if\b|Would you like me to\b|Validation checklist:)/i.test(
+      text,
     )
   ) {
     add(
       "wrapper",
-      "Return only the commit message; remove surrounding quotes, Markdown fences, explanations or validation checklists.",
+      "Return only the commit message; remove surrounding quotes, Markdown fences, or explanations and validation checklists before the header.",
     );
   }
   // Match the same token alphabet allowed in repository configuration, including

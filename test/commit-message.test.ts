@@ -14,6 +14,42 @@ const validate = (message: string, settings: CommitConventions = {}) =>
     resolveConventions([{ source: "repository", settings }]),
   );
 
+test("PR 508: ordinary body prose about commit messages is not a wrapper", () => {
+  for (const body of [
+    "The commit message uses the configured format.",
+    "This commit message follows the documented conventions.",
+    "Here is the commit message format accepted by the validator.",
+    "Let me know if the documented migration needs clarification.",
+    "Would you like me to retain this example? This is the documented prompt.",
+    "Validation checklist:\n- Headers use the configured format.",
+  ]) {
+    for (const message of [
+      `docs: clarify validation\n\n${body}`,
+      `docs: clarify validation\n\nDocument the accepted format.\n\n${body}\n\nRefs: #508`,
+    ]) {
+      const result = validate(message, { body: { presence: "required" } });
+      assert.equal(result.valid, true, JSON.stringify({ message, result }));
+      assert.deepEqual(result.diagnostics, []);
+    }
+  }
+});
+
+test("PR 508: trailer values and continuations about commit messages are not wrappers", () => {
+  for (const prose of [
+    "The commit message uses the configured format.",
+    "Here is the commit message format accepted by the validator.",
+    "Let me know if you want a different commit message.",
+    "Validation checklist:\n- Headers use the configured format.",
+  ]) {
+    for (const value of [prose, `Describe the accepted format.\n${prose}`]) {
+      const message = `docs: clarify validation\n\nNotes: ${value}`;
+      const result = validate(message, { body: { presence: "forbidden" } });
+      assert.equal(result.valid, true, JSON.stringify({ message, result }));
+      assert.deepEqual(result.diagnostics, []);
+    }
+  }
+});
+
 for (const message of [
   "feat: add accounts",
   "fix(api)!: require authentication",
@@ -22,6 +58,7 @@ for (const message of [
   "feat!: remove XML\n\nBREAKING-CHANGE: Use JSON.",
   "fix: document config\n\nExample:\n\n```yaml\nkey: value\n```",
   "docs: describe usage\r\n\r\nPreserve CRLF bodies.\r\n",
+  "feat: add accounts\n\nLet me know if you want a different commit message.",
 ])
   test(`valid commit: ${JSON.stringify(message)}`, () =>
     assert.equal(validate(message).valid, true));
@@ -42,11 +79,12 @@ for (const message of [
   "```text\nfeat: add accounts\n```",
   '"feat: add accounts"',
   "Here is your commit message:\n\nfeat: add accounts",
-  "feat: add accounts\n\nLet me know if you want a different commit message.",
   "feat!: remove XML\n\nBREAKING CHANGE:",
 ])
-  test(`invalid commit: ${JSON.stringify(message)}`, () =>
-    assert.equal(validate(message).valid, false));
+  test(`invalid commit: ${JSON.stringify(message)}`, () => {
+    for (const settings of [{}, { types: null }])
+      assert.equal(validate(message, settings).valid, false);
+  });
 
 test("configured types and scope components use exact schema-compatible spelling", () => {
   assert.equal(
@@ -71,15 +109,35 @@ test("configured types and scope components use exact schema-compatible spelling
   assert.equal(validate("fix(api): add", { scope: "forbidden" }).valid, false);
 });
 
-test("removing type restrictions cannot admit JSON or formatting wrappers", () => {
+test("leading preambles and formatting wrappers are rejected even with unrestricted types", () => {
   for (const message of [
+    "Here is your commit message:\n\nfeat: add accounts",
+    "Here's a suggested commit message:\n\nfeat: add accounts",
+    "The commit message uses the configured format.\n\nfeat: add accounts",
+    "Validation checklist:\n- Headers use the configured format.\n\nfeat: add accounts",
+    "Let me know if this works:\n\nfeat: add accounts",
+    "Would you like me to use this?\n\nfeat: add accounts",
     '{"message": "feat: add accounts"}',
     '["feat: add accounts"]',
+    '"feat: add accounts"',
+    "'feat: add accounts'",
+    "`feat: add accounts`",
+    "```text\nfeat: add accounts\n```",
+    "~~~text\nfeat: add accounts\n~~~",
     "**feat: add accounts**",
     "__feat: add accounts__",
     "<message>feat: add accounts</message>",
   ])
-    assert.equal(validate(message, { types: null }).valid, false, message);
+    for (const settings of [{}, { types: null }]) {
+      const result = validate(message, settings);
+      assert.equal(result.valid, false, message);
+      assert.ok(
+        result.diagnostics.some(
+          ({ code, severity }) => code === "wrapper" && severity === 2,
+        ),
+        message,
+      );
+    }
 });
 
 test("length limits use UTF-16 units like commitlint and exempt URL body lines", () => {
@@ -418,7 +476,39 @@ test("breaking footers require the Conventional Commits colon-space separator", 
   }
 });
 
-test("fenced body examples are not mistaken for model explanations", () => {
+test("trailers reject empty or whitespace-only values, including before another trailer", () => {
+  for (const token of ["Notes", "Refs", "BREAKING CHANGE", "BREAKING-CHANGE"]) {
+    for (const value of ["", " \t", "\n \t\n"]) {
+      for (const following of ["", "\nReviewed-by: Alice"]) {
+        const result = validate(
+          `fix: document trailers\n\n${token}: ${value}${following}`,
+        );
+        assert.equal(result.valid, false);
+        assert.deepEqual(result.diagnostics, [
+          {
+            code: "footer-empty",
+            severity: 2,
+            message: `Supply a value for ${token}${token.startsWith("BREAKING") ? " explaining the breaking change" : ""}.`,
+            line: 3,
+          },
+        ]);
+      }
+    }
+  }
+});
+
+test("an initially empty trailer value accepts nonempty multiline continuation", () => {
+  for (const token of ["Notes", "Refs", "BREAKING CHANGE", "BREAKING-CHANGE"]) {
+    const result = validate(
+      `feat${token.startsWith("BREAKING") ? "!" : ""}: document trailers\n\n${token}: \n \t\nDescribe the migration.\nPreserve existing records.\nReviewed-by: Alice`,
+      { breakingChanges: { requireFooter: true } },
+    );
+    assert.equal(result.valid, true, token);
+    assert.deepEqual(result.diagnostics, []);
+  }
+});
+
+test("fenced body examples are excluded from trailer parsing", () => {
   assert.equal(
     validate(
       "docs: demonstrate output\n\n```text\nLet me know if you want a different commit message.\n```",
@@ -431,7 +521,7 @@ test("fenced body examples are not mistaken for model explanations", () => {
     assert.equal(validate(message).valid, true);
     assert.equal(
       validate(message + "\nLet me know if you want another message.").valid,
-      false,
+      true,
     );
     assert.equal(
       validate(message + "\nBREAKING CHANGE:no separator").valid,

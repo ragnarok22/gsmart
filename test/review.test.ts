@@ -183,6 +183,56 @@ function setup({
   };
 }
 
+for (const yes of [false, true]) {
+  test(`PR 508: legitimate prose about commit messages can be committed (yes=${yes})`, async () => {
+    const message =
+      "docs: clarify validation\n\nThe commit message uses the configured format.";
+    const run = setup({
+      results: [message],
+      responses: yes ? [] : [{ action: "commit" }, { action: "nothing" }],
+    });
+    await run.command.action({ yes });
+    assert.deepEqual(run.committed, [message]);
+    assert.equal(run.exitCode(), 0);
+    assert.doesNotMatch(run.output(), /Invalid commit message/);
+    assert.deepEqual(run.commitEnabled, yes ? [] : [true]);
+    assert.deepEqual(run.questions, yes ? [] : ["action"]);
+    assert.equal(run.snapshotReads(), 2);
+  });
+}
+
+test("PR 508: a documentation edit can be restored and committed after a wrapped refinement", async () => {
+  const edited =
+    "docs: clarify validation\n\nThe commit message uses the configured format.\n\nNotes: Describe the accepted format.\nLet me know if you want a different commit message.";
+  const wrapped = "Here is your commit message:\n\n" + revised;
+  const run = setup({
+    results: [original, wrapped],
+    edits: [{ status: "edited", message: edited }],
+    responses: [
+      { action: "edit" },
+      { action: "regenerate" },
+      { feedback: "Make the documentation more concise" },
+      { action: "commit" },
+      { action: "history" },
+      { candidate: 1 },
+      { restore: true },
+      { action: "commit" },
+    ],
+  });
+  await run.command.action({});
+  assert.deepEqual(run.editorInputs, [original]);
+  assert.deepEqual(run.requests[1].options?.refinement, {
+    previousMessage: edited,
+    feedback: "Make the documentation more concise",
+  });
+  assert.deepEqual(run.commitEnabled, [true, true, false, false, true]);
+  assert.deepEqual(run.committed, [edited]);
+  assert.equal(run.requests.length, 2);
+  assert.equal(run.snapshotReads(), 2);
+  assert.equal(run.exitCode(), 0);
+  assert.match(run.output(), /error \[wrapper\]/);
+});
+
 test("review edits a complete multiline message and waits for Commit", async () => {
   const edited = "fix(db): migrate accounts\n\nPreserve old IDs.\n\nRefs: #499";
   const run = setup({
