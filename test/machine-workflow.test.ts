@@ -260,6 +260,40 @@ test("machine generation preserves saved instructions and sends configuration di
 });
 
 for (const output of ["message", "json"]) {
+  for (const candidate of [
+    "[bot]: update dependencies\n\nPreserve the configured type spelling.",
+    "docs: clarify conventions\n\nBREAKING CHANGE handling is documented below.",
+  ]) {
+    test(`PR 508: machine ${output} accepts configured headers and breaking-marker prose (${candidate.split("\n")[0]})`, async () => {
+      const effective = resolveConventions([
+        {
+          source: "repository",
+          settings: {
+            types: ["[bot]", "docs"],
+            body: { presence: "required" },
+          },
+        },
+      ]);
+      const app = machineHarness(candidate, { effective, commitResult: true });
+      await app.run({ output, commit: true });
+      assert.deepEqual(app.exitCodes, [0]);
+      assert.deepEqual(app.committed, [candidate]);
+      assert.equal(app.snapshotReads(), 2);
+      assert.doesNotMatch(
+        app.stderr.join(""),
+        /Invalid commit message|error \[/,
+      );
+      if (output === "message")
+        assert.deepEqual(app.stdout, [candidate + "\n"]);
+      else {
+        const result = JSON.parse(app.stdout[0]);
+        assert.equal(result.ok, true);
+        assert.equal(result.message, candidate);
+        assert.equal(result.committed, true);
+      }
+    });
+  }
+
   for (const commit of [false, true]) {
     test(`PR 508: machine ${output} preserves message-tooling prose (commit=${commit})`, async () => {
       const candidate =

@@ -189,6 +189,28 @@ function setup({
 }
 
 for (const yes of [false, true]) {
+  test(`PR 508: a configured punctuation type with breaking-marker prose can be committed (yes=${yes})`, async () => {
+    const message =
+      "[bot]: update dependencies\n\nBREAKING CHANGE handling is documented below.";
+    const effective = resolveConventions([
+      {
+        source: "repository",
+        settings: { types: ["[bot]"], body: { presence: "required" } },
+      },
+    ]);
+    const run = setup({
+      effective,
+      results: [message],
+      responses: yes ? [] : [{ action: "commit" }],
+    });
+    await run.command.action({ yes });
+    assert.deepEqual(run.committed, [message]);
+    assert.equal(run.exitCode(), 0);
+    assert.deepEqual(run.commitEnabled, yes ? [] : [true]);
+    assert.equal(run.snapshotReads(), 2);
+    assert.doesNotMatch(run.output(), /Invalid commit message/);
+  });
+
   test(`PR 508: legitimate prose about commit messages can be committed (yes=${yes})`, async () => {
     const message =
       "docs: clarify validation\n\nThe commit message uses the configured format.";
@@ -205,6 +227,48 @@ for (const yes of [false, true]) {
     assert.equal(run.snapshotReads(), 2);
   });
 }
+
+test("configured punctuation and breaking-marker prose survive editing, refinement and candidate restoration", async () => {
+  const edited =
+    "<release>(deps): update dependencies\n\nBREAKING CHANGE handling is documented below.";
+  const refined =
+    "docs: clarify conventions\n\nBREAKING-CHANGE handling is documented below.";
+  const effective = resolveConventions([
+    {
+      source: "repository",
+      settings: {
+        types: ["feat", "docs", "<release>"],
+        body: { presence: "required" },
+      },
+    },
+  ]);
+  const run = setup({
+    effective,
+    results: [original, refined],
+    edits: [{ status: "edited", message: edited }],
+    responses: [
+      { action: "edit" },
+      { action: "regenerate" },
+      { feedback: "Focus on conventions" },
+      { action: "history" },
+      { candidate: 1 },
+      { restore: true },
+      { action: "commit" },
+    ],
+  });
+  await run.command.action({});
+  assert.deepEqual(run.editorInputs, [original]);
+  assert.deepEqual(run.requests[1].options?.refinement, {
+    previousMessage: edited,
+    feedback: "Focus on conventions",
+  });
+  assert.deepEqual(run.commitEnabled, [true, true, true, true]);
+  assert.deepEqual(run.committed, [edited]);
+  assert.equal(run.requests.length, 2);
+  assert.equal(run.snapshotReads(), 2);
+  assert.equal(run.exitCode(), 0);
+  assert.doesNotMatch(run.output(), /Invalid commit message/);
+});
 
 test("PR 508: a documentation edit can be restored and committed after a wrapped refinement", async () => {
   const edited =

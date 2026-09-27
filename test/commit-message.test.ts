@@ -14,6 +14,37 @@ const validate = (message: string, settings: CommitConventions = {}) =>
     resolveConventions([{ source: "repository", settings }]),
   );
 
+for (const type of ["[bot]", "<release>", "**meta"]) {
+  test(`PR 508: an explicitly configured ${type} type is not an output wrapper`, () => {
+    for (const header of [
+      `${type}: update dependencies`,
+      `${type}(deps)!: update dependencies`,
+    ]) {
+      const result = validate(
+        header + "\n\nPreserve the configured type spelling.",
+        { types: [type], scopes: ["deps"] },
+      );
+      assert.deepEqual(result, { valid: true, diagnostics: [] });
+    }
+  });
+}
+
+for (const token of ["BREAKING CHANGE", "BREAKING-CHANGE"]) {
+  test(`PR 508: ordinary ${token} prose is not a malformed trailer`, () => {
+    const prose = `${token} handling is documented below.`;
+    for (const body of [
+      prose,
+      `Describe the format.\n${prose}`,
+      `Describe the format.\n\n${prose}`,
+    ]) {
+      const result = validate(`docs: clarify conventions\n\n${body}`, {
+        body: { presence: "required" },
+      });
+      assert.deepEqual(result, { valid: true, diagnostics: [] });
+    }
+  });
+}
+
 for (const marker of ["```", "~~~", "````"]) {
   test(`PR 508: fenced ticket examples do not violate real ticket placement (${marker})`, () => {
     const message = `docs: show commit examples\n\nExample syntax:\n\n${marker}text\nfix: address #123 and APP-123\n${marker}\n\nRefs: #456`;
@@ -288,6 +319,177 @@ test("configured types and scope components use exact schema-compatible spelling
   }
   assert.equal(validate("fix: add", { scope: "required" }).valid, false);
   assert.equal(validate("fix(api): add", { scope: "forbidden" }).valid, false);
+});
+
+test("schema-compatible punctuation types are accepted with exact explicit membership", () => {
+  for (const type of [
+    "[bot]",
+    "<release>",
+    "**meta",
+    "__internal",
+    "{meta}",
+    '"quoted"',
+    "'quoted'",
+    "`meta`",
+    "```meta",
+    "~~~meta",
+    "build+meta",
+    "ci/build",
+    "ci\\build",
+    "ci,build",
+    "meta.v2",
+    "🚀",
+  ]) {
+    // resolveConventions validates these settings against the repository schema.
+    const result = validate(
+      `${type}(deps)!: refresh metadata\n\nPreserve behavior.\n\nBREAKING CHANGE: Use the new format.`,
+      {
+        types: [type],
+        scopes: ["deps"],
+        scope: "required",
+        body: { presence: "required" },
+        breakingChanges: { requireFooter: true },
+      },
+    );
+    assert.deepEqual(result, { valid: true, diagnostics: [] }, type);
+  }
+});
+
+test("wrapper-like type spellings require an exact configured type", () => {
+  for (const type of ["[bot]", "<release>", "**meta", "__meta", "'meta'"]) {
+    for (const settings of [
+      {},
+      { types: null },
+      { types: [type.toUpperCase()] },
+      { types: [`${type}-other`] },
+    ]) {
+      const result = validate(`${type}: update metadata`, settings);
+      assert.equal(result.valid, false);
+      assert.ok(
+        result.diagnostics.some(
+          ({ code, severity }) => code === "wrapper" && severity === 2,
+        ),
+      );
+    }
+  }
+});
+
+test("wrapping an explicitly configured header is still rejected", () => {
+  for (const type of ["fix", "[bot]", "<release>", "**meta", '"quoted"']) {
+    const header = `${type}(deps): update metadata`;
+    for (const message of [
+      JSON.stringify(header),
+      `'${header}'`,
+      `\`${header}\``,
+      `\`\`\`text\n${header}\n\`\`\``,
+      `~~~text\n${header}\n~~~`,
+      JSON.stringify({ message: header }),
+      JSON.stringify([header]),
+      `[${header}]`,
+      `**${header}**`,
+      `__${header}__`,
+      `<message>${header}</message>`,
+      `Here is your commit message:\n\n${header}`,
+    ]) {
+      const result = validate(message, { types: [type] });
+      assert.equal(result.valid, false, message);
+      assert.ok(
+        result.diagnostics.some(
+          ({ code, severity }) => code === "wrapper" && severity === 2,
+        ),
+        message,
+      );
+    }
+  }
+});
+
+test("configured punctuation does not exempt malformed headers or other rules", () => {
+  for (const type of ["[bot]", "<release>", "**meta"]) {
+    for (const header of [
+      `${type}:`,
+      `${type}: `,
+      `${type}:update metadata`,
+      `${type}:  update metadata`,
+      `${type}(): update metadata`,
+      `${type}(deps!!): update metadata`,
+      ` ${type}: update metadata`,
+    ]) {
+      const result = validate(header, { types: [type] });
+      assert.equal(result.valid, false, header);
+      assert.ok(
+        result.diagnostics.some(
+          ({ code, severity }) => code === "header" && severity === 2,
+        ),
+        header,
+      );
+    }
+    for (const [suffix, settings, expected] of [
+      [": update metadata", { scope: "required" }, "scope-presence"],
+      ["(deps): update metadata", { scope: "forbidden" }, "scope-presence"],
+      ["(other): update metadata", { scopes: ["deps"] }, "scope-enum"],
+      ["(deps/): update metadata", {}, "scope"],
+      [": update metadata", { headerMaxLength: 5 }, "header-max-length"],
+      [": update metadata", { subjectMaxLength: 5 }, "subject-max-length"],
+      [": update\u0000metadata", {}, "control-character"],
+      [
+        ": update metadata",
+        { body: { presence: "required" } },
+        "body-presence",
+      ],
+      [
+        ": update metadata\n\nDetails.",
+        { body: { presence: "forbidden" } },
+        "body-presence",
+      ],
+      [
+        ": update metadata\n\nDetails.",
+        { body: { maxLineLength: 5 } },
+        "body-max-line-length",
+      ],
+      [": update metadata\nDetails.", {}, "body-leadingBlank"],
+      [": update metadata\nRefs: #123", {}, "footer-leadingBlank"],
+      [": update metadata", { tickets: { required: true } }, "ticket-required"],
+      [
+        "!: update metadata",
+        { breakingChanges: { requireFooter: true } },
+        "breaking-footer",
+      ],
+    ] satisfies [string, CommitConventions, string][]) {
+      const result = validate(type + suffix, { ...settings, types: [type] });
+      assert.equal(result.valid, false, type + suffix);
+      assert.deepEqual(
+        result.diagnostics.map(({ code, severity }) => ({ code, severity })),
+        [{ code: expected, severity: 2 }],
+        type + suffix,
+      );
+    }
+  }
+});
+
+test("configured punctuation preserves imported rule warning severity", () => {
+  const result = validateCommitMessage(
+    "[bot]: update dependencies",
+    resolveConventions([
+      {
+        source: "commitlint",
+        settings: { types: ["[bot]"], headerMaxLength: 10 },
+        ruleMetadata: {
+          headerMaxLength: { name: "header-max-length", severity: 1 },
+        },
+      },
+    ]),
+  );
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.diagnostics, [
+    {
+      code: "header-max-length",
+      severity: 1,
+      message: "Header must be at most 10 characters (received 26).",
+      line: 1,
+      source: "commitlint",
+      rule: "header-max-length",
+    },
+  ]);
 });
 
 test("leading preambles and formatting wrappers are rejected even with unrestricted types", () => {
@@ -645,7 +847,7 @@ test("recognized trailers still report missing separators inside a body paragrap
 
 test("breaking footers require the Conventional Commits colon-space separator", () => {
   for (const token of ["BREAKING CHANGE", "BREAKING-CHANGE"]) {
-    for (const separator of [":", ":\t", " ", " : "]) {
+    for (const separator of [":", ":\t", " : ", "\t: ", " \t:\t"]) {
       const message = `feat!: remove v1\n\n${token}${separator}remove v1 support`;
       assert.equal(validate(message).valid, false);
       assert.equal(
@@ -653,7 +855,100 @@ test("breaking footers require the Conventional Commits colon-space separator", 
         false,
       );
     }
-    assert.equal(validate(`fix: handle input\n\n${token}`).valid, false);
+    for (const whitespace of ["", " ", "\t", " \t "]) {
+      const result = validate(`fix: handle input\n\n${token}${whitespace}`);
+      assert.equal(result.valid, false);
+      assert.deepEqual(
+        result.diagnostics.map(({ code, severity, line }) => ({
+          code,
+          severity,
+          line,
+        })),
+        [{ code: "breaking-footer-format", severity: 2, line: 3 }],
+      );
+    }
+  }
+});
+
+test("breaking-token prose is body content or a footer continuation, not a breaking footer", () => {
+  for (const token of ["BREAKING CHANGE", "BREAKING-CHANGE"]) {
+    for (const prose of [
+      `${token} handling is documented below.`,
+      `${token}\thandling: see the documentation.`,
+      `${token} remove v1 support`,
+      `${token} #123 documents the migration.`,
+    ]) {
+      for (const continuation of [false, true]) {
+        const content = continuation
+          ? `Notes: Format documentation.\n${prose}`
+          : prose;
+        const settings: CommitConventions = {
+          body: { presence: continuation ? "forbidden" : "required" },
+          tickets: {
+            placement: continuation ? "footer" : "body",
+            footerToken: "Notes",
+          },
+          breakingChanges: { requireFooter: true },
+        };
+        assert.deepEqual(
+          validate(`docs: clarify conventions\n\n${content}`, settings),
+          {
+            valid: true,
+            diagnostics: [],
+          },
+        );
+        const missing = validate(
+          `docs!: clarify conventions\n\n${content}`,
+          settings,
+        );
+        assert.equal(missing.valid, false);
+        assert.deepEqual(
+          missing.diagnostics.map(({ code, severity }) => ({ code, severity })),
+          [{ code: "breaking-footer", severity: 2 }],
+        );
+        assert.deepEqual(
+          validate(
+            `docs!: clarify conventions\n\n${content}\n\n${token}: Migrate the old configuration.`,
+            settings,
+          ),
+          { valid: true, diagnostics: [] },
+        );
+      }
+    }
+    for (const separator of [" ", "\t"]) {
+      assert.deepEqual(
+        validate(`feat!: remove v1\n\n${token}${separator}remove v1 support`),
+        {
+          valid: true,
+          diagnostics: [],
+        },
+      );
+    }
+  }
+});
+
+test("breaking-token body prose remains subject to body limits and separators", () => {
+  for (const token of ["BREAKING CHANGE", "BREAKING-CHANGE"]) {
+    const prose = `${token} handling is documented below.`;
+    for (const [separator, settings, code] of [
+      ["\n\n", { body: { presence: "forbidden" } }, "body-presence"],
+      ["\n\n", { body: { maxLineLength: 20 } }, "body-max-line-length"],
+      ["\n", {}, "body-leadingBlank"],
+    ] satisfies [string, CommitConventions, string][]) {
+      const result = validate(
+        `docs: clarify conventions${separator}${prose}`,
+        settings,
+      );
+      assert.equal(result.valid, false);
+      assert.deepEqual(
+        result.diagnostics.map(({ code, severity, line }) => ({
+          code,
+          severity,
+          line,
+        })),
+        [{ code, severity: 2, line: separator === "\n" ? 2 : 3 }],
+      );
+    }
   }
 });
 
