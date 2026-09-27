@@ -72,13 +72,13 @@
     "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.58",
-    "@ai-sdk/google": "^4.0.76",
-    "@ai-sdk/mistral": "^4.0.48",
-    "@ai-sdk/openai": "^4.0.71",
-    "@ai-sdk/openai-compatible": "^3.0.53",
+    "@ai-sdk/anthropic": "^4.0.65",
+    "@ai-sdk/google": "^4.0.82",
+    "@ai-sdk/mistral": "^4.0.52",
+    "@ai-sdk/openai": "^4.0.78",
+    "@ai-sdk/openai-compatible": "^3.0.57",
     "@commitlint/load": "^21.2.3",
-    "ai": "^7.0.107",
+    "ai": "^7.0.116",
     "ajv": "^8.20.0",
     "chalk": "6.0.0",
     "clipboardy": "^5.3.2",
@@ -103,7 +103,7 @@
     "tsup": "^8.5.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.70.0"
+    "typescript-eslint": "^8.70.1"
   },
   "packageManager": "pnpm@12.5.1+sha512.e3f305bc784a2bc89f5ad3b6138889470fae8d2af5f36b61216ec91c2c3d64089775f9de38aac331044ea40f245cb0d5666392dfdf65824e1907ef6a2c62de5f"
 }
