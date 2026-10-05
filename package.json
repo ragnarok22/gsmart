@@ -80,7 +80,7 @@
     "@commitlint/load": "^21.2.3",
     "ai": "^7.0.116",
     "ajv": "^8.20.0",
-    "chalk": "6.0.0",
+    "chalk": "6.0.1",
     "clipboardy": "^5.3.2",
     "commander": "^15.0.0",
     "conf": "^15.1.0",
