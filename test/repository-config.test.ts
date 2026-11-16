@@ -14,9 +14,12 @@ import {
 import { parseConventions } from "../src/utils/conventions.ts";
 
 test("the documented team configuration validates against the shipped schema", () => {
-  const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const readme = readFileSync(
+    new URL("../docs/guide.md", import.meta.url),
+    "utf8",
+  );
   const example = readme
-    .split("### Shared repository conventions")[1]
+    .split("## Shared repository conventions")[1]
     .match(/```json\n([\s\S]*?)\n```/)?.[1];
   assert.ok(example);
   const conventions = parseConventions(JSON.parse(example), "README example");
