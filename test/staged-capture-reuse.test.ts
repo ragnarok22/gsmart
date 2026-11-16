@@ -6,6 +6,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import esmock from "esmock";
 import { git, repository } from "../test-support/repository.ts";
+import { createMainCommand } from "../src/commands/main.ts";
 import { resolveConventions } from "../src/utils/conventions.ts";
 
 test("an already-staged automatic commit only captures one complete patch", async (t) => {
@@ -15,21 +16,22 @@ test("an already-staged automatic commit only captures one complete patch", asyn
   writeFileSync(join(root, "file.txt"), "unstaged edit\n");
   let diffReads = 0;
   let indexReads = 0;
-  const { createMainCommand } = await esmock<
-    typeof import("../src/commands/main.ts")
-  >(
-    "../src/commands/main.ts",
-    {},
-    {
-      "node:child_process": {
-        spawn: (command: string, args: string[], options: SpawnOptions) => {
-          if (command === "git" && args[0] === "diff") diffReads++;
-          if (command === "git" && args[0] === "ls-files") indexReads++;
-          return spawn(command, args, options);
-        },
+  const { getStagedSnapshot } = await esmock<
+    typeof import("../src/utils/git.ts")
+  >("../src/utils/git.ts", {
+    "node:child_process": {
+      spawn: (command: string, args: string[], options: SpawnOptions) => {
+        if (command === "git" && args[0] === "diff") diffReads++;
+        if (command === "git" && args[0] === "ls-files") indexReads++;
+        return spawn(command, args, options);
       },
     },
-  );
+  });
+  const { retrieveFilesToCommit } = await esmock<
+    typeof import("../src/utils/index.ts")
+  >("../src/utils/index.ts", {
+    "../src/utils/git.ts": { getStagedSnapshot },
+  });
   const spinner = {
     text: "",
     start() {
@@ -47,6 +49,8 @@ test("an already-staged automatic commit only captures one complete patch", asyn
   };
   const committed: string[] = [];
   const command = createMainCommand({
+    getStagedSnapshot,
+    retrieveFilesToCommit,
     spinner: (() => spinner) as never,
     config: {
       getDefaultProvider: () => "anthropic",
