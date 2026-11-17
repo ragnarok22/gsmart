@@ -58,6 +58,7 @@ const createSpinner = (events: { type: string; message?: string }[]) => {
 
 for (const options of [
   { contextBudget: "8192" },
+  { outputTokens: "4096" },
   { contextExclude: ["vendor/**"] },
   { summarize: true },
   { summarize: false },

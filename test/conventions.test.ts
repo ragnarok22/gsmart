@@ -218,6 +218,44 @@ test("CLI parsing preserves absent defaults and an explicit history opt-out", ()
   }
 });
 
+test("CLI output limits override repository settings without changing the total budget", () => {
+  const effective = resolveConventions([
+    {
+      source: "repo",
+      settings: { context: { budgetTokens: 50000, outputTokens: 2048 } },
+    },
+    {
+      source: "CLI",
+      settings: conventionsFromOptions({ outputTokens: "8192" }),
+    },
+  ]);
+  assert.equal(effective.conventions.context.outputTokens, 8192);
+  assert.equal(effective.conventions.context.budgetTokens, 50000);
+  assert.equal(effective.sources["context.outputTokens"], "CLI");
+  assert.equal(effective.sources["context.budgetTokens"], "repo");
+  for (const value of ["256", "32768"]) {
+    assert.deepEqual(conventionsFromOptions({ outputTokens: value }), {
+      context: { outputTokens: Number(value) },
+    });
+  }
+  for (const value of [
+    "",
+    "255",
+    "32769",
+    "-1",
+    "1024.5",
+    "1e3",
+    "Infinity",
+    " 8192",
+    "9007199254740993",
+  ]) {
+    assert.throws(
+      () => conventionsFromOptions({ outputTokens: value }),
+      /--output-tokens.*integer from 256 to 32768/,
+    );
+  }
+});
+
 test("prompt propagates all configured conventions without hard-coded conflicting examples", () => {
   const { conventions } = resolveConventions([
     {

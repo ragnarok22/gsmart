@@ -60,6 +60,18 @@ class StreamInterruptedError extends Error {
   }
 }
 
+class OutputTokenLimitError extends Error {
+  constructor(outputTokens: number) {
+    super(
+      `Response was incomplete: output token limit (${outputTokens} tokens, including reasoning) reached. ` +
+        (outputTokens < 32_768
+          ? "Increase --output-tokens (context.outputTokens in .gsmartrc.json) and, if needed, --context-budget, or try a different model. "
+          : "GSmart's maximum output limit is 32768. Request a shorter response or try a different model. ") +
+        "Increasing --context-budget alone does not raise the output limit.",
+    );
+  }
+}
+
 function classifyError(
   error: unknown,
   provider: string,
@@ -73,6 +85,9 @@ function classifyError(
       : "";
   const modelError = `${provider} - Model is not available or the endpoint is unsupported. ${modelHint}${endpointHint}${context.oauth ? " Choose a model supported by your ChatGPT subscription, or use API-key login for API-only models." : " Check your plan or try a different provider; for local models, download/load the model on the server."}`;
   const connectionError = `${provider} - Could not reach the ${provider} API. ${provider === "custom" ? endpointHint.trim() : "Check your internet connection."}`;
+  if (error instanceof OutputTokenLimitError) {
+    return `${provider} - ${error.message}${endpointHint}`;
+  }
   if (
     error instanceof Error &&
     ["AbortError", "TimeoutError"].includes(error.name)
@@ -676,6 +691,21 @@ export class AIBuilder {
               // A bare EOF produces a finish event too, and response.incomplete
               // without a reason can map to "stop". Require the wire completion.
               if (part.rawValue.type === "response.incomplete") {
+                const response =
+                  "response" in part.rawValue ? part.rawValue.response : null;
+                const details =
+                  typeof response === "object" &&
+                  response !== null &&
+                  "incomplete_details" in response
+                    ? response.incomplete_details
+                    : null;
+                if (
+                  typeof details === "object" &&
+                  details !== null &&
+                  "reason" in details &&
+                  details.reason === "max_output_tokens"
+                )
+                  throw new OutputTokenLimitError(budget.output);
                 throw new Error(
                   "Response was incomplete. Try a smaller diff or a different model.",
                 );
@@ -688,6 +718,8 @@ export class AIBuilder {
           if (!completed || finishReason === undefined) {
             throw new StreamInterruptedError();
           }
+          if (finishReason === "length")
+            throw new OutputTokenLimitError(budget.output);
           if (finishReason !== "stop") {
             throw new Error(
               "Response did not complete successfully. Please try again.",
@@ -697,9 +729,11 @@ export class AIBuilder {
           // for generateText. Keep transport failures distinct from invalid text.
         } else {
           const result = await generateText({ ...request, system });
+          if (result.finishReason === "length")
+            throw new OutputTokenLimitError(budget.output);
           if (result.finishReason && result.finishReason !== "stop")
             throw new Error(
-              "Response did not complete successfully. Increase context.outputTokens or try a different model.",
+              "Response did not complete successfully. Please try again or use a different model.",
             );
           text = result.text;
         }

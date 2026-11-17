@@ -140,6 +140,9 @@ Request an advisory split plan for the **existing staged diff**:
 gsmart plan --staged
 gsmart plan --staged --provider anthropic --model claude-haiku-4-5-20251001
 gsmart plan --staged --context-budget 16384 --show-context
+
+# Allow a longer plan, including any model reasoning
+gsmart plan --staged --context-budget 50000 --output-tokens 8192
 ```
 
 `--staged` explicitly selects the scope: all staged changes throughout the repository, including when run from a subdirectory. Unstaged and untracked content is not included. Planning, reading the plan, and canceling with Ctrl+C leave HEAD, the index, and working-tree files unchanged. An empty staged diff is an error.
@@ -173,7 +176,9 @@ Every included unit must appear exactly once. Invalid responses with missing, du
 
 Planning uses the configured provider, model, repository conventions, language, and optional history examples. Provider selection is prompt-free: explicit `--provider`, saved default, then the first configured provider. `--prompt`, `--language`, `--history-examples`, and the [context options](#large-diffs-and-ai-context) are supported. The human-readable plan goes to stdout; diagnostics, debug output, and `--show-context` go to stderr. Planning rejects `--yes`, `--dry-run`, `--stage`, `--commit`, `--stdin`, `--branch`, and `--output`.
 
-**Large or excluded changes:** the complete ID inventory is retained even when diff context is condensed or summarized, and affected groups receive a review note. Excluded paths and contents are not sent to the provider; those files appear separately as unassigned manual-review items with an explicit accounting total. If all files are excluded, the result lists only manual-review items and makes no AI request; no configured provider, credentials, model, or endpoint is required. This applies to CLI and repository exclusions, and the local result still checks snapshot freshness before display. If the inventory cannot fit, increase `--context-budget`, shorten instructions/history, or plan a smaller staged scope. If a plan exhausts its output allowance, increase `context.outputTokens` in `.gsmartrc.json` (and the total budget if needed), then retry. Plan quality still depends on the available diff evidence and model.
+**Large or excluded changes:** the complete ID inventory is retained even when diff context is condensed or summarized, and affected groups receive a review note. Excluded paths and contents are not sent to the provider; those files appear separately as unassigned manual-review items with an explicit accounting total. If all files are excluded, the result lists only manual-review items and makes no AI request; no configured provider, credentials, model, or endpoint is required. This applies to CLI and repository exclusions, and the local result still checks snapshot freshness before display. If the inventory cannot fit, increase `--context-budget`, shorten instructions/history, or plan a smaller staged scope. Plan quality still depends on the available diff evidence and model.
+
+**Incomplete responses:** `--context-budget` sets the total request budget, but does not raise the separate output limit, which defaults to **1,024 tokens**, including model reasoning. A multi-commit plan may need more. Retry with `--output-tokens 8192` (and a sufficient total budget, as above), or save `context.outputTokens` in `.gsmartrc.json`. Truncated responses are rejected rather than displayed as partial plans.
 
 Exit status is `0` for a displayed plan, `1` for a configuration/Git/generation failure, `2` for invalid usage, `130` for SIGINT, and `143` for SIGTERM.
 
@@ -610,6 +615,9 @@ gsmart --dry-run --show-context
 # Set a total request budget and exclude paths from AI context
 gsmart --dry-run --context-budget 16384 --context-exclude 'vendor/**' '*.map'
 
+# Increase the separate output/reasoning allowance for this run
+gsmart --dry-run --context-budget 50000 --output-tokens 8192
+
 # Allow additional AI calls for this run
 gsmart --dry-run --summarize --show-context
 
@@ -644,14 +652,14 @@ Add a `context` section to the root `.gsmartrc.json` to share settings:
 }
 ```
 
-| Setting              | Default and behavior                                                                                                                                                                                                   |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `budgetTokens`       | `null`: resolve from the selected provider/model. An explicit integer from 1,024 to 1,048,576 overrides it; it must leave room for instructions and exceed output plus overhead. Known model windows are upper bounds. |
-| `outputTokens`       | `1024`: reserved output tokens, also passed to the provider as its output limit; configurable from 256 to 32,768. Increase it if a model exhausts its output/reasoning allowance.                                      |
-| `summarize`          | `false`: use local reduction only. `true` permits additional AI calls when needed.                                                                                                                                     |
-| `maxSummaryRequests` | `8`: maximum summary attempts per generation/refinement, including retries; range 1–64.                                                                                                                                |
-| `exclude`            | `[]`: omit matching files entirely from AI context, including summary requests. For renames/copies, both original and destination paths are checked.                                                                   |
-| `generated`          | The six patterns shown above. Recognized generated-code markers also trigger compaction. Setting `[]` disables pattern matching, but retains marker and lockfile detection.                                            |
+| Setting              | Default and behavior                                                                                                                                                                                                                   |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `budgetTokens`       | `null`: resolve from the selected provider/model. An explicit integer from 1,024 to 1,048,576 overrides it; it must leave room for instructions and exceed output plus overhead. Known model windows are upper bounds.                 |
+| `outputTokens`       | `1024`: reserved output tokens, also passed to the provider as its output/reasoning limit; configurable from 256 to 32,768. Override for one run with `--output-tokens`. Increasing the total budget alone does not change this limit. |
+| `summarize`          | `false`: use local reduction only. `true` permits additional AI calls when needed.                                                                                                                                                     |
+| `maxSummaryRequests` | `8`: maximum summary attempts per generation/refinement, including retries; range 1–64.                                                                                                                                                |
+| `exclude`            | `[]`: omit matching files entirely from AI context, including summary requests. For renames/copies, both original and destination paths are checked.                                                                                   |
+| `generated`          | The six patterns shown above. Recognized generated-code markers also trigger compaction. Setting `[]` disables pattern matching, but retains marker and lockfile detection.                                                            |
 
 Patterns match complete repository-relative paths using `/` separators: `*` matches within a component, `**` crosses directories, `**/` also matches the root, and `?` matches one non-separator character. Other characters are literal; negation, brace expansion, and character classes are not supported. Quote CLI patterns to prevent shell expansion. Arrays replace inherited values. CLI context settings override their corresponding repository fields; `config` accepts these flags with `--show-effective` for inspection.
 
@@ -785,6 +793,7 @@ Run `gsmart` to generate a commit message. `gsmart --help` shows generation opti
 | `--language <tag>`                |       | Override the generated message's language (`en`, `es`, `pt-BR`)       |
 | `--history-examples <count>`      |       | Include 0–20 recent subjects as style examples; `0` disables them     |
 | `--context-budget <tokens>`       |       | Set the total request budget, including instructions and output       |
+| `--output-tokens <tokens>`        |       | Set the output/reasoning limit within that budget (256–32,768)        |
 | `--context-exclude <patterns...>` |       | Exclude matching paths from AI context only                           |
 | `--summarize` / `--no-summarize`  |       | Enable or disable extra AI summarization requests                     |
 | `--show-context`                  |       | Print per-file context treatment and budget accounting                |

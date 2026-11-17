@@ -362,6 +362,7 @@ const configAction = async (
   if (
     !options.showEffective &&
     (options.contextBudget !== undefined ||
+      options.outputTokens !== undefined ||
       options.contextExclude !== undefined ||
       options.summarize !== undefined)
   )

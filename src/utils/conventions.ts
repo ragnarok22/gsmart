@@ -170,6 +170,7 @@ export type ConventionOptions = {
   language?: string;
   historyExamples?: string;
   contextBudget?: string;
+  outputTokens?: string;
   contextExclude?: string[];
   summarize?: boolean;
 };
@@ -182,6 +183,17 @@ export function conventionsFromOptions(
     if (!/^\d+$/.test(options.contextBudget))
       throw new Error("--context-budget must be an integer token budget.");
     settings.context = { budgetTokens: Number(options.contextBudget) };
+  }
+  if (options.outputTokens !== undefined) {
+    const outputTokens = Number(options.outputTokens);
+    if (
+      !/^\d+$/.test(options.outputTokens) ||
+      !Number.isSafeInteger(outputTokens) ||
+      outputTokens < 256 ||
+      outputTokens > 32_768
+    )
+      throw new Error("--output-tokens must be an integer from 256 to 32768.");
+    settings.context = { ...settings.context, outputTokens };
   }
   if (options.contextExclude !== undefined)
     settings.context = { ...settings.context, exclude: options.contextExclude };

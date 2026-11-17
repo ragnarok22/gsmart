@@ -335,6 +335,58 @@ test("hosted API-key and compatible hosted models use explicit API operations", 
   );
 });
 
+for (const reason of ["max_output_tokens", "content_filter"]) {
+  test(`real OpenAI Responses SDK diagnoses ${reason} without retrying or returning partial text`, async () => {
+    config.setKey("openai", "sk-hosted-key-123456");
+    const requests: Record<string, unknown>[] = [];
+    const { AIBuilder: MockAI } = await esmock("../src/utils/ai.ts", {
+      "@ai-sdk/openai": {
+        createOpenAI: (options: Parameters<typeof createOpenAI>[0]) =>
+          createOpenAI({
+            ...options,
+            fetch: async (_url, init) => {
+              requests.push(JSON.parse(String(init?.body)));
+              return Response.json({
+                ...responsesResponse,
+                status: "incomplete",
+                incomplete_details: { reason },
+              });
+            },
+          }),
+      },
+    });
+    const result = await new MockAI("openai", "").generateCommitMessage(
+      "main",
+      "diff",
+      {
+        conventions: resolveConventions([
+          {
+            source: "test",
+            settings: {
+              context: { budgetTokens: 50000, outputTokens: 4096 },
+            },
+          },
+        ]).conventions,
+        onRetry: () => assert.fail("must not retry unchanged"),
+      },
+    );
+    assert.equal(typeof result, "object", JSON.stringify(result));
+    assert.equal(result.code, "GENERATION");
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].max_output_tokens, 4096);
+    if (reason === "max_output_tokens") {
+      assert.match(result.error, /output token limit \(4096 tokens/);
+      assert.match(result.error, /--output-tokens.*context\.outputTokens/);
+    } else {
+      assert.doesNotMatch(
+        result.error,
+        /--output-tokens|context\.outputTokens/,
+      );
+    }
+    assert.doesNotMatch(result.error, /feat: hosted inference/);
+  });
+}
+
 test("OAuth uses Codex streaming Responses with instructions, store:false, refreshed tokens and model overrides", async () => {
   const requests: {
     url: string;
@@ -786,6 +838,15 @@ for (const reason of ["max_output_tokens", "content_filter", undefined]) {
     });
     assert.equal(typeof result, "object", JSON.stringify(result));
     assert.match(result.error, /incomplete/i);
+    if (reason === "max_output_tokens") {
+      assert.match(result.error, /output token limit \(1024 tokens/);
+      assert.match(result.error, /--output-tokens.*context\.outputTokens/);
+    } else {
+      assert.doesNotMatch(
+        result.error,
+        /--output-tokens|context\.outputTokens/,
+      );
+    }
     assert.doesNotMatch(result.error, /feat: incomplete/);
     assert.equal(calls, 1);
   });

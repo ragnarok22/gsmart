@@ -123,20 +123,40 @@ test("context flags preserve repository opt-in unless explicitly overridden", as
   writeFileSync(
     join(root, ".gsmartrc.json"),
     JSON.stringify({
-      context: { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] },
+      context: {
+        summarize: true,
+        budgetTokens: 12000,
+        outputTokens: 2048,
+        exclude: ["dist/**"],
+      },
     }),
   );
   for (const [args, expected] of [
-    [[], { summarize: true, budgetTokens: 12000, exclude: ["dist/**"] }],
+    [
+      [],
+      {
+        summarize: true,
+        budgetTokens: 12000,
+        outputTokens: 2048,
+        exclude: ["dist/**"],
+      },
+    ],
     [
       [
         "--no-summarize",
         "--context-budget",
         "16000",
+        "--output-tokens",
+        "4096",
         "--context-exclude",
         "vendor/**",
       ],
-      { summarize: false, budgetTokens: 16000, exclude: ["vendor/**"] },
+      {
+        summarize: false,
+        budgetTokens: 16000,
+        outputTokens: 4096,
+        exclude: ["vendor/**"],
+      },
     ],
   ] as const) {
     const run = setup(root);
@@ -148,6 +168,7 @@ test("context flags preserve repository opt-in unless explicitly overridden", as
     const context = run.requests[0].options?.conventions?.context;
     assert.equal(context?.summarize, expected.summarize);
     assert.equal(context?.budgetTokens, expected.budgetTokens);
+    assert.equal(context?.outputTokens, expected.outputTokens);
     assert.deepEqual(context?.exclude, expected.exclude);
   }
 });

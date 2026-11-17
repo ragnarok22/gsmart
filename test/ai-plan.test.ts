@@ -2,7 +2,10 @@ import "../test-support/setup-env";
 import assert from "node:assert/strict";
 import test from "node:test";
 import esmock from "esmock";
-import { resolveConventions } from "../src/utils/conventions.ts";
+import {
+  conventionsFromOptions,
+  resolveConventions,
+} from "../src/utils/conventions.ts";
 import type { ContextSettings } from "../src/definitions.ts";
 import type { ContextReport } from "../src/utils/diff-context.ts";
 import {
@@ -176,6 +179,74 @@ test("invalid, empty, incomplete, excluded-ID and truncated provider responses a
   });
   assert.ok("error" in result);
   assert.match(result.error, /unknown or excluded change/);
+});
+
+test("a larger total planning budget does not raise the output limit and truncation explains the remedy", async () => {
+  const app = await setup(async () => ({
+    text: JSON.stringify({ commits: mixedCommits }),
+    finishReason: "length",
+  }));
+  const result = await app.ai.generateCommitPlan("main", mixedDiff, {
+    conventions: conventions({ budgetTokens: 50000 }),
+    onRetry: () => assert.fail("truncated output must not retry unchanged"),
+  });
+  assert.ok("error" in result);
+  assert.equal(result.code, "GENERATION");
+  assert.equal(app.requests.length, 1);
+  assert.equal(app.requests[0].maxOutputTokens, 1024);
+  assert.match(
+    result.error,
+    /output token limit \(1024 tokens, including reasoning\)/,
+  );
+  assert.match(result.error, /--output-tokens.*context\.outputTokens/);
+  assert.match(result.error, /--context-budget alone does not raise/);
+  assert.doesNotMatch(result.error, /"commits"/);
+});
+
+test("planning sends the CLI output allowance and accounts for it within the total budget", async () => {
+  const app = await setup(async () => ({
+    text: JSON.stringify({ commits: mixedCommits }),
+    finishReason: "stop",
+  }));
+  const plan = await app.ai.generateCommitPlan("main", mixedDiff, {
+    conventions: resolveConventions([
+      {
+        source: "CLI",
+        settings: conventionsFromOptions({
+          contextBudget: "50000",
+          outputTokens: "8192",
+        }),
+      },
+    ]).conventions,
+  });
+  assert.ok(!("error" in plan), JSON.stringify(plan));
+  assert.equal(app.requests[0].maxOutputTokens, 8192);
+  assert.equal(plan.context?.outputTokens, 8192);
+  assert.equal(plan.context?.budgetTokens, 50000);
+});
+
+test("non-length completion failures do not incorrectly recommend increasing the output limit", async () => {
+  const app = await setup(async () => ({
+    text: "",
+    finishReason: "content-filter",
+  }));
+  const result = await app.ai.generateCommitPlan("main", mixedDiff);
+  assert.ok("error" in result);
+  assert.equal(result.code, "GENERATION");
+  assert.doesNotMatch(result.error, /context\.outputTokens|--output-tokens/);
+  assert.equal(app.requests.length, 1);
+});
+
+test("exhausting the maximum output limit suggests shorter output instead of an invalid increase", async () => {
+  const app = await setup(async () => ({ text: "", finishReason: "length" }));
+  const result = await app.ai.generateCommitPlan("main", mixedDiff, {
+    conventions: conventions({ budgetTokens: 50000, outputTokens: 32768 }),
+  });
+  assert.ok("error" in result);
+  assert.match(result.error, /maximum output limit is 32768/);
+  assert.match(result.error, /shorter response or try a different model/);
+  assert.doesNotMatch(result.error, /Increase --output-tokens/);
+  assert.equal(app.requests.length, 1);
 });
 
 test("an oversized inventory fails before calling the provider rather than losing units", async () => {

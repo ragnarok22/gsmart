@@ -31,12 +31,14 @@ async function setup(
   t: TestContext,
   {
     text = JSON.stringify({ commits: [commit("one", ["f1"])] }),
+    finishReason = "stop",
     status = 200,
     hold = false,
     onRequest,
     configured = true,
   }: {
     text?: string;
+    finishReason?: string;
     status?: number;
     hold?: boolean;
     onRequest?: () => void;
@@ -65,7 +67,7 @@ async function setup(
                 {
                   index: 0,
                   message: { role: "assistant", content: text },
-                  finish_reason: "stop",
+                  finish_reason: finishReason,
                 },
               ],
               usage: {
@@ -279,7 +281,11 @@ test("planner honors provider/model, conventions, history, and CLI overrides on 
   stage(app.cwd);
   writeFileSync(
     join(app.cwd, ".gsmartrc.json"),
-    JSON.stringify({ language: "es", history: { enabled: true, limit: 1 } }),
+    JSON.stringify({
+      language: "es",
+      history: { enabled: true, limit: 1 },
+      context: { outputTokens: 2048 },
+    }),
   );
   const before = state(app.cwd);
   const result = await app.run([
@@ -287,25 +293,53 @@ test("planner honors provider/model, conventions, history, and CLI overrides on 
     "First instruction",
     "--provider",
     "custom",
+    "--output-tokens",
+    "4096",
     "plan",
     "--staged",
     "--prompt",
     "Final instruction",
     "--model",
     "override",
+    "--context-budget",
+    "50000",
+    "--output-tokens",
+    "8192",
     "--show-context",
     "--debug",
   ]);
   assert.equal(result.code, 0, result.stderr);
   assert.equal(app.requests[0].model, "override");
+  assert.equal(app.requests[0].max_tokens, 8192);
   const request = JSON.stringify(app.requests[0]);
   assert.match(request, /Final instruction/);
   assert.doesNotMatch(request, /First instruction/);
   assert.match(request, /language es/);
   assert.match(request, /preserve style/);
   assert.match(result.stderr, /"context":/);
+  assert.match(result.stderr, /"outputTokens": 8192/);
+  assert.match(result.stderr, /"budgetTokens": 50000/);
   assert.match(result.stderr, /\[debug cli\]/);
   assert.doesNotMatch(result.stdout, /\[debug|Quick start|Update available/);
+  assert.deepEqual(state(app.cwd), before);
+});
+
+test("truncated planning output reports the output limit without printing a partial plan or changing Git", async (t) => {
+  const app = await setup(t, { finishReason: "length" });
+  stage(app.cwd);
+  const before = state(app.cwd);
+  const result = await app.run([
+    "plan",
+    "--staged",
+    "--context-budget",
+    "50000",
+  ]);
+  assert.equal(result.code, 1);
+  assert.equal(result.stdout, "");
+  assert.match(result.stderr, /output token limit \(1024 tokens/);
+  assert.match(result.stderr, /--output-tokens.*context\.outputTokens/);
+  assert.match(result.stderr, /--context-budget alone does not raise/);
+  assert.equal(app.requests.length, 1, "must not retry with the same limit");
   assert.deepEqual(state(app.cwd), before);
 });
 
@@ -405,6 +439,9 @@ for (const args of [
   ["plan", "--staged", "--model"],
   ["plan", "--staged", "--provider", "bogus"],
   ["plan", "--staged", "--context-budget", "0"],
+  ["plan", "--staged", "--output-tokens", "255"],
+  ["plan", "--staged", "--output-tokens", "32769"],
+  ["plan", "--staged", "--output-tokens"],
 ])
   test(`invalid planning arguments fail before requests or Git effects: ${args.join(" ")}`, async (t) => {
     const app = await setup(t);

@@ -7,6 +7,11 @@ export const contextOptions: Option[] = [
       "Total AI token budget, including instructions and output reserve",
   },
   {
+    flags: "--output-tokens <tokens>",
+    description:
+      "AI output/reasoning token limit (256–32768; default: 1024), within the total budget",
+  },
+  {
     flags: "--context-exclude <patterns...>",
     description:
       "Exclude matching repository-relative paths from AI context only",
