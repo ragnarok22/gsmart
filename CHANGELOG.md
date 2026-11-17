@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.2] - 2026-11-17
+
+### Added
+
+- Added `--output-tokens` to configure the output and reasoning token allowance for a single run without changing repository settings
+
+### Fixed
+
+- Improved output-limit diagnostics for API-key and ChatGPT streaming responses, explaining the separate output limit without misidentifying other completion failures
+
 ## [0.17.1] - 2026-11-16
 
 ### Changed
