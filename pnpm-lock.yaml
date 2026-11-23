@@ -183,7 +183,7 @@ importers:
         version: 4.0.122(zod@4.6.7)
       '@ai-sdk/mistral':
         specifier: ^4.0.87
-        version: 4.0.87(zod@4.6.7)
+        version: 4.0.88(zod@4.6.7)
       '@ai-sdk/openai':
         specifier: ^4.0.118
         version: 4.0.118(zod@4.6.7)
@@ -287,8 +287,8 @@ packages:
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
 
-  '@ai-sdk/mistral@4.0.87':
-    resolution: {integrity: sha512-urCiujtNJnoVyhRvn9tZXkCT4Dbe6t/Kjl5S275OHHErHxrKm3uJEs4iAJG2JjNbU06rLGbpAN5B79zqROYitQ==}
+  '@ai-sdk/mistral@4.0.88':
+    resolution: {integrity: sha512-kyZXbGMUUwoHUODl4bsFmHXrtAu/nKxE7TcwD3JBdRI/hFNZGOqT8KcfVmZ8R9bQKFqLcZAG4IZBvPxT3GTKjQ==}
     engines: {node: '>=22'}
     peerDependencies:
       livekit-client: ^2.23.0
@@ -2066,10 +2066,10 @@ snapshots:
       '@ai-sdk/provider-utils': 5.0.82(zod@4.6.7)
       zod: 4.6.7
 
-  '@ai-sdk/mistral@4.0.87(zod@4.6.7)':
+  '@ai-sdk/mistral@4.0.88(zod@4.6.7)':
     dependencies:
-      '@ai-sdk/provider': 4.0.38
-      '@ai-sdk/provider-utils': 5.0.81(zod@4.6.7)
+      '@ai-sdk/provider': 4.0.39
+      '@ai-sdk/provider-utils': 5.0.82(zod@4.6.7)
       zod: 4.6.7
 
   '@ai-sdk/openai-compatible@3.0.92(zod@4.6.7)':
